@@ -68,7 +68,7 @@ jobs:
       - name: Copy CNAME
         run: cp site/CNAME site/dist/CNAME
       - name: Upload pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
 
