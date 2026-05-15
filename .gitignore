@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.env
+.env.*
+*.tgz
+*.log
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+test-results/
+playwright-report/
+__snapshots__/

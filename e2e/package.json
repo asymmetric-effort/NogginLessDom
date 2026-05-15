@@ -1,0 +1,14 @@
+{
+  "name": "nogginlessdom-e2e",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:site": "playwright test --config playwright.config.ts",
+    "test:lib": "bun test ../tests/e2e"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "typescript": "^5.5.0"
+  }
+}

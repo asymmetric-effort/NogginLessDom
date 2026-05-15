@@ -1,0 +1,57 @@
+{
+  "name": "@asymmetric-effort/nogginlessdom",
+  "version": "0.0.1",
+  "description": "A zero-dependency testing framework with vitest and jsdom feature parity, built on node:test and node:assert",
+  "type": "module",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./build/index.js",
+      "types": "./build/index.d.ts"
+    }
+  },
+  "files": [
+    "build/",
+    "LICENSE.txt",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "make clean",
+    "lint": "make lint",
+    "test": "make test",
+    "build": "make build",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asymmetric-effort/NogginLessDom.git"
+  },
+  "keywords": [
+    "testing",
+    "test-runner",
+    "dom",
+    "jsdom",
+    "vitest",
+    "zero-dependency",
+    "security"
+  ],
+  "author": "Asymmetric Effort, LLC",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/asymmetric-effort/NogginLessDom/issues"
+  },
+  "homepage": "https://github.com/asymmetric-effort/NogginLessDom#readme",
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "bun-types": "latest",
+    "eslint": "^9.0.0",
+    "@prantlf/jsonlint": "^16.0.0",
+    "markdownlint-cli": "^0.43.0",
+    "prettier": "^3.0.0",
+    "yaml-lint": "^1.7.0",
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {}
+}
