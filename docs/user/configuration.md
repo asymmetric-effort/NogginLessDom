@@ -194,7 +194,7 @@ API.
 | ---------------- | --------------------------------------------------- |
 | `NODE_ENV`       | Set to `test` during test runs (Bun default)        |
 | `BUN_DEBUG`      | Enable Bun debug output                             |
-| `CI`             | Set in CI environments; can affect reporter output   |
+| `CI`             | Set in CI environments; can affect reporter output  |
 
 ## TypeScript Configuration
 

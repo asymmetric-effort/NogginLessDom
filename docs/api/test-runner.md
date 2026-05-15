@@ -67,7 +67,7 @@ Define an individual test case.
 | --------- | --------------------- | ------------------------------------------------------ |
 | `skip`    | `boolean \| string`   | Skip this test. String value is the reason.            |
 | `only`    | `boolean`             | Run only this test (and others marked `only`).         |
-| `todo`    | `boolean \| string`   | Mark as a TODO. Test runs but failure is not reported.  |
+| `todo`    | `boolean \| string`   | Mark as a TODO. Test runs but failure is not reported. |
 | `timeout` | `number`              | Maximum time in milliseconds before the test fails.    |
 
 **Examples:**
