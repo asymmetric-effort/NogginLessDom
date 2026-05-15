@@ -1,4 +1,4 @@
-import { createElement, useState, useEffect, useHead } from '@asymmetric-effort/specifyjs';
+import { createElement } from '@asymmetric-effort/specifyjs';
 
 interface MarkdownPageProps {
   title: string;
@@ -173,9 +173,10 @@ describe('mocking', () =&gt; {
 };
 
 export function MarkdownPage(props: MarkdownPageProps): ReturnType<typeof createElement> {
-  useHead({
-    title: `${props.title} | NogginLessDom`,
-  });
+  // Set document title imperatively (no hooks needed)
+  if (typeof document !== 'undefined') {
+    document.title = `${props.title} | NogginLessDom`;
+  }
 
   const html = sectionContent[props.section] || '<p>Content not found.</p>';
 

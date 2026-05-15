@@ -1,6 +1,10 @@
 import { createElement } from '@asymmetric-effort/specifyjs';
-import { createRoot } from '@asymmetric-effort/specifyjs/dom';
+import { render } from '@asymmetric-effort/specifyjs/dom';
 import { App } from './App.js';
 
-const root = createRoot(document.getElementById('root')!);
-root.render(createElement(App, null));
+render(createElement(App, null), document.getElementById('root')!);
+
+// Re-render on hash change for SPA routing
+window.addEventListener('hashchange', () => {
+  render(createElement(App, null), document.getElementById('root')!);
+});

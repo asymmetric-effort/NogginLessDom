@@ -1,4 +1,4 @@
-import { createElement, useState, useEffect } from '@asymmetric-effort/specifyjs';
+import { createElement } from '@asymmetric-effort/specifyjs';
 import { Hero } from './Hero.js';
 import { Features } from './Features.js';
 import { QuickStart } from './QuickStart.js';
@@ -10,13 +10,7 @@ function getHash(): string {
 }
 
 export function Router(): ReturnType<typeof createElement> {
-  const [route, setRoute] = useState(getHash());
-
-  useEffect(() => {
-    const handler = (): void => setRoute(getHash());
-    globalThis.addEventListener('hashchange', handler);
-    return (): void => globalThis.removeEventListener('hashchange', handler);
-  }, []);
+  const route = getHash();
 
   switch (route) {
     case '/':
