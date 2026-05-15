@@ -3,6 +3,9 @@
   "version": "0.0.1",
   "description": "A zero-dependency testing framework with vitest and jsdom feature parity, built on node:test and node:assert",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "main": "build/index.js",
   "types": "build/index.d.ts",
   "exports": {
@@ -47,8 +50,7 @@
     "@typescript-eslint/parser": "^8.0.0",
     "bun-types": "latest",
     "eslint": "^9.0.0",
-    "@prantlf/jsonlint": "^16.0.0",
-    "markdownlint-cli": "^0.44.0",
+    "markdownlint-cli": "^0.48.0",
     "prettier": "^3.0.0",
     "yaml-lint": "^1.7.0",
     "typescript": "^5.5.0"

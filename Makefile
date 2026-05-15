@@ -5,6 +5,7 @@ SRC_DIR := src
 TEST_DIR := tests
 BUILD_DIR := build
 VERSION_FILE := VERSION
+BIN := node_modules/.bin
 
 VERSION := $(shell cat $(VERSION_FILE))
 
@@ -25,17 +26,17 @@ clean:
 
 lint:
 	@echo "Running markdownlint..."
-	bunx markdownlint '**/*.md' --ignore node_modules --ignore site
+	bun $(BIN)/markdownlint '**/*.md' --ignore node_modules --ignore site
 	@echo "Running eslint..."
-	bunx eslint $(SRC_DIR)
-	@if find $(TEST_DIR) -name '*.ts' | grep -q .; then bunx eslint $(TEST_DIR); fi
+	bun $(BIN)/eslint $(SRC_DIR)
+	@if find $(TEST_DIR) -name '*.ts' | grep -q .; then bun $(BIN)/eslint $(TEST_DIR); fi
 	@echo "Running yamllint..."
-	@find . -name '*.yml' -o -name '*.yaml' | grep -v node_modules | grep -v site | xargs -r bunx yaml-lint
+	@find . -name '*.yml' -o -name '*.yaml' | grep -v node_modules | grep -v site | xargs -r bun $(BIN)/yamllint
 	@echo "Running jsonlint..."
-	@find . -name '*.json' -not -path '*/node_modules/*' -not -path '*/site/*' -not -name 'bun.lock' | xargs -r -I{} bunx jsonlint -q {}
+	@find . -name '*.json' -not -path '*/node_modules/*' -not -path '*/site/*' -not -name 'bun.lock' -not -name 'package-lock.json' | xargs -r bun scripts/jsonlint.ts
 	@echo "Running prettier check..."
-	bunx prettier --check '$(SRC_DIR)/**/*.ts'
-	@if find $(TEST_DIR) -name '*.ts' | grep -q .; then bunx prettier --check '$(TEST_DIR)/**/*.ts'; fi
+	bun $(BIN)/prettier --check '$(SRC_DIR)/**/*.ts'
+	@if find $(TEST_DIR) -name '*.ts' | grep -q .; then bun $(BIN)/prettier --check '$(TEST_DIR)/**/*.ts'; fi
 	@echo "Lint complete."
 
 test:
@@ -50,7 +51,7 @@ test:
 build: clean
 	@echo "Building $(PROJECT_NAME) v$(VERSION)..."
 	bun build $(SRC_DIR)/index.ts --outdir $(BUILD_DIR) --target node
-	bunx tsc --emitDeclarationOnly
+	bun $(BIN)/tsc --emitDeclarationOnly
 	@echo "Build complete."
 
 SHELL := /bin/bash
