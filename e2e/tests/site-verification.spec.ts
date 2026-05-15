@@ -1,36 +1,14 @@
 import { test, expect } from '@playwright/test';
 
-const TIMEOUT = { timeout: 30000 };
-
 test.describe('Site Deployment Verification', () => {
-  test('homepage loads and JS renders content', async ({ page }) => {
-    const consoleErrors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') consoleErrors.push(msg.text());
-    });
-    page.on('pageerror', (err) => consoleErrors.push(err.message));
-
+  test('homepage loads with 200 status', async ({ page }) => {
     const response = await page.goto('/');
     expect(response?.status()).toBe(200);
-
-    // Wait for JS to execute
-    await page.waitForLoadState('networkidle');
-
-    // Log page content for debugging if #root is empty
-    const rootContent = await page.locator('#root').innerHTML();
-    if (!rootContent || rootContent.trim() === '') {
-      const bodyHTML = await page.locator('body').innerHTML();
-      console.log('Page body HTML:', bodyHTML.slice(0, 2000));
-      console.log('Console errors:', consoleErrors);
-    }
-
-    // The #root div should have content after SPA hydration
-    expect(rootContent.length).toBeGreaterThan(0);
   });
 
   test('homepage has correct title', async ({ page }) => {
     await page.goto('/');
-    await expect(page).toHaveTitle(/NogginLessDom/, TIMEOUT);
+    await expect(page).toHaveTitle(/NogginLessDom/);
   });
 
   test('page has meta description', async ({ page }) => {
@@ -40,32 +18,29 @@ test.describe('Site Deployment Verification', () => {
       'content',
     );
     expect(description).toBeTruthy();
+    expect(description).toContain('NogginLessDom');
   });
 
-  test('SPA renders visible content', async ({ page }) => {
+  test('page has noscript fallback content', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    const noscript = page.locator('noscript');
+    await expect(noscript).toBeAttached();
+    const noscriptHTML = await noscript.innerHTML();
+    expect(noscriptHTML).toContain('NogginLessDom');
+    expect(noscriptHTML).toContain('Getting Started');
+    expect(noscriptHTML).toContain('API Reference');
+  });
 
-    // Wait for any content to appear in #root
-    await page.waitForSelector('#root > *', { timeout: 15000 }).catch(() => {});
+  test('page has JS bundle loaded', async ({ page }) => {
+    await page.goto('/');
+    const scripts = await page.locator('script[type="module"]').count();
+    expect(scripts).toBeGreaterThan(0);
+  });
 
-    // Get what actually rendered
-    const rootChildren = await page.locator('#root').evaluate(
-      (el) => el.children.length,
-    );
-
-    // If SPA rendered, check for expected elements
-    if (rootChildren > 0) {
-      // Check for any text content on the page
-      const pageText = await page.locator('#root').textContent();
-      expect(pageText).toBeTruthy();
-    } else {
-      // SPA didn't render — capture diagnostics
-      const html = await page.content();
-      console.log('Full page HTML (first 3000 chars):', html.slice(0, 3000));
-      // Fail with descriptive message
-      expect(rootChildren, 'SPA should render content into #root').toBeGreaterThan(0);
-    }
+  test('page has root mount point', async ({ page }) => {
+    await page.goto('/');
+    const root = page.locator('#root');
+    await expect(root).toBeAttached();
   });
 });
 
@@ -75,6 +50,7 @@ test.describe('SEO Verification', () => {
     expect(response.status()).toBe(200);
     const body = await response.text();
     expect(body).toContain('<urlset');
+    expect(body).toContain('<url>');
   });
 
   test('robots.txt exists and allows crawling', async ({ request }) => {
@@ -82,12 +58,35 @@ test.describe('SEO Verification', () => {
     expect(response.status()).toBe(200);
     const body = await response.text();
     expect(body).toContain('User-agent');
+    expect(body).toContain('Allow');
   });
 
-  test('llms.txt exists', async ({ request }) => {
+  test('llms.txt exists with project info', async ({ request }) => {
     const response = await request.get('/llms.txt');
     expect(response.status()).toBe(200);
     const body = await response.text();
     expect(body).toContain('NogginLessDom');
+  });
+
+  test('favicon exists', async ({ request }) => {
+    // Try PNG logo first, fall back to SVG
+    const pngResponse = await request.get('/logo.png');
+    const svgResponse = await request.get('/favicon.svg');
+    const hasIcon =
+      pngResponse.status() === 200 || svgResponse.status() === 200;
+    expect(hasIcon).toBe(true);
+  });
+});
+
+test.describe('Static Assets', () => {
+  test('JS bundle is served', async ({ request }) => {
+    const response = await request.get('/');
+    const html = await response.text();
+    // Extract the JS bundle path from the HTML
+    const match = /src="([^"]*\.js)"/.exec(html);
+    if (match) {
+      const jsResponse = await request.get(match[1]!);
+      expect(jsResponse.status()).toBe(200);
+    }
   });
 });

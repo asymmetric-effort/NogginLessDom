@@ -1,7 +1,7 @@
 # Assertions API Reference
 
 The assertions module wraps Node.js's built-in `node:assert` module to provide
-a vitest-compatible `expect()` API with chainable matchers.
+a full-featured `expect()` API with chainable matchers.
 
 ```typescript
 import { expect } from '@asymmetric-effort/nogginlessdom';

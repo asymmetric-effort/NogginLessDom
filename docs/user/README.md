@@ -17,18 +17,6 @@ what gets installed.
 How to configure test file patterns, coverage thresholds, DOM options, and
 custom reporters through `bunfig.toml` and other configuration files.
 
-### [Migration from Vitest](migration-from-vitest.md)
-
-A step-by-step guide for migrating an existing vitest test suite to
-NogginLessDom. Includes a side-by-side API comparison table, import changes,
-configuration translation, feature parity status, and known differences.
-
-### [Migration from jsdom](migration-from-jsdom.md)
-
-A step-by-step guide for replacing jsdom with NogginLessDom's built-in DOM
-simulation. Covers API differences, document creation, element querying, event
-handling, and workarounds for missing features.
-
 ## Why NogginLessDom?
 
 ### Zero Dependencies
@@ -54,17 +42,17 @@ These are battle-tested, maintained by the Node.js team, and guaranteed to be
 available in every Node.js environment. NogginLessDom adds a familiar API layer
 on top without reinventing the core functionality.
 
-### Vitest API Compatibility
+### Familiar Testing API
 
-If you know vitest, you know NogginLessDom. The `describe`, `it`, `expect`,
-`fn`, and `spyOn` APIs are designed to be drop-in replacements. Migration is
-primarily an import change.
+NogginLessDom provides the `describe`, `it`, `expect`, `fn`, and `spyOn` APIs
+that developers already know from modern testing frameworks. The interface
+follows widely adopted conventions, so getting started is straightforward.
 
-### jsdom-Compatible DOM
+### Full-Featured DOM Simulation
 
-The built-in DOM simulation means you do not need jsdom as a separate
-dependency. Create documents, query elements, dispatch events, and test UI
-logic -- all from the same zero-dependency package.
+The built-in DOM simulation means you do not need any separate DOM library.
+Create documents, query elements, dispatch events, and test UI logic -- all
+from the same zero-dependency package.
 
 ## Quick Start
 

@@ -21,9 +21,9 @@ Every architectural decision in NogginLessDom is guided by these principles:
    dynamic code execution. HTML input is validated and sanitized through
    deterministic parsing, not regular expressions operating on untrusted input.
 
-4. **API compatibility.** The public API mirrors vitest and jsdom as closely as
-   possible. Users migrating from those tools should find the transition
-   straightforward, with identical function signatures and equivalent behavior.
+4. **API compatibility.** The public API follows widely adopted testing
+   conventions. The function signatures and behavior match what developers
+   expect from a modern testing framework, making adoption straightforward.
 
 5. **Explicit over implicit.** The framework avoids magic globals, hidden
    configuration, and auto-detection. Behavior is controlled through explicit
@@ -37,7 +37,7 @@ entry point.
 
 ### test-runner (`src/test-runner/`)
 
-Wraps the built-in `node:test` module to provide a vitest-compatible test runner
+Wraps the built-in `node:test` module to provide a comprehensive test runner
 interface. Exports:
 
 - `describe(name, fn)` -- Define a test suite. Delegates to `node:test`'s
@@ -72,7 +72,7 @@ inner matcher, mapping to `assert.rejects` where applicable.
 
 ### dom (`src/dom/`)
 
-Provides a jsdom-equivalent DOM simulation without any third-party code. This is
+Provides a complete DOM environment for testing without any third-party code. This is
 the largest and most complex module. Key classes:
 
 - **`Document`** -- The root of the DOM tree. Supports `createElement`,

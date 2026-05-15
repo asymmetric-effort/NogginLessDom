@@ -12,6 +12,13 @@ export function Hero(): ReturnType<typeof createElement> {
         fontFamily: 'system-ui, sans-serif',
       },
     },
+    createElement('img', {
+      src: '/logo.png',
+      alt: 'NogginLessDom',
+      width: '96',
+      height: '96',
+      style: { borderRadius: '16px', marginBottom: '1.5rem' },
+    }),
     createElement(
       'h1',
       { style: { fontSize: '3rem', fontWeight: 'bold', marginBottom: '1rem', color: '#fff' } },

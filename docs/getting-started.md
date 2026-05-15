@@ -54,7 +54,7 @@ execution and reporting that Node.js provides natively.
 ## Assertions
 
 NogginLessDom provides an `expect()` function with chainable matchers that
-mirror the vitest API:
+mirror familiar testing conventions:
 
 ```typescript
 import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
@@ -87,8 +87,8 @@ describe('Assertions', () => {
 
 ## DOM Testing
 
-NogginLessDom includes a jsdom-compatible DOM simulation. You do not need to
-install jsdom or any other DOM library.
+NogginLessDom includes a full-featured DOM simulation. You do not need to
+install any separate DOM library.
 
 ```typescript
 import {

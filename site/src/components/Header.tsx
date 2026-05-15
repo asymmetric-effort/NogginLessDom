@@ -21,6 +21,9 @@ export function Header(): ReturnType<typeof createElement> {
       {
         href: '#/',
         style: {
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
           fontSize: '1.25rem',
           fontWeight: 'bold',
           color: '#00d4aa',
@@ -28,6 +31,13 @@ export function Header(): ReturnType<typeof createElement> {
           fontFamily: 'monospace',
         },
       },
+      createElement('img', {
+        src: '/logo.png',
+        alt: 'NogginLessDom',
+        width: '32',
+        height: '32',
+        style: { borderRadius: '6px' },
+      }),
       'NogginLessDom',
     ),
     createElement(

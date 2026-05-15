@@ -1,7 +1,7 @@
 # Test Runner API Reference
 
 The test runner module wraps Node.js's built-in `node:test` module to provide a
-vitest-compatible interface for organizing and running tests.
+familiar interface for organizing and running tests.
 
 ```typescript
 import {
@@ -215,7 +215,7 @@ describe('API Integration', () => {
 
 **How it works:** Delegates to `node:test`'s `before()` (note the name
 difference -- `node:test` uses `before`, NogginLessDom uses `beforeAll` to match
-vitest's API).
+the conventional `beforeAll`/`afterAll` naming).
 
 ### `afterAll(fn)`
 
@@ -239,8 +239,8 @@ for cleanup that corresponds to `beforeAll` setup.
 | `test`          | `it`             | Alias for `it`                 |
 | `beforeEach`    | `beforeEach`     | Direct delegation              |
 | `afterEach`     | `afterEach`      | Direct delegation              |
-| `beforeAll`     | `before`         | Name change for vitest compat  |
-| `afterAll`      | `after`          | Name change for vitest compat  |
+| `beforeAll`     | `before`         | Conventional naming            |
+| `afterAll`      | `after`          | Conventional naming            |
 
 ## Type Definitions
 

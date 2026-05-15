@@ -1,7 +1,7 @@
 # DOM API Reference
 
-The DOM module provides a jsdom-equivalent DOM simulation built entirely from
-scratch with zero third-party dependencies. It implements the core DOM
+The DOM module provides a complete DOM environment for testing, built entirely
+from scratch with zero third-party dependencies. It implements the core DOM
 interfaces needed for testing web application UI logic: document creation,
 element manipulation, tree traversal, CSS selector queries, and event handling.
 

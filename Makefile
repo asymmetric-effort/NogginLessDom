@@ -1,4 +1,4 @@
-.PHONY: clean lint test build release release/minor release/major
+.PHONY: setup clean lint test build release release/minor release/major
 
 PROJECT_NAME := nogginlessdom
 SRC_DIR := src
@@ -7,6 +7,13 @@ BUILD_DIR := build
 VERSION_FILE := VERSION
 
 VERSION := $(shell cat $(VERSION_FILE))
+
+setup:
+	@echo "Installing git hooks..."
+	@bash git-hooks/setup.sh
+	@echo "Installing dependencies..."
+	bun install
+	@echo "Setup complete."
 
 clean:
 	@echo "Cleaning..."

@@ -138,7 +138,7 @@ NogginLessDom/
     test-runner/           # Test runner wrapping node:test
       index.ts
     assertions/            # Assertion library wrapping node:assert
-    dom/                   # DOM simulation (jsdom equivalent)
+    dom/                   # Built-in DOM simulation
     mocking/               # Mock functions, spies, and timer mocking
   tests/                   # Test suites
     unit/                  # Unit tests (isolated function/class tests)

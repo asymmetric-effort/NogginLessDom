@@ -23,7 +23,7 @@ import {
 
 ### Test Runner
 
-The test runner wraps `node:test` to provide a vitest-compatible API for
+The test runner wraps `node:test` to provide a comprehensive API for
 defining test suites, test cases, and lifecycle hooks.
 
 **Exports:** `describe`, `it`, `test`, `beforeEach`, `afterEach`, `beforeAll`,
@@ -43,7 +43,7 @@ inspection, exception testing, and async assertions.
 
 ### DOM Simulation
 
-The DOM module provides a jsdom-equivalent DOM simulation built from scratch
+The DOM module provides a complete DOM environment for testing, built from scratch
 with zero dependencies. It implements the core DOM interfaces needed for testing
 web applications: document creation, element manipulation, tree traversal, CSS
 selector queries, and event dispatching.
@@ -72,7 +72,7 @@ the assertions, or only the DOM simulation as your use case requires.
 Every function maps directly to a Node.js built-in API or is implemented from
 scratch within the package. No third-party code is involved at any layer.
 
-The API surface is intentionally compatible with vitest. If you are familiar
-with vitest's `describe`, `it`, `expect`, `fn`, and `spyOn`, you already know
-how to use NogginLessDom. The DOM API follows the jsdom/browser DOM standard as
-closely as practical.
+The API surface follows widely adopted testing conventions. If you are familiar
+with `describe`, `it`, `expect`, `fn`, and `spyOn`, you already know how to use
+NogginLessDom. The DOM API follows the browser DOM standard as closely as
+practical.

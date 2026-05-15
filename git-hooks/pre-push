@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running pre-push checks..."
+
+# Run full test suite
+make test
+
+# Verify build
+make build
+
+echo "Pre-push checks passed."

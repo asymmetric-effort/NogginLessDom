@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "Running pre-commit checks..."
+
+# Lint staged files
+make lint
+
+echo "Pre-commit checks passed."

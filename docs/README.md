@@ -1,9 +1,10 @@
 # NogginLessDom Documentation
 
 NogginLessDom (`@asymmetric-effort/nogginlessdom`) is a zero-dependency testing
-framework that provides vitest and jsdom feature parity using only Node.js
-built-in modules. It wraps `node:test` and `node:assert` to deliver a familiar
-testing API while eliminating the entire third-party supply chain attack surface.
+framework built entirely on Node.js built-in modules. It wraps `node:test` and
+`node:assert` to deliver a comprehensive test runner, assertion library, DOM
+simulation, and mocking utilities while eliminating the entire third-party
+supply chain attack surface.
 
 ## Documentation Sections
 
@@ -47,12 +48,6 @@ testing API while eliminating the entire third-party supply chain attack surface
   the install, and TypeScript setup.
 - [Configuration](user/configuration.md) -- Test file patterns, `bunfig.toml`
   settings, coverage thresholds, DOM options, and custom reporters.
-- [Migration from Vitest](user/migration-from-vitest.md) -- Side-by-side API
-  comparison, import changes, configuration translation, and step-by-step
-  migration.
-- [Migration from jsdom](user/migration-from-jsdom.md) -- API differences,
-  document creation, event handling, missing features, and step-by-step
-  migration.
 
 ## Quick Links
 
