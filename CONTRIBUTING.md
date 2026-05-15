@@ -14,22 +14,30 @@ By participating in this project, you agree to abide by our
 
 1. **Fork** the repository on GitHub.
 2. **Clone** your fork locally:
+
    ```bash
    git clone git@github.com:<your-username>/NogginLessDom.git
    cd NogginLessDom
    ```
+
 3. **Add the upstream remote**:
+
    ```bash
    git remote add upstream git@github.com:asymmetric-effort/NogginLessDom.git
    ```
+
 4. **Install dependencies**:
+
    ```bash
    bun install
    ```
+
 5. **Create a feature branch** from `main`:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
+
 6. Make your changes, write tests, and verify everything passes.
 7. **Push** to your fork and open a Pull Request against `main`.
 
@@ -59,7 +67,8 @@ Write clear, descriptive commit messages following these conventions:
   - `ci:` -- CI/CD configuration changes
 
 Example:
-```
+
+```text
 feat: add querySelector support for attribute selectors
 
 Implement CSS attribute selector matching in querySelector and

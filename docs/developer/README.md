@@ -48,17 +48,17 @@ checklist.
 
 ## Quick Reference
 
-| Task                  | Command           |
-| --------------------- | ----------------- |
-| Install dependencies  | `bun install`     |
-| Run all tests         | `make test`       |
-| Run linters           | `make lint`       |
-| Build                 | `make build`      |
-| Clean build artifacts | `make clean`      |
-| Type check only       | `bun run typecheck` |
-| Release (patch)       | `make release`    |
-| Release (minor)       | `make release/minor` |
-| Release (major)       | `make release/major` |
+| Task                  | Command                |
+| --------------------- | ---------------------- |
+| Install dependencies  | `bun install`          |
+| Run all tests         | `make test`            |
+| Run linters           | `make lint`            |
+| Build                 | `make build`           |
+| Clean build artifacts | `make clean`           |
+| Type check only       | `bun run typecheck`    |
+| Release (patch)       | `make release`         |
+| Release (minor)       | `make release/minor`   |
+| Release (major)       | `make release/major`   |
 
 ## Related Documents
 

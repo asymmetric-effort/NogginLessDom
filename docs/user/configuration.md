@@ -71,11 +71,11 @@ coverageThreshold = { line = 98, function = 98, statement = 98 }
 
 Coverage threshold fields:
 
-| Field       | Description                                   |
-| ----------- | --------------------------------------------- |
-| `line`      | Minimum percentage of lines covered            |
-| `function`  | Minimum percentage of functions covered         |
-| `statement` | Minimum percentage of statements covered        |
+| Field       | Description                                |
+| ----------- | ------------------------------------------ |
+| `line`      | Minimum percentage of lines covered        |
+| `function`  | Minimum percentage of functions covered    |
+| `statement` | Minimum percentage of statements covered   |
 
 If any threshold is not met, the test run fails with a non-zero exit code.
 
@@ -190,11 +190,11 @@ API.
 
 ## Environment Variables
 
-| Variable         | Description                                        |
-| ---------------- | -------------------------------------------------- |
-| `NODE_ENV`       | Set to `test` during test runs (Bun default)       |
-| `BUN_DEBUG`      | Enable Bun debug output                            |
-| `CI`             | Set in CI environments; can affect reporter output  |
+| Variable         | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| `NODE_ENV`       | Set to `test` during test runs (Bun default)        |
+| `BUN_DEBUG`      | Enable Bun debug output                             |
+| `CI`             | Set in CI environments; can affect reporter output   |
 
 ## TypeScript Configuration
 

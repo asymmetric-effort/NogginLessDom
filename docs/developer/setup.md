@@ -161,14 +161,14 @@ NogginLessDom/
 
 ### Key Files
 
-| File              | Purpose                                           |
-| ----------------- | ------------------------------------------------- |
-| `src/index.ts`    | Entry point. Exports all public APIs.             |
-| `Makefile`        | All build, test, lint, and release automation.    |
-| `package.json`    | npm package manifest. `dependencies` must be `{}`. |
-| `tsconfig.json`   | Strict TypeScript config targeting ESNext.        |
-| `bunfig.toml`     | Bun test config with 98% coverage thresholds.     |
-| `VERSION`         | Plain text file containing the current semver.    |
+| File              | Purpose                                             |
+| ----------------- | --------------------------------------------------- |
+| `src/index.ts`    | Entry point. Exports all public APIs.               |
+| `Makefile`        | All build, test, lint, and release automation.      |
+| `package.json`    | npm package manifest. `dependencies` must be `{}`.  |
+| `tsconfig.json`   | Strict TypeScript config targeting ESNext.          |
+| `bunfig.toml`     | Bun test config with 98% coverage thresholds.       |
+| `VERSION`         | Plain text file containing the current semver.      |
 
 ## Workflow Summary
 

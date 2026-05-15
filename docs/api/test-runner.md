@@ -24,10 +24,10 @@ structures.
 
 **Parameters:**
 
-| Parameter | Type                        | Description             |
-| --------- | --------------------------- | ----------------------- |
-| `name`    | `string`                    | Name of the test suite  |
-| `fn`      | `() => void \| Promise<void>` | Suite body containing tests |
+| Parameter | Type                            | Description                 |
+| --------- | ------------------------------- | --------------------------- |
+| `name`    | `string`                        | Name of the test suite      |
+| `fn`      | `() => void \| Promise<void>`   | Suite body containing tests |
 
 **Example:**
 
@@ -55,20 +55,20 @@ Define an individual test case.
 
 **Parameters:**
 
-| Parameter | Type                        | Description                |
-| --------- | --------------------------- | -------------------------- |
-| `name`    | `string`                    | Name of the test case      |
-| `fn`      | `() => void \| Promise<void>` | Test function              |
-| `options` | `TestOptions` (optional)    | Test configuration options |
+| Parameter | Type                            | Description                |
+| --------- | ------------------------------- | -------------------------- |
+| `name`    | `string`                        | Name of the test case      |
+| `fn`      | `() => void \| Promise<void>`   | Test function              |
+| `options` | `TestOptions` (optional)        | Test configuration options |
 
 **TestOptions:**
 
-| Option    | Type                  | Description                              |
-| --------- | --------------------- | ---------------------------------------- |
-| `skip`    | `boolean \| string`   | Skip this test. String value is the reason. |
-| `only`    | `boolean`             | Run only this test (and others marked `only`). |
-| `todo`    | `boolean \| string`   | Mark as a TODO. Test runs but failure is not reported. |
-| `timeout` | `number`              | Maximum time in milliseconds before the test fails. |
+| Option    | Type                  | Description                                            |
+| --------- | --------------------- | ------------------------------------------------------ |
+| `skip`    | `boolean \| string`   | Skip this test. String value is the reason.            |
+| `only`    | `boolean`             | Run only this test (and others marked `only`).         |
+| `todo`    | `boolean \| string`   | Mark as a TODO. Test runs but failure is not reported.  |
+| `timeout` | `number`              | Maximum time in milliseconds before the test fails.    |
 
 **Examples:**
 
@@ -127,9 +127,9 @@ etc.).
 
 **Parameters:**
 
-| Parameter | Type                        | Description       |
-| --------- | --------------------------- | ----------------- |
-| `fn`      | `() => void \| Promise<void>` | Setup function    |
+| Parameter | Type                            | Description      |
+| --------- | ------------------------------- | ---------------- |
+| `fn`      | `() => void \| Promise<void>`   | Setup function   |
 
 **Example:**
 
@@ -158,9 +158,9 @@ teardown: closing connections, restoring mocks, cleaning up files.
 
 **Parameters:**
 
-| Parameter | Type                        | Description       |
-| --------- | --------------------------- | ----------------- |
-| `fn`      | `() => void \| Promise<void>` | Teardown function |
+| Parameter | Type                            | Description       |
+| --------- | ------------------------------- | ----------------- |
+| `fn`      | `() => void \| Promise<void>`   | Teardown function |
 
 **Example:**
 
@@ -188,9 +188,9 @@ large datasets).
 
 **Parameters:**
 
-| Parameter | Type                        | Description           |
-| --------- | --------------------------- | --------------------- |
-| `fn`      | `() => void \| Promise<void>` | One-time setup function |
+| Parameter | Type                            | Description             |
+| --------- | ------------------------------- | ----------------------- |
+| `fn`      | `() => void \| Promise<void>`   | One-time setup function |
 
 **Example:**
 
@@ -224,9 +224,9 @@ for cleanup that corresponds to `beforeAll` setup.
 
 **Parameters:**
 
-| Parameter | Type                        | Description              |
-| --------- | --------------------------- | ------------------------ |
-| `fn`      | `() => void \| Promise<void>` | One-time teardown function |
+| Parameter | Type                            | Description                |
+| --------- | ------------------------------- | -------------------------- |
+| `fn`      | `() => void \| Promise<void>`   | One-time teardown function |
 
 **How it works:** Delegates to `node:test`'s `after()`.
 

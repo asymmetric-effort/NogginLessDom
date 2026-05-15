@@ -22,9 +22,9 @@ implementation is provided, the mock function returns `undefined` when called.
 
 **Parameters:**
 
-| Parameter        | Type                   | Description                     |
-| ---------------- | ---------------------- | ------------------------------- |
-| `implementation` | `(...args: any[]) => any` | Optional function implementation |
+| Parameter        | Type                       | Description                      |
+| ---------------- | -------------------------- | -------------------------------- |
+| `implementation` | `(...args: any[]) => any`  | Optional function implementation |
 
 **Returns:** A mock function with the `MockInstance` interface.
 

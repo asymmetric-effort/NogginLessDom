@@ -137,13 +137,13 @@ type support:
 
 The published package contains:
 
-| Path              | Contents                                      |
-| ----------------- | --------------------------------------------- |
-| `build/index.js`  | Bundled JavaScript (ESM, Node target)         |
-| `build/index.d.ts`| TypeScript type declarations                  |
-| `build/*.map`     | Source maps for debugging and IDE navigation   |
-| `LICENSE.txt`     | MIT license                                   |
-| `README.md`       | Package readme                                |
+| Path               | Contents                                       |
+| ------------------ | ---------------------------------------------- |
+| `build/index.js`   | Bundled JavaScript (ESM, Node target)          |
+| `build/index.d.ts` | TypeScript type declarations                   |
+| `build/*.map`      | Source maps for debugging and IDE navigation   |
+| `LICENSE.txt`      | MIT license                                    |
+| `README.md`        | Package readme                                 |
 
 Source code, tests, documentation, and build configuration are **not** included
 in the published package. The install footprint is minimal.
