@@ -47,7 +47,7 @@
     "@typescript-eslint/parser": "^8.0.0",
     "bun-types": "latest",
     "eslint": "^9.0.0",
-    "@prantlf/jsonlint": "^16.0.0",
+    "@prantlf/jsonlint": "^17.0.1",
     "markdownlint-cli": "^0.44.0",
     "prettier": "^3.0.0",
     "yaml-lint": "^1.7.0",
