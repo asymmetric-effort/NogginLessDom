@@ -8,7 +8,14 @@ const PROJECT_ROOT = resolve(import.meta.dirname, '../../');
 function getAllMarkdownFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
-    if (entry === 'node_modules' || entry === 'site' || entry === '.git' || entry === 'build' || entry === 'e2e') continue;
+    if (
+      entry === 'node_modules' ||
+      entry === 'site' ||
+      entry === '.git' ||
+      entry === 'build' ||
+      entry === 'e2e'
+    )
+      continue;
     const full = join(dir, entry);
     const stat = statSync(full);
     if (stat.isDirectory()) {
