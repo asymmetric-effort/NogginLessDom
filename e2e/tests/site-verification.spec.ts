@@ -81,9 +81,11 @@ test.describe('SPA Rendering Verification', () => {
     await page.waitForLoadState('networkidle');
     await page.waitForSelector('#root > *', TIMEOUT);
     await expect(
-      page.locator('#root a[href="#/getting-started"]'),
+      page.locator('#root header a[href="#/getting-started"]'),
     ).toBeVisible(TIMEOUT);
-    await expect(page.locator('#root a[href="#/api"]')).toBeVisible(TIMEOUT);
+    await expect(
+      page.locator('#root header a[href="#/api"]'),
+    ).toBeVisible(TIMEOUT);
   });
 
   test('SPA renders footer', async ({ page }) => {
