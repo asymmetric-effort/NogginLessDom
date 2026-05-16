@@ -5,7 +5,6 @@
     "": {
       "name": "@asymmetric-effort/nogginlessdom",
       "devDependencies": {
-        "@asymmetric-effort/jsonlint": "^0.0.1",
         "@typescript-eslint/eslint-plugin": "^8.59.0",
         "@typescript-eslint/parser": "^8.59.0",
         "bun-types": "latest",
@@ -17,8 +16,6 @@
     },
   },
   "packages": {
-    "@asymmetric-effort/jsonlint": ["@asymmetric-effort/jsonlint@0.0.1", "", { "bin": { "jsonlint": "bin/jsonlint" } }, "sha512-JRgoi1yRrZeakLttX1vJ3MUDP1zicj11llKHu0apDaH8drlFBo15qg4DB8LK4IwGHvn8ZD4m1anpVRMCe0KZoA=="],
-
     "@eslint-community/eslint-utils": ["@eslint-community/eslint-utils@4.9.1", "", { "dependencies": { "eslint-visitor-keys": "^3.4.3" }, "peerDependencies": { "eslint": "^6.0.0 || ^7.0.0 || >=8.0.0" } }, ""],
 
     "@eslint-community/regexpp": ["@eslint-community/regexpp@4.12.2", "", {}, ""],
