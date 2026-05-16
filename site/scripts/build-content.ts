@@ -50,6 +50,87 @@ function stripReadmeHeader(markdown: string): string {
   return result.trim();
 }
 
+// Build a reverse map: file path → hash route for link rewriting
+const fileToRoute = new Map<string, string>();
+for (const [filePath, key] of routeMap) {
+  fileToRoute.set(filePath, `#/${key === 'home' ? '' : key}`);
+  // Also map without docs/ prefix for relative links from within docs/
+  if (filePath.startsWith('docs/')) {
+    fileToRoute.set(filePath.slice(5), `#/${key}`);
+  }
+}
+
+const GITHUB_BASE = 'https://github.com/asymmetric-effort/NogginLessDom/blob/main/';
+
+/**
+ * Rewrite links in generated HTML:
+ * - Relative .md links → hash routes (#/route)
+ * - Root files (CONTRIBUTING.md, SECURITY.md, LICENSE.txt) → GitHub URLs
+ * - Directory links (docs/api/) → hash routes
+ */
+function rewriteLinks(html: string, sourceKey: string): string {
+  return html.replace(/href="([^"]+)"/g, (_match, href: string) => {
+    // Skip external links and already-hash links
+    if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#')) {
+      return `href="${href}"`;
+    }
+
+    // Resolve relative paths based on source file location
+    let resolved = href;
+    const sourceDir = sourceKey.includes('/') ? sourceKey.replace(/\/[^/]+$/, '') : '';
+
+    // Strip anchor fragments for lookup
+    const anchorIdx = resolved.indexOf('#');
+    const anchor = anchorIdx !== -1 ? resolved.slice(anchorIdx) : '';
+    const pathOnly = anchorIdx !== -1 ? resolved.slice(0, anchorIdx) : resolved;
+
+    if (pathOnly === '') {
+      // Pure anchor link
+      return `href="${href}"`;
+    }
+
+    // Try to resolve relative to source directory
+    // sourceKey 'developer' means the file is docs/developer/README.md
+    // so relative links like 'setup.md' should resolve to docs/developer/setup.md
+    const candidates = [
+      pathOnly,
+      sourceDir ? `${sourceDir}/${pathOnly}` : pathOnly,
+      `${sourceKey}/${pathOnly}`,
+      `docs/${pathOnly}`,
+      `docs/${sourceDir}/${pathOnly}`,
+      `docs/${sourceKey}/${pathOnly}`,
+    ];
+
+    for (const candidate of candidates) {
+      // Normalize: remove ../ and ./
+      const normalized = candidate
+        .replace(/^\.\//, '')
+        .replace(/[^/]+\/\.\.\//g, '')
+        .replace(/\/+/g, '/');
+
+      if (fileToRoute.has(normalized)) {
+        return `href="${fileToRoute.get(normalized)!}${anchor}"`;
+      }
+
+      // Try with /README.md for directory links
+      const dirReadme = normalized.replace(/\/$/, '') + '/README.md';
+      if (fileToRoute.has(dirReadme)) {
+        return `href="${fileToRoute.get(dirReadme)!}${anchor}"`;
+      }
+    }
+
+    // Root project files → GitHub links
+    if (pathOnly.match(/^(\.\.\/)*[A-Z][A-Z_]+\.(md|txt)$/)) {
+      const filename = pathOnly.replace(/^\.\.\//g, '');
+      return `href="${GITHUB_BASE}${filename}"`;
+    }
+
+    // Unresolved — point to GitHub as fallback
+    const cleanPath = pathOnly.replace(/^\.\.\//g, '');
+    return `href="${GITHUB_BASE}${cleanPath}"`;
+  });
+}
+
 function main() {
   if (!existsSync(OUT_DIR)) {
     mkdirSync(OUT_DIR, { recursive: true });
@@ -72,7 +153,8 @@ function main() {
     }
 
     const title = extractTitle(markdown);
-    const html = markdownToHtml(markdown);
+    const rawHtml = markdownToHtml(markdown);
+    const html = rewriteLinks(rawHtml, key);
 
     entries[key] = { title, html };
     console.log(`  ${key}: "${title}" (${html.length} bytes)`);
