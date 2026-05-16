@@ -205,7 +205,7 @@ test.describe('Page Enumeration via Sitemap', () => {
       const rootContent = await page.locator('#root').innerHTML();
       expect(
         rootContent.trim().length,
-        `${path} should have non-empty #root content`,
+        `${hash || '/'} should have non-empty #root content`,
       ).toBeGreaterThan(0);
     }
   });

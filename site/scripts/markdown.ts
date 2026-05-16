@@ -1,7 +1,12 @@
 /**
  * Simple markdown-to-HTML converter.
  * Zero dependencies — handles the subset of markdown used in the project docs.
+ *
+ * Dogfoods NogginLessDom's own DOM classes (Document, Element, TextNode)
+ * instead of string concatenation, proving the DOM implementation's correctness.
  */
+
+import { Document, Element, TextNode } from '../../src/dom/index.js';
 
 function escapeHtml(text: string): string {
   return text
@@ -10,6 +15,10 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;');
 }
 
+/**
+ * Process inline markdown formatting and return an HTML string.
+ * This string is then set via element.innerHTML to create proper DOM nodes.
+ */
 function processInline(text: string): string {
   // Images: ![alt](src)
   text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" />');
@@ -24,9 +33,25 @@ function processInline(text: string): string {
   return text;
 }
 
+/**
+ * Set the inline-formatted content of an element.
+ * Uses innerHTML setter (our own HTML parser) to parse inline markup.
+ */
+function setInlineContent(el: Element, rawText: string): void {
+  const html = processInline(escapeHtml(rawText));
+  // If there's no inline formatting, just use a text node (avoids parser round-trip)
+  if (html === escapeHtml(rawText)) {
+    el.textContent = rawText;
+  } else {
+    el.innerHTML = html;
+  }
+}
+
 export function markdownToHtml(markdown: string): string {
+  const doc = new Document();
+  const container = doc.createElement('div');
+
   const lines = markdown.split('\n');
-  const output: string[] = [];
   let i = 0;
 
   while (i < lines.length) {
@@ -49,8 +74,15 @@ export function markdownToHtml(markdown: string): string {
         i++;
       }
       i++; // skip closing ```
-      const langAttr = lang ? ` class="language-${lang}"` : '';
-      output.push(`<pre><code${langAttr}>${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+
+      const pre = doc.createElement('pre');
+      const code = doc.createElement('code');
+      if (lang) {
+        code.setAttribute('class', `language-${lang}`);
+      }
+      code.appendChild(doc.createTextNode(codeLines.join('\n')));
+      pre.appendChild(code);
+      container.appendChild(pre);
       continue;
     }
 
@@ -58,15 +90,17 @@ export function markdownToHtml(markdown: string): string {
     const headingMatch = line.match(/^(#{1,6})\s+(.+)/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      const text = processInline(escapeHtml(headingMatch[2]));
-      output.push(`<h${level}>${text}</h${level}>`);
+      const heading = doc.createElement(`h${level}`);
+      setInlineContent(heading, headingMatch[2]);
+      container.appendChild(heading);
       i++;
       continue;
     }
 
     // Horizontal rule
     if (/^(-{3,}|_{3,}|\*{3,})\s*$/.test(line.trim())) {
-      output.push('<hr />');
+      const hr = doc.createElement('hr');
+      container.appendChild(hr);
       i++;
       continue;
     }
@@ -78,7 +112,10 @@ export function markdownToHtml(markdown: string): string {
         quoteLines.push(lines[i].trimStart().replace(/^>\s?/, ''));
         i++;
       }
-      output.push(`<blockquote>${markdownToHtml(quoteLines.join('\n'))}</blockquote>`);
+      const blockquote = doc.createElement('blockquote');
+      // Recursively convert the blockquote content
+      blockquote.innerHTML = markdownToHtml(quoteLines.join('\n'));
+      container.appendChild(blockquote);
       continue;
     }
 
@@ -86,7 +123,6 @@ export function markdownToHtml(markdown: string): string {
     if (line.includes('|') && i + 1 < lines.length && /^\s*\|?\s*[-:]+[-|:\s]+\s*$/.test(lines[i + 1])) {
       const parseRow = (row: string): string[] => {
         return row.split('|').map(c => c.trim()).filter((_, idx, arr) => {
-          // filter empty first/last from leading/trailing |
           if (idx === 0 && arr[idx] === '') return false;
           if (idx === arr.length - 1 && arr[idx] === '') return false;
           return true;
@@ -100,20 +136,30 @@ export function markdownToHtml(markdown: string): string {
         rows.push(parseRow(lines[i]));
         i++;
       }
-      let table = '<table><thead><tr>';
+
+      const table = doc.createElement('table');
+      const thead = doc.createElement('thead');
+      const headerRow = doc.createElement('tr');
       for (const h of headers) {
-        table += `<th>${processInline(escapeHtml(h))}</th>`;
+        const th = doc.createElement('th');
+        setInlineContent(th, h);
+        headerRow.appendChild(th);
       }
-      table += '</tr></thead><tbody>';
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = doc.createElement('tbody');
       for (const row of rows) {
-        table += '<tr>';
+        const tr = doc.createElement('tr');
         for (const cell of row) {
-          table += `<td>${processInline(escapeHtml(cell))}</td>`;
+          const td = doc.createElement('td');
+          setInlineContent(td, cell);
+          tr.appendChild(td);
         }
-        table += '</tr>';
+        tbody.appendChild(tr);
       }
-      table += '</tbody></table>';
-      output.push(table);
+      table.appendChild(tbody);
+      container.appendChild(table);
       continue;
     }
 
@@ -121,7 +167,6 @@ export function markdownToHtml(markdown: string): string {
     if (/^\s*[-*]\s+/.test(line)) {
       const listItems: string[] = [];
       while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
-        // Collect continuation lines (indented lines that aren't new list items)
         let itemText = lines[i].replace(/^\s*[-*]\s+/, '');
         i++;
         while (i < lines.length && lines[i].match(/^\s{2,}/) && !/^\s*[-*]\s+/.test(lines[i])) {
@@ -130,11 +175,14 @@ export function markdownToHtml(markdown: string): string {
         }
         listItems.push(itemText);
       }
-      output.push('<ul>');
+
+      const ul = doc.createElement('ul');
       for (const item of listItems) {
-        output.push(`<li>${processInline(escapeHtml(item))}</li>`);
+        const li = doc.createElement('li');
+        setInlineContent(li, item);
+        ul.appendChild(li);
       }
-      output.push('</ul>');
+      container.appendChild(ul);
       continue;
     }
 
@@ -150,17 +198,19 @@ export function markdownToHtml(markdown: string): string {
         }
         listItems.push(itemText);
       }
-      output.push('<ol>');
+
+      const ol = doc.createElement('ol');
       for (const item of listItems) {
-        output.push(`<li>${processInline(escapeHtml(item))}</li>`);
+        const li = doc.createElement('li');
+        setInlineContent(li, item);
+        ol.appendChild(li);
       }
-      output.push('</ol>');
+      container.appendChild(ol);
       continue;
     }
 
-    // HTML comment / raw HTML lines (pass through stripped)
+    // HTML comment — skip
     if (line.trimStart().startsWith('<!--')) {
-      // skip HTML comments
       while (i < lines.length && !lines[i].includes('-->')) {
         i++;
       }
@@ -168,9 +218,15 @@ export function markdownToHtml(markdown: string): string {
       continue;
     }
 
-    // Raw HTML tags (like <img>, <br>, etc.) — pass through
+    // Raw HTML tags (like <img>, <br>, etc.) — parse through our own parser
     if (/^\s*<[a-zA-Z]/.test(line)) {
-      output.push(line.trim());
+      // Use a temporary element to parse the raw HTML via our innerHTML setter
+      const temp = doc.createElement('span');
+      temp.innerHTML = line.trim();
+      // Move parsed children into container
+      for (const child of [...temp.childNodes]) {
+        container.appendChild(child);
+      }
       i++;
       continue;
     }
@@ -193,10 +249,11 @@ export function markdownToHtml(markdown: string): string {
       i++;
     }
     if (paraLines.length > 0) {
-      const text = processInline(escapeHtml(paraLines.join(' ')));
-      output.push(`<p>${text}</p>`);
+      const p = doc.createElement('p');
+      setInlineContent(p, paraLines.join(' '));
+      container.appendChild(p);
     }
   }
 
-  return output.join('\n');
+  return container.innerHTML;
 }
