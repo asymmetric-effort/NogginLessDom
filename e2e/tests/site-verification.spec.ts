@@ -383,13 +383,16 @@ test.describe('SPA vs SEO Content Parity', () => {
     // Get SPA text
     const spaText = await page.locator('#root').innerText();
 
-    // Get noscript HTML and extract text (strip tags)
-    const noscriptHtml = await page.locator('noscript').innerHTML();
-    const noscriptText = noscriptHtml
-      .replace(/<style[\s\S]*?<\/style>/gi, '')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
+    // Get noscript text content via browser DOM (avoids regex-based tag stripping)
+    const noscriptText = await page.evaluate(() => {
+      const noscript = document.querySelector('noscript');
+      if (!noscript) return '';
+      const temp = document.createElement('div');
+      temp.innerHTML = noscript.innerHTML;
+      // Remove style elements before extracting text
+      for (const style of temp.querySelectorAll('style')) style.remove();
+      return temp.textContent || '';
+    });
 
     // Both should contain key project terms
     const keyTerms = ['NogginLessDom', 'zero-dependency', 'node:test'];

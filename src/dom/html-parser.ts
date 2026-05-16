@@ -23,14 +23,20 @@ const VOID_ELEMENTS = new Set([
   'WBR',
 ]);
 
+const ENTITY_MAP: Record<string, string> = {
+  '&amp;': '&',
+  '&lt;': '<',
+  '&gt;': '>',
+  '&quot;': '"',
+  '&#39;': "'",
+  '&apos;': "'",
+};
+
 function decodeEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&apos;/g, "'");
+  return text.replace(
+    /&(?:amp|lt|gt|quot|#39|apos);/g,
+    (entity) => ENTITY_MAP[entity] ?? entity,
+  );
 }
 
 /**
