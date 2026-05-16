@@ -187,15 +187,19 @@ test.describe('Page Enumeration via Sitemap', () => {
     }
     expect(urls.length).toBeGreaterThan(0);
 
-    for (const url of urls) {
-      // Convert absolute sitemap URL to a path the test can visit
-      // e.g. "https://nogginlessdom.asymmetric-effort.com#/api" -> "/#/api"
-      // e.g. "https://nogginlessdom.asymmetric-effort.com/" -> "/"
-      const hashIndex = url.indexOf('#');
-      const path = hashIndex !== -1 ? '/' + url.slice(hashIndex) : '/';
+    // First load the page (gets the 200 status)
+    const initialResponse = await page.goto('/');
+    expect(initialResponse?.status()).toBe(200);
 
-      const navResponse = await page.goto(path);
-      expect(navResponse?.status(), `${path} should return 200`).toBe(200);
+    for (const url of urls) {
+      const hashIndex = url.indexOf('#');
+      const hash = hashIndex !== -1 ? url.slice(hashIndex) : '';
+
+      if (hash) {
+        // Hash navigation — use evaluate to change location
+        await page.evaluate((h) => { window.location.hash = h; }, hash);
+        await page.waitForLoadState('networkidle');
+      }
 
       await page.waitForSelector('#root > *', TIMEOUT);
       const rootContent = await page.locator('#root').innerHTML();
