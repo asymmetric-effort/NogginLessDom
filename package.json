@@ -1,6 +1,6 @@
 {
   "name": "@asymmetric-effort/nogginlessdom",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking, built on node:test and node:assert",
   "type": "module",
   "engines": {
