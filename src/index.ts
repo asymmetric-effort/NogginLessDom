@@ -1,7 +1,7 @@
 /**
  * NogginLessDom — A zero-dependency testing framework.
  *
- * Provides vitest-compatible test runner, assertion library, DOM simulation,
+ * Provides a comprehensive test runner, assertion library, DOM simulation,
  * and mocking utilities built entirely on Node.js built-in modules.
  *
  * @packageDocumentation

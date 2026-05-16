@@ -1,5 +1,5 @@
 /**
- * Mocking module — provides vitest-compatible mock and spy utilities.
+ * Mocking module — provides comprehensive mock and spy utilities.
  * @module mocking
  */
 
@@ -482,8 +482,8 @@ function restoreAllMocks(): void {
  */
 /**
  * Execute a factory function immediately and return its result.
- * In vitest this is used for variable declarations that need to be
- * available before vi.mock() calls. Here it is a convenience wrapper.
+ * Used for variable declarations that need to be available before
+ * mock.module() calls. This is a convenience wrapper.
  */
 function hoisted<T>(factory: () => T): T {
   return factory();

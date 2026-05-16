@@ -39,14 +39,14 @@ export function Features(): ReturnType<typeof createElement> {
         'No third-party runtime dependencies. Every algorithm implemented from scratch using only Node.js built-in modules.',
     },
     {
-      title: 'Vitest Parity',
+      title: 'Comprehensive API',
       description:
-        'Drop-in replacement API. describe, it, expect with 20+ matchers, mocking, spies, and fake timers.',
+        'Full-featured testing API. describe, it, expect with 20+ matchers, mocking, spies, and fake timers.',
     },
     {
       title: 'DOM Simulation',
       description:
-        'Full DOM environment without jsdom. Document, Element, Node, Event classes for testing UI code.',
+        'Complete DOM environment built from scratch. Document, Element, Node, Event classes for testing UI code.',
     },
     {
       title: 'Supply Chain Security',

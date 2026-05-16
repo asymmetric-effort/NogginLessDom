@@ -1,5 +1,5 @@
 /**
- * IntersectionObserver stub implementation for jsdom-like test environment.
+ * IntersectionObserver stub implementation for full DOM simulation test environment.
  * @module dom/intersection-observer
  */
 

@@ -1,5 +1,5 @@
 /**
- * Assertions module — provides vitest-compatible expect() API.
+ * Assertions module — provides a comprehensive expect() API.
  * @module assertions
  */
 

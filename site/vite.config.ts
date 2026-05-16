@@ -15,7 +15,7 @@ export default defineConfig({
       siteUrl: 'https://nogginlessdom.asymmetric-effort.com',
       title: 'NogginLessDom',
       description:
-        'A zero-dependency testing framework with vitest and jsdom feature parity. ' +
+        'A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking.' +
         'Built on node:test and node:assert for maximum supply chain security.',
       routes: [
         '/',
@@ -38,7 +38,7 @@ export default defineConfig({
         '@type': 'SoftwareSourceCode',
         name: 'NogginLessDom',
         description:
-          'A zero-dependency testing framework with vitest and jsdom feature parity.',
+          'A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking.',
         codeRepository: 'https://github.com/asymmetric-effort/NogginLessDom',
         programmingLanguage: 'TypeScript',
         license: 'https://opensource.org/licenses/MIT',
@@ -54,7 +54,7 @@ export default defineConfig({
         {
           id: 'home',
           title: 'Home',
-          html: '<h1>NogginLessDom</h1><p>A zero-dependency testing framework with vitest and jsdom feature parity. Built on node:test and node:assert for maximum supply chain security.</p>',
+          html: '<h1>NogginLessDom</h1><p>A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking. Built on node:test and node:assert for maximum supply chain security.</p>',
         },
         {
           id: 'getting-started',

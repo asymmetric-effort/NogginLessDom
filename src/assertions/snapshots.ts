@@ -1,5 +1,5 @@
 /**
- * Snapshot testing utilities for vitest-compatible snapshot matching.
+ * Snapshot testing utilities for comprehensive snapshot matching.
  * @module snapshots
  */
 

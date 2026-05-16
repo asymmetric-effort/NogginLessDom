@@ -1,5 +1,5 @@
 /**
- * Typed HTML element classes for jsdom parity.
+ * Typed HTML element classes for complete DOM simulation.
  * @module dom/html-elements
  */
 

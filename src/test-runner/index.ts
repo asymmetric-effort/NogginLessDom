@@ -1,5 +1,5 @@
 /**
- * Test runner module — wraps node:test with a vitest-compatible API.
+ * Test runner module — wraps node:test with a comprehensive testing API.
  * @module test-runner
  */
 

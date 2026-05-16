@@ -1,5 +1,5 @@
 /**
- * Window environment for jsdom-like test environment.
+ * Window environment for full DOM simulation test environment.
  * @module dom/window
  */
 
@@ -179,7 +179,7 @@ export interface WindowOptions {
 }
 
 /**
- * Window class providing a jsdom-like test environment.
+ * Window class providing a full DOM simulation test environment.
  */
 export class Window {
   public document: Document;

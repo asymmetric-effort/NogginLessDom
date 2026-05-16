@@ -1,5 +1,5 @@
 /**
- * MutationObserver implementation for jsdom-like test environment.
+ * MutationObserver implementation for full DOM simulation test environment.
  * @module dom/mutation-observer
  */
 

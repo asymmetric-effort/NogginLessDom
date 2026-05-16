@@ -66,11 +66,11 @@ describe('mocking', () =&gt; {
       <li><a href="#/api/dom">DOM</a> &mdash; Document, Element, Node, Event simulation</li>
       <li><a href="#/api/mocking">Mocking</a> &mdash; fn(), spyOn(), fake timers</li>
     </ul>
-    <p>All APIs are designed for drop-in compatibility with vitest and jsdom.</p>
+    <p>All APIs are designed to provide a comprehensive, familiar testing experience.</p>
   `,
   'api/test-runner': `
     <h1>Test Runner API</h1>
-    <p>Wraps <code>node:test</code> with a vitest-compatible API.</p>
+    <p>Wraps <code>node:test</code> with a comprehensive testing API.</p>
     <h2>describe(name, fn)</h2>
     <p>Groups related tests into a suite.</p>
     <h2>it(name, fn, options?) / test(name, fn, options?)</h2>
@@ -83,7 +83,7 @@ describe('mocking', () =&gt; {
   `,
   'api/assertions': `
     <h1>Assertions API</h1>
-    <p>Wraps <code>node:assert/strict</code> with a vitest-compatible <code>expect()</code> API.</p>
+    <p>Wraps <code>node:assert/strict</code> with a comprehensive <code>expect()</code> API.</p>
     <h2>Matchers</h2>
     <ul>
       <li><code>toBe(value)</code> &mdash; Strict equality (===)</li>
@@ -109,7 +109,7 @@ describe('mocking', () =&gt; {
   `,
   'api/dom': `
     <h1>DOM API</h1>
-    <p>Provides jsdom-compatible DOM simulation with zero dependencies.</p>
+    <p>Provides complete DOM simulation with zero dependencies.</p>
     <h2>Classes</h2>
     <ul>
       <li><code>Document</code> &mdash; createElement, createTextNode, getElementById, querySelector</li>
@@ -122,7 +122,7 @@ describe('mocking', () =&gt; {
   `,
   'api/mocking': `
     <h1>Mocking API</h1>
-    <p>Provides vitest-compatible mocking utilities.</p>
+    <p>Provides comprehensive mocking utilities.</p>
     <h2>fn(implementation?)</h2>
     <p>Creates a mock function that tracks calls and return values.</p>
     <h2>spyOn(object, method)</h2>
@@ -143,8 +143,6 @@ describe('mocking', () =&gt; {
       <li><a href="#/getting-started">Getting Started</a></li>
       <li><a href="https://github.com/asymmetric-effort/NogginLessDom/blob/main/docs/user/installation.md">Installation</a></li>
       <li><a href="https://github.com/asymmetric-effort/NogginLessDom/blob/main/docs/user/configuration.md">Configuration</a></li>
-      <li><a href="https://github.com/asymmetric-effort/NogginLessDom/blob/main/docs/user/migration-from-vitest.md">Migration from Vitest</a></li>
-      <li><a href="https://github.com/asymmetric-effort/NogginLessDom/blob/main/docs/user/migration-from-jsdom.md">Migration from jsdom</a></li>
     </ul>
     <h2>Developer Guide</h2>
     <ul>

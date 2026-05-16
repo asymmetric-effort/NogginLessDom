@@ -1,5 +1,5 @@
 /**
- * Module mock registry — provides vitest-compatible module mocking.
+ * Module mock registry — provides comprehensive module mocking.
  * @module mocking/module-mock
  */
 

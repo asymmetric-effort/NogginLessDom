@@ -1,5 +1,5 @@
 /**
- * ResizeObserver stub implementation for jsdom-like test environment.
+ * ResizeObserver stub implementation for full DOM simulation test environment.
  * @module dom/resize-observer
  */
 

@@ -35,7 +35,7 @@ export function Hero(): ReturnType<typeof createElement> {
           color: '#aaa',
         },
       },
-      'A zero-dependency testing framework with vitest and jsdom feature parity. Built on node:test and node:assert for maximum supply chain security.',
+      'A zero-dependency testing framework built on node:test and node:assert. Comprehensive test runner, assertions, DOM simulation, and mocking with maximum supply chain security.',
     ),
     createElement(
       'div',

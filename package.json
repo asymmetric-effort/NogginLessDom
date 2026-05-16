@@ -1,7 +1,7 @@
 {
   "name": "@asymmetric-effort/nogginlessdom",
   "version": "0.0.1",
-  "description": "A zero-dependency testing framework with vitest and jsdom feature parity, built on node:test and node:assert",
+  "description": "A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking, built on node:test and node:assert",
   "type": "module",
   "engines": {
     "node": ">=20.0.0"
@@ -34,8 +34,9 @@
     "testing",
     "test-runner",
     "dom",
-    "jsdom",
-    "vitest",
+    "dom-simulation",
+    "assertions",
+    "mocking",
     "zero-dependency",
     "security"
   ],

@@ -1,5 +1,5 @@
 /**
- * DOM simulation module — provides jsdom-compatible DOM API.
+ * DOM simulation module — provides a complete DOM API.
  * @module dom
  */
 
