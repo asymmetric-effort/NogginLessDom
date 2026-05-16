@@ -1,0 +1,7 @@
+---
+rules:
+  document-start: disable
+  key-duplicates: disable
+  line-length:
+    max: 200
+  truthy: disable

@@ -6,6 +6,7 @@
       "name": "@asymmetric-effort/nogginlessdom",
       "devDependencies": {
         "@asymmetric-effort/jsonlint": "^0.0.2",
+        "@asymmetric-effort/yamllint": "^0.0.3",
         "@typescript-eslint/eslint-plugin": "^8.59.0",
         "@typescript-eslint/parser": "^8.59.0",
         "bun-types": "latest",
@@ -18,6 +19,8 @@
   },
   "packages": {
     "@asymmetric-effort/jsonlint": ["@asymmetric-effort/jsonlint@0.0.2", "", { "bin": { "jsonlint": "bin/jsonlint" } }, "sha512-jinCNq+n4swQ9S4piAUwUK1gKBCoTj1VeAK2eO+rXbV14WoFUdrGp/Q0JFpSGSTYgSQnl1+4fYUN1XPySpkAkw=="],
+
+    "@asymmetric-effort/yamllint": ["@asymmetric-effort/yamllint@0.0.3", "", { "bin": { "yamllint": "build/bin.js" } }, "sha512-d6KXevlCGfRfDDtXnDfKwgPcWvX3HHw6Wj/hXosIYFZTcTP2SYpz22n/ahdLfXVJ6xS9jEI28oH8y95b+ZccCA=="],
 
     "@eslint-community/eslint-utils": ["@eslint-community/eslint-utils@4.9.1", "", { "dependencies": { "eslint-visitor-keys": "^3.4.3" }, "peerDependencies": { "eslint": "^6.0.0 || ^7.0.0 || >=8.0.0" } }, ""],
 
