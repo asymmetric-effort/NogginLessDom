@@ -31,7 +31,7 @@ lint:
 	bun $(BIN)/eslint $(SRC_DIR)
 	@if find $(TEST_DIR) -name '*.ts' | grep -q .; then bun $(BIN)/eslint $(TEST_DIR); fi
 	@echo "Running yamllint..."
-	@find . -name '*.yml' -o -name '*.yaml' | grep -v node_modules | grep -v site | xargs -r bun $(BIN)/yamllint
+	@find . -name '*.yml' -o -name '*.yaml' | grep -v node_modules | grep -v site | xargs -r bun scripts/yamllint.ts
 	@echo "Running jsonlint..."
 	@find . -name '*.json' -not -path '*/node_modules/*' -not -path '*/site/*' -not -name 'bun.lock' -not -name 'package-lock.json' | xargs -r bun scripts/jsonlint.ts
 	@echo "Running prettier check..."
