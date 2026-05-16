@@ -1,11 +1,20 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint:
@@ -31,7 +40,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: make test
 
-  build:
+  build-lib:
     name: Build Library
     runs-on: ubuntu-latest
     needs: test
@@ -46,10 +55,22 @@ jobs:
         run: |
           node -e "const m = require('./build/index.js'); console.log('Exports:', Object.keys(m).length, 'symbols'); if (Object.keys(m).length < 10) { process.exit(1); }"
 
+  e2e:
+    name: End-to-End Library Tests
+    runs-on: ubuntu-latest
+    needs: build-lib
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun test tests/e2e
+
   build-site:
     name: Build Site
     runs-on: ubuntu-latest
-    needs: test
+    needs: e2e
     steps:
       - uses: actions/checkout@v6
       - uses: oven-sh/setup-bun@v2
@@ -61,3 +82,54 @@ jobs:
       - name: Build site
         working-directory: site
         run: bun run build
+      - name: Copy CNAME
+        run: cp site/CNAME site/dist/CNAME
+      - name: Upload pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build-site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+
+  verify-deployment:
+    name: Post-Deployment Verification (Playwright)
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install e2e dependencies
+        working-directory: e2e
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        run: bunx playwright install --with-deps chromium
+
+      - name: Wait for deployment to propagate
+        run: |
+          echo "Waiting 60s for GitHub Pages deployment to propagate..."
+          sleep 60
+
+      - name: Run Playwright site verification tests
+        working-directory: e2e
+        run: bunx playwright test
+        env:
+          SITE_URL: https://nogginlessdom.asymmetric-effort.com
