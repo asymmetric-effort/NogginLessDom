@@ -4,58 +4,70 @@ import { Features } from './Features.js';
 import { QuickStart } from './QuickStart.js';
 import { ApiOverview } from './ApiOverview.js';
 import { MarkdownPage } from './MarkdownPage.js';
+import { content } from '../generated/content.js';
 
 function getHash(): string {
   return globalThis.location?.hash?.slice(1) || '/';
 }
 
+// All content-driven routes (excluding 'home' which maps to /)
+const contentRoutes: Record<string, string> = {
+  '/getting-started': 'getting-started',
+  '/api': 'api',
+  '/api/test-runner': 'api/test-runner',
+  '/api/assertions': 'api/assertions',
+  '/api/dom': 'api/dom',
+  '/api/mocking': 'api/mocking',
+  '/docs': 'docs',
+  '/architecture': 'architecture',
+  '/developer': 'developer',
+  '/developer/setup': 'developer/setup',
+  '/developer/testing': 'developer/testing',
+  '/developer/building': 'developer/building',
+  '/developer/releasing': 'developer/releasing',
+  '/user': 'user',
+  '/user/installation': 'user/installation',
+  '/user/configuration': 'user/configuration',
+  '/contributing': 'contributing',
+};
+
 export function Router(): ReturnType<typeof createElement> {
   const route = getHash();
 
-  switch (route) {
-    case '/':
-      return createElement(
-        'main',
-        null,
-        createElement(Hero, null),
-        createElement(Features, null),
-        createElement(QuickStart, null),
-        createElement(ApiOverview, null),
-      );
-    case '/getting-started':
-      return createElement(MarkdownPage, { title: 'Getting Started', section: 'getting-started' });
-    case '/api':
-      return createElement(MarkdownPage, { title: 'API Reference', section: 'api' });
-    case '/api/test-runner':
-      return createElement(MarkdownPage, { title: 'Test Runner API', section: 'api/test-runner' });
-    case '/api/assertions':
-      return createElement(MarkdownPage, { title: 'Assertions API', section: 'api/assertions' });
-    case '/api/dom':
-      return createElement(MarkdownPage, { title: 'DOM API', section: 'api/dom' });
-    case '/api/mocking':
-      return createElement(MarkdownPage, { title: 'Mocking API', section: 'api/mocking' });
-    case '/docs':
-      return createElement(MarkdownPage, { title: 'Documentation', section: 'docs' });
-    case '/contributing':
-      return createElement(MarkdownPage, { title: 'Contributing', section: 'contributing' });
-    default:
-      return createElement(
-        'main',
-        {
-          style: {
-            padding: '4rem 2rem',
-            textAlign: 'center',
-            color: '#aaa',
-            fontFamily: 'system-ui, sans-serif',
-          },
-        },
-        createElement('h1', { style: { color: '#fff' } }, '404'),
-        createElement('p', null, 'Page not found.'),
-        createElement(
-          'a',
-          { href: '#/', style: { color: '#00d4aa', textDecoration: 'none' } },
-          'Go home',
-        ),
-      );
+  if (route === '/') {
+    return createElement(
+      'main',
+      null,
+      createElement(Hero, null),
+      createElement(Features, null),
+      createElement(QuickStart, null),
+      createElement(ApiOverview, null),
+    );
   }
+
+  const contentKey = contentRoutes[route];
+  if (contentKey) {
+    const entry = content[contentKey];
+    const title = entry?.title || contentKey;
+    return createElement(MarkdownPage, { title, section: contentKey });
+  }
+
+  return createElement(
+    'main',
+    {
+      style: {
+        padding: '4rem 2rem',
+        textAlign: 'center',
+        color: 'var(--text-muted)',
+        fontFamily: 'system-ui, sans-serif',
+      },
+    },
+    createElement('h1', { style: { color: 'var(--text-primary)' } }, '404'),
+    createElement('p', null, 'Page not found.'),
+    createElement(
+      'a',
+      { href: '#/', style: { color: 'var(--accent)', textDecoration: 'none' } },
+      'Go home',
+    ),
+  );
 }

@@ -1,9 +1,58 @@
 import { defineConfig } from 'vite';
-import { mkdirSync } from 'fs';
+import { mkdirSync, readFileSync, existsSync } from 'fs';
+import { resolve } from 'path';
 import { specifyJsSeoPlugin, specifyJsNoscriptPlugin } from '@asymmetric-effort/specifyjs/build';
+
+const VERSION = readFileSync(resolve(__dirname, '../VERSION'), 'utf-8').trim();
+
+// Load generated content for noscript fallback (built by prebuild script)
+const contentPath = resolve(__dirname, 'src/generated/content.json');
+let noscriptSections: Array<{ id: string; title: string; html: string }> = [];
+
+if (existsSync(contentPath)) {
+  try {
+    const parsed = JSON.parse(readFileSync(contentPath, 'utf-8')) as Record<string, { title: string; html: string }>;
+    for (const [id, entry] of Object.entries(parsed)) {
+      noscriptSections.push({ id, title: entry.title, html: entry.html });
+    }
+  } catch {
+    // Fall through to fallback
+  }
+}
+
+// Fallback if content not generated yet
+if (noscriptSections.length === 0) {
+  noscriptSections = [
+    { id: 'home', title: 'Home', html: '<h1>NogginLessDom</h1><p>A zero-dependency testing framework.</p>' },
+  ];
+}
+
+const allRoutes = [
+  '/',
+  '#/getting-started',
+  '#/api',
+  '#/api/test-runner',
+  '#/api/assertions',
+  '#/api/dom',
+  '#/api/mocking',
+  '#/docs',
+  '#/architecture',
+  '#/developer',
+  '#/developer/setup',
+  '#/developer/testing',
+  '#/developer/building',
+  '#/developer/releasing',
+  '#/user',
+  '#/user/installation',
+  '#/user/configuration',
+  '#/contributing',
+];
 
 export default defineConfig({
   base: '/',
+  define: {
+    __APP_VERSION__: JSON.stringify(VERSION),
+  },
   plugins: [
     {
       name: 'ensure-dist',
@@ -15,19 +64,9 @@ export default defineConfig({
       siteUrl: 'https://nogginlessdom.asymmetric-effort.com',
       title: 'NogginLessDom',
       description:
-        'A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking.' +
+        'A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking. ' +
         'Built on node:test and node:assert for maximum supply chain security.',
-      routes: [
-        '/',
-        '#/getting-started',
-        '#/api',
-        '#/api/test-runner',
-        '#/api/assertions',
-        '#/api/dom',
-        '#/api/mocking',
-        '#/docs',
-        '#/contributing',
-      ],
+      routes: allRoutes,
       npmPackage: '@asymmetric-effort/nogginlessdom',
       author: 'Asymmetric Effort, LLC',
       license: 'MIT',
@@ -50,28 +89,7 @@ export default defineConfig({
     }),
     specifyJsNoscriptPlugin({
       title: 'NogginLessDom',
-      sections: [
-        {
-          id: 'home',
-          title: 'Home',
-          html: '<h1>NogginLessDom</h1><p>A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking. Built on node:test and node:assert for maximum supply chain security.</p>',
-        },
-        {
-          id: 'getting-started',
-          title: 'Getting Started',
-          html: '<h2>Installation</h2><pre><code>bun add -d @asymmetric-effort/nogginlessdom</code></pre><h2>First Test</h2><pre><code>import { describe, it, expect } from \'@asymmetric-effort/nogginlessdom\';\n\ndescribe(\'example\', () =&gt; {\n  it(\'works\', () =&gt; {\n    expect(1 + 1).toBe(2);\n  });\n});</code></pre>',
-        },
-        {
-          id: 'api',
-          title: 'API Reference',
-          html: '<h2>API Reference</h2><ul><li><a href="#api/test-runner">Test Runner</a> &mdash; describe, it, test, beforeEach, afterEach, beforeAll, afterAll</li><li><a href="#api/assertions">Assertions</a> &mdash; expect() with 20+ matchers</li><li><a href="#api/dom">DOM</a> &mdash; Document, Element, Node, Event simulation</li><li><a href="#api/mocking">Mocking</a> &mdash; fn(), spyOn(), fake timers</li></ul>',
-        },
-        {
-          id: 'contributing',
-          title: 'Contributing',
-          html: '<h2>Contributing</h2><p>See <a href="https://github.com/asymmetric-effort/NogginLessDom/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for guidelines.</p>',
-        },
-      ],
+      sections: noscriptSections,
     }),
   ],
   build: {

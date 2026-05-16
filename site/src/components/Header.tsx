@@ -9,8 +9,8 @@ export function Header(): ReturnType<typeof createElement> {
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: '1rem 2rem',
-        borderBottom: '1px solid #2a2a3e',
-        backgroundColor: '#0d0d1a',
+        borderBottom: '1px solid var(--border)',
+        backgroundColor: 'var(--bg-primary)',
         position: 'sticky',
         top: '0',
         zIndex: '100',
@@ -26,7 +26,7 @@ export function Header(): ReturnType<typeof createElement> {
           gap: '0.5rem',
           fontSize: '1.25rem',
           fontWeight: 'bold',
-          color: '#00d4aa',
+          color: 'var(--accent)',
           textDecoration: 'none',
           fontFamily: 'monospace',
         },
@@ -62,7 +62,7 @@ export function Header(): ReturnType<typeof createElement> {
 
 function navLinkStyle(): Record<string, string> {
   return {
-    color: '#ccc',
+    color: 'var(--text-muted)',
     textDecoration: 'none',
     fontSize: '0.9rem',
     fontFamily: 'system-ui, sans-serif',

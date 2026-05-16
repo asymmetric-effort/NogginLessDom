@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "prebuild": "bun scripts/build-content.ts",
     "build": "vite build",
+    "dev": "bun scripts/build-content.ts && vite",
     "preview": "vite preview"
   },
   "dependencies": {

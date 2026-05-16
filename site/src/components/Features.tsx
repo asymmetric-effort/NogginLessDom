@@ -13,19 +13,19 @@ function FeatureCard(props: FeatureCardProps): ReturnType<typeof createElement> 
         flex: '1',
         minWidth: '250px',
         padding: '2rem',
-        backgroundColor: '#1a1a2e',
+        backgroundColor: 'var(--bg-secondary)',
         borderRadius: '8px',
-        border: '1px solid #2a2a3e',
+        border: '1px solid var(--border)',
       },
     },
     createElement(
       'h3',
-      { style: { color: '#00d4aa', marginBottom: '0.75rem', fontSize: '1.1rem' } },
+      { style: { color: 'var(--accent)', marginBottom: '0.75rem', fontSize: '1.1rem' } },
       props.title,
     ),
     createElement(
       'p',
-      { style: { color: '#aaa', lineHeight: '1.5', fontSize: '0.9rem' } },
+      { style: { color: 'var(--text-muted)', lineHeight: '1.5', fontSize: '0.9rem' } },
       props.description,
     ),
   );
@@ -70,13 +70,13 @@ export function Features(): ReturnType<typeof createElement> {
     {
       style: {
         padding: '4rem 2rem',
-        backgroundColor: '#0d0d1a',
+        backgroundColor: 'var(--bg-primary)',
         fontFamily: 'system-ui, sans-serif',
       },
     },
     createElement(
       'h2',
-      { style: { textAlign: 'center', color: '#fff', marginBottom: '2rem', fontSize: '2rem' } },
+      { style: { textAlign: 'center', color: 'var(--text-primary)', marginBottom: '2rem', fontSize: '2rem' } },
       'Why NogginLessDom?',
     ),
     createElement(

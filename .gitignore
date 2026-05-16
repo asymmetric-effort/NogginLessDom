@@ -15,3 +15,5 @@ coverage/
 test-results/
 playwright-report/
 __snapshots__/
+site/src/generated/content.ts
+site/src/generated/content.json

@@ -33,13 +33,13 @@ describe('DOM', () => {
     {
       style: {
         padding: '4rem 2rem',
-        backgroundColor: '#12121f',
+        backgroundColor: 'var(--bg-tertiary)',
         fontFamily: 'system-ui, sans-serif',
       },
     },
     createElement(
       'h2',
-      { style: { textAlign: 'center', color: '#fff', marginBottom: '2rem', fontSize: '2rem' } },
+      { style: { textAlign: 'center', color: 'var(--text-primary)', marginBottom: '2rem', fontSize: '2rem' } },
       'Quick Start',
     ),
     createElement(
@@ -65,7 +65,7 @@ function codeBlock(title: string, code: string): ReturnType<typeof createElement
     { style: { flex: '1', minWidth: '300px' } },
     createElement(
       'h3',
-      { style: { color: '#00d4aa', marginBottom: '0.75rem', fontSize: '1rem' } },
+      { style: { color: 'var(--accent)', marginBottom: '0.75rem', fontSize: '1rem' } },
       title,
     ),
     createElement(
@@ -73,13 +73,13 @@ function codeBlock(title: string, code: string): ReturnType<typeof createElement
       {
         style: {
           padding: '1.5rem',
-          backgroundColor: '#1a1a2e',
+          backgroundColor: 'var(--bg-secondary)',
           borderRadius: '8px',
-          border: '1px solid #2a2a3e',
+          border: '1px solid var(--border)',
           overflow: 'auto',
           fontSize: '0.85rem',
           lineHeight: '1.5',
-          color: '#e0e0e0',
+          color: 'var(--text-secondary)',
           fontFamily: 'monospace',
         },
       },
