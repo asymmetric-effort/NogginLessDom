@@ -71,7 +71,23 @@ export {
   KeyboardEvent,
   FocusEvent,
   InputEvent,
+  WheelEvent,
+  PointerEvent,
+  TouchEvent,
+  DragEvent,
+  ClipboardEvent,
+  TransitionEvent,
+  AnimationEvent,
+  ErrorEvent,
+  MessageEvent,
+  StorageEvent,
+  PopStateEvent,
+  ProgressEvent,
+  HashChangeEvent,
+  BeforeUnloadEvent,
 } from './dom/events.js';
+
+export type { Touch } from './dom/events.js';
 
 export {
   fn,
