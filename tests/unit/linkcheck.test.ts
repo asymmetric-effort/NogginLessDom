@@ -12,6 +12,7 @@ function getAllMarkdownFiles(dir: string): string[] {
       entry === 'node_modules' ||
       entry === 'site' ||
       entry === '.git' ||
+      entry === '.claude' ||
       entry === 'build' ||
       entry === 'e2e'
     )
