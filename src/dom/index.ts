@@ -568,6 +568,49 @@ export class Element extends Node {
     return this.attributes.has(name);
   }
 
+  toggleAttribute(name: string, force?: boolean): boolean {
+    if (force !== undefined) {
+      if (force) {
+        this.setAttribute(name, '');
+        return true;
+      } else {
+        this.removeAttribute(name);
+        return false;
+      }
+    }
+    if (this.attributes.has(name)) {
+      this.removeAttribute(name);
+      return false;
+    } else {
+      this.setAttribute(name, '');
+      return true;
+    }
+  }
+
+  getAttributeNames(): string[] {
+    return [...this.attributes.keys()];
+  }
+
+  hasAttributes(): boolean {
+    return this.attributes.size > 0;
+  }
+
+  setAttributeNS(_namespace: string | null, name: string, value: string): void {
+    this.setAttribute(name, value);
+  }
+
+  getAttributeNS(_namespace: string | null, name: string): string | null {
+    return this.getAttribute(name);
+  }
+
+  removeAttributeNS(_namespace: string | null, name: string): void {
+    this.removeAttribute(name);
+  }
+
+  hasAttributeNS(_namespace: string | null, name: string): boolean {
+    return this.hasAttribute(name);
+  }
+
   getAttributeEntries(): [string, string][] {
     return [...this.attributes.entries()];
   }
