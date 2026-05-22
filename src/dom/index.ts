@@ -68,6 +68,20 @@ interface DOMStringMap {
  * Base DOM Node.
  */
 export class Node {
+  /** Node type constants */
+  public static readonly ELEMENT_NODE = 1;
+  public static readonly ATTRIBUTE_NODE = 2;
+  public static readonly TEXT_NODE = 3;
+  public static readonly CDATA_SECTION_NODE = 4;
+  public static readonly ENTITY_REFERENCE_NODE = 5;
+  public static readonly ENTITY_NODE = 6;
+  public static readonly PROCESSING_INSTRUCTION_NODE = 7;
+  public static readonly COMMENT_NODE = 8;
+  public static readonly DOCUMENT_NODE = 9;
+  public static readonly DOCUMENT_TYPE_NODE = 10;
+  public static readonly DOCUMENT_FRAGMENT_NODE = 11;
+  public static readonly NOTATION_NODE = 12;
+
   /** Document position bitmask constants */
   public static readonly DOCUMENT_POSITION_DISCONNECTED = 1;
   public static readonly DOCUMENT_POSITION_PRECEDING = 2;
