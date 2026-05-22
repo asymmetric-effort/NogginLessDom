@@ -42,6 +42,20 @@ export interface DOMRectInit {
   height?: number;
 }
 
+/** Options for setLayoutMetrics (test helper). */
+export interface LayoutMetrics {
+  offsetWidth?: number;
+  offsetHeight?: number;
+  offsetLeft?: number;
+  offsetTop?: number;
+  clientWidth?: number;
+  clientHeight?: number;
+  clientLeft?: number;
+  clientTop?: number;
+  scrollWidth?: number;
+  scrollHeight?: number;
+}
+
 /**
  * Convert camelCase to data-kebab-case attribute name.
  */
@@ -504,6 +518,18 @@ export class Element extends Node {
   private _shadowMode: 'open' | 'closed' | null = null;
   private _dataset: DOMStringMap | null = null;
   private _boundingRect: DOMRectInit = {};
+  private _offsetWidth = 0;
+  private _offsetHeight = 0;
+  private _offsetLeft = 0;
+  private _offsetTop = 0;
+  private _clientWidth = 0;
+  private _clientHeight = 0;
+  private _clientLeft = 0;
+  private _clientTop = 0;
+  private _scrollLeft = 0;
+  private _scrollTop = 0;
+  private _scrollWidth = 0;
+  private _scrollHeight = 0;
 
   constructor(tagName: string, namespaceURI?: string | null) {
     const isSVG =
@@ -985,6 +1011,110 @@ export class Element extends Node {
 
   setBoundingClientRect(rect: DOMRectInit): void {
     this._boundingRect = rect;
+  }
+
+  // ---- Layout properties ----
+
+  get offsetParent(): Element | null {
+    return this.parentElement;
+  }
+
+  get offsetLeft(): number {
+    return this._offsetLeft;
+  }
+
+  get offsetTop(): number {
+    return this._offsetTop;
+  }
+
+  get offsetWidth(): number {
+    return this._offsetWidth;
+  }
+
+  get offsetHeight(): number {
+    return this._offsetHeight;
+  }
+
+  get clientLeft(): number {
+    return this._clientLeft;
+  }
+
+  get clientTop(): number {
+    return this._clientTop;
+  }
+
+  get clientWidth(): number {
+    return this._clientWidth;
+  }
+
+  get clientHeight(): number {
+    return this._clientHeight;
+  }
+
+  get scrollLeft(): number {
+    return this._scrollLeft;
+  }
+
+  set scrollLeft(value: number) {
+    this._scrollLeft = value;
+  }
+
+  get scrollTop(): number {
+    return this._scrollTop;
+  }
+
+  set scrollTop(value: number) {
+    this._scrollTop = value;
+  }
+
+  get scrollWidth(): number {
+    return this._scrollWidth;
+  }
+
+  get scrollHeight(): number {
+    return this._scrollHeight;
+  }
+
+  // ---- Scroll methods ----
+
+  scrollIntoView(_options?: boolean | { behavior?: string }): void {
+    // No-op stub
+  }
+
+  scroll(x?: number, y?: number): void {
+    this._scrollLeft = x ?? 0;
+    this._scrollTop = y ?? 0;
+  }
+
+  scrollTo(x?: number, y?: number): void {
+    this._scrollLeft = x ?? 0;
+    this._scrollTop = y ?? 0;
+  }
+
+  scrollBy(dx?: number, dy?: number): void {
+    this._scrollLeft += dx ?? 0;
+    this._scrollTop += dy ?? 0;
+  }
+
+  // ---- getClientRects ----
+
+  getClientRects(): DOMRect[] {
+    return [this.getBoundingClientRect()];
+  }
+
+  // ---- Test helper ----
+
+  setLayoutMetrics(metrics: LayoutMetrics): void {
+    this._offsetWidth = metrics.offsetWidth ?? 0;
+    this._offsetHeight = metrics.offsetHeight ?? 0;
+    this._offsetLeft = metrics.offsetLeft ?? 0;
+    this._offsetTop = metrics.offsetTop ?? 0;
+    this._clientWidth = metrics.clientWidth ?? 0;
+    this._clientHeight = metrics.clientHeight ?? 0;
+    this._clientLeft = metrics.clientLeft ?? 0;
+    this._clientTop = metrics.clientTop ?? 0;
+    this._scrollWidth = metrics.scrollWidth ?? 0;
+    this._scrollHeight = metrics.scrollHeight ?? 0;
   }
 }
 
