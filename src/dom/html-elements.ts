@@ -73,10 +73,16 @@ export class HTMLInputElement extends Element {
   }
 
   focus(): void {
+    if (this.ownerDocument) {
+      this.ownerDocument.activeElement = this;
+    }
     this.dispatchEvent(new Event('focus'));
   }
 
   blur(): void {
+    if (this.ownerDocument) {
+      this.ownerDocument.activeElement = null;
+    }
     this.dispatchEvent(new Event('blur'));
   }
 

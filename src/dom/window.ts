@@ -476,5 +476,7 @@ export class Window {
  * Factory function that returns a configured Window with a fresh Document.
  */
 export function createWindow(options?: WindowOptions): Window {
-  return new Window(options);
+  const win = new Window(options);
+  win.document.defaultView = win;
+  return win;
 }

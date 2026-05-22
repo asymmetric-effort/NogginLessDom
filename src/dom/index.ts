@@ -1131,9 +1131,39 @@ export class Document extends Node {
   private _customElements: CustomElementRegistry | null = null;
   private _cookieJar: CookieJar = new CookieJar();
 
+  public readyState: string = 'complete';
+  public visibilityState: string = 'visible';
+  public activeElement: Element | null = null;
+  public contentType: string = 'text/html';
+  public characterSet: string = 'UTF-8';
+  public URL: string = 'about:blank';
+  public domain: string = '';
+  public referrer: string = '';
+  public defaultView: unknown = null;
+
   constructor() {
     super(9, '#document');
     this.ownerDocument = null;
+  }
+
+  get hidden(): boolean {
+    return this.visibilityState === 'hidden';
+  }
+
+  get charset(): string {
+    return this.characterSet;
+  }
+
+  get inputEncoding(): string {
+    return this.characterSet;
+  }
+
+  get documentURI(): string {
+    return this.URL;
+  }
+
+  get lastModified(): string {
+    return new Date().toString();
   }
 
   // ---- Custom Elements ----
