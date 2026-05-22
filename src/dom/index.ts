@@ -543,6 +543,24 @@ export class Comment extends Node {
 }
 
 /**
+ * DocumentFragment node.
+ */
+export class DocumentFragment extends Node {
+  constructor() {
+    super(11, '#document-fragment');
+  }
+
+  querySelector(selector: string): Element | null {
+    return selectorQuerySelector(this, selector) as Element | null;
+  }
+
+  querySelectorAll(selector: string): NodeList {
+    const results = selectorQuerySelectorAll(this, selector);
+    return new NodeList(results);
+  }
+}
+
+/**
  * DOM Event.
  */
 export class Event {
@@ -1760,8 +1778,8 @@ export class Document extends Node {
     );
   }
 
-  createDocumentFragment(): Node {
-    return new Node(11, '#document-fragment');
+  createDocumentFragment(): DocumentFragment {
+    return new DocumentFragment();
   }
 
   createRange(): import('./range.js').Range {

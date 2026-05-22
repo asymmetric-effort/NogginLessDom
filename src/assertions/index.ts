@@ -127,6 +127,7 @@ interface Matchers<T> {
   toBeNaN(): void;
   toBeInstanceOf(expected: abstract new (...args: unknown[]) => unknown): void;
   toContain(expected: unknown): void;
+  toContainEqual(expected: unknown): void;
   toHaveLength(expected: number): void;
   toHaveProperty(key: string, value?: unknown): void;
   toMatch(expected: string | RegExp): void;
@@ -594,6 +595,23 @@ export function expect<T>(actual: T): Matchers<T> {
         assert.ok(
           arr.includes(expected),
           `Expected array to contain ${String(expected)}`,
+        );
+      }
+    },
+
+    toContainEqual(expected: unknown): void {
+      trackAssertion();
+      const arr = actual as unknown[];
+      const found = arr.some((item) => deepEqualWithAsymmetric(item, expected));
+      if (negated) {
+        assert.ok(
+          !found,
+          `Expected array not to contain equal ${JSON.stringify(expected)}`,
+        );
+      } else {
+        assert.ok(
+          found,
+          `Expected array to contain equal ${JSON.stringify(expected)}`,
         );
       }
     },

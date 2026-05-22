@@ -27,6 +27,8 @@ interface MockInstance<TArgs extends unknown[] = unknown[], TReturn = unknown> {
     calls: TArgs[];
     results: Array<{ type: 'return' | 'throw'; value: TReturn }>;
     lastCall: TArgs | undefined;
+    instances: unknown[];
+    contexts: unknown[];
   };
   mockReturnValue(value: TReturn): MockInstance<TArgs, TReturn>;
   mockReturnValueOnce(value: TReturn): MockInstance<TArgs, TReturn>;
@@ -63,21 +65,34 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
   const state = {
     calls: [] as TArgs[],
     results: [] as Array<{ type: 'return' | 'throw'; value: TReturn }>,
+    instances: [] as unknown[],
+    contexts: [] as unknown[],
     get lastCall(): TArgs | undefined {
       return state.calls[state.calls.length - 1];
     },
   };
 
-  const mockFn = ((...args: TArgs): TReturn => {
+  // Use a named function expression so it is constructable (arrow functions are not).
+  const mockFn = function mockFnImpl(this: unknown, ...args: TArgs): TReturn {
+    const isConstructorCall = typeof new.target !== 'undefined';
+
     state.calls.push(args);
+
+    if (isConstructorCall) {
+      state.instances.push(this);
+      state.contexts.push(this);
+    } else {
+      state.contexts.push(this);
+    }
+
     try {
       let result: TReturn;
       if (onceImpls.length > 0) {
-        result = onceImpls.shift()!(...args);
+        result = onceImpls.shift()!.call(this, ...args);
       } else if (onceReturns.length > 0) {
         result = onceReturns.shift()!;
       } else if (currentImpl) {
-        result = currentImpl(...args);
+        result = currentImpl.call(this, ...args);
       } else {
         result = returnValue as TReturn;
       }
@@ -87,7 +102,7 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
       state.results.push({ type: 'throw', value: error as TReturn });
       throw error;
     }
-  }) as MockInstance<TArgs, TReturn>;
+  } as unknown as MockInstance<TArgs, TReturn>;
 
   mockFn.mock = state;
   allMocks.add(mockFn as unknown as MockInstance);
@@ -121,6 +136,8 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
   mockFn.mockClear = (): void => {
     state.calls.length = 0;
     state.results.length = 0;
+    state.instances.length = 0;
+    state.contexts.length = 0;
   };
 
   mockFn.mockReset = (): void => {
@@ -176,12 +193,20 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
 }
 
 /**
- * Create a spy on an object method.
+ * Create a spy on an object method or accessor.
+ *
+ * When `accessorType` is `'get'` or `'set'`, the spy targets the
+ * corresponding accessor of the property instead of its value.
  */
 export function spyOn<T extends Record<string, unknown>>(
   object: T,
   method: keyof T & string,
+  accessorType?: 'get' | 'set',
 ): MockInstance {
+  if (accessorType !== undefined) {
+    return spyOnAccessor(object, method, accessorType);
+  }
+
   const original = object[method] as (...args: unknown[]) => unknown;
   if (typeof original !== 'function') {
     throw new Error(`Cannot spy on ${method}: not a function`);
@@ -197,6 +222,93 @@ export function spyOn<T extends Record<string, unknown>>(
 
   (object as Record<string, unknown>)[method] = mock;
   return mock;
+}
+
+/**
+ * Spy on a getter or setter accessor of a property.
+ */
+function spyOnAccessor<T extends Record<string, unknown>>(
+  object: T,
+  property: keyof T & string,
+  accessorType: 'get' | 'set',
+): MockInstance {
+  const descriptor = findPropertyDescriptor(object, property);
+
+  if (!descriptor || (!descriptor.get && !descriptor.set)) {
+    throw new Error(
+      `Cannot spy on ${accessorType}ter of ${property}: not an accessor property`,
+    );
+  }
+
+  if (accessorType === 'get') {
+    const originalGetter = descriptor.get;
+    if (!originalGetter) {
+      throw new Error(`Cannot spy on getter of ${property}: no getter defined`);
+    }
+
+    const mock = fn((): unknown => originalGetter.call(object));
+
+    const restoreFn = mock.mockRestore;
+    mock.mockRestore = (): void => {
+      restoreFn();
+      Object.defineProperty(object, property, {
+        ...descriptor,
+        get: originalGetter,
+      });
+    };
+
+    Object.defineProperty(object, property, {
+      ...descriptor,
+      get: mock as () => unknown,
+    });
+
+    return mock;
+  }
+
+  // accessorType === 'set'
+  const originalSetter = descriptor.set;
+  if (!originalSetter) {
+    throw new Error(`Cannot spy on setter of ${property}: no setter defined`);
+  }
+
+  const mock = fn((value: unknown): unknown => {
+    originalSetter.call(object, value);
+    return undefined;
+  });
+
+  const restoreFn = mock.mockRestore;
+  mock.mockRestore = (): void => {
+    restoreFn();
+    Object.defineProperty(object, property, {
+      ...descriptor,
+      set: originalSetter,
+    });
+  };
+
+  Object.defineProperty(object, property, {
+    ...descriptor,
+    set: mock as (v: unknown) => void,
+  });
+
+  return mock;
+}
+
+/**
+ * Walk the prototype chain to find the property descriptor.
+ */
+function findPropertyDescriptor(
+  object: object,
+  property: string,
+): PropertyDescriptor | undefined {
+  let current: object | null = object;
+  while (current !== null) {
+    const desc = Object.getOwnPropertyDescriptor(current, property);
+    if (desc) {
+      return desc;
+    }
+    current = Object.getPrototypeOf(current) as object | null;
+  }
+  return undefined;
 }
 
 interface FakeTimerState {

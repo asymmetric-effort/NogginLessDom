@@ -23,6 +23,7 @@ export { expect } from './assertions/index.js';
 
 export {
   Document,
+  DocumentFragment,
   Element,
   Node,
   Event,
