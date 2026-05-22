@@ -268,6 +268,8 @@ export class Event {
   public readonly cancelable: boolean;
   public defaultPrevented = false;
   public propagationStopped = false;
+  public target: Node | null = null;
+  public currentTarget: Node | null = null;
 
   constructor(
     type: string,
@@ -360,10 +362,33 @@ export class Element extends Node {
   }
 
   dispatchEvent(event: Event): boolean {
+    // Set event.target to the element that originally dispatched the event
+    event.target = this;
+
+    // Target phase: fire listeners on the target element
+    event.currentTarget = this;
     const listeners = this.eventListeners.get(event.type) ?? [];
     for (const listener of listeners) {
       listener(event);
     }
+
+    // Bubble phase: walk up parentNode chain if event bubbles
+    if (event.bubbles && !event.propagationStopped) {
+      let ancestor = this.parentNode;
+      while (ancestor && !event.propagationStopped) {
+        if (ancestor instanceof Element) {
+          event.currentTarget = ancestor;
+          const ancestorListeners =
+            ancestor.eventListeners.get(event.type) ?? [];
+          for (const listener of ancestorListeners) {
+            listener(event);
+          }
+        }
+        ancestor = ancestor.parentNode;
+      }
+    }
+
+    event.currentTarget = null;
     return !event.defaultPrevented;
   }
 
