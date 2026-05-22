@@ -3,6 +3,7 @@
  * @module dom/window
  */
 
+import { URL, URLSearchParams } from 'node:url';
 import { Document, Element, Event } from './index.js';
 
 /**
@@ -170,12 +171,124 @@ export class MediaQueryList {
 }
 
 /**
+ * Minimal Response class for fetch testing.
+ */
+export class Response {
+  public readonly status: number;
+  public readonly ok: boolean;
+  public readonly statusText: string;
+  public readonly headers: Map<string, string>;
+  private readonly _body: string;
+
+  constructor(
+    body?: string | null,
+    init?: {
+      status?: number;
+      statusText?: string;
+      headers?: Record<string, string>;
+    },
+  ) {
+    this._body = body ?? '';
+    this.status = init?.status ?? 200;
+    this.ok = this.status >= 200 && this.status < 300;
+    this.statusText = init?.statusText ?? '';
+    this.headers = new Map<string, string>();
+    if (init?.headers) {
+      for (const [key, value] of Object.entries(init.headers)) {
+        this.headers.set(key, value);
+      }
+    }
+  }
+
+  async json(): Promise<unknown> {
+    return JSON.parse(this._body) as unknown;
+  }
+
+  async text(): Promise<string> {
+    return this._body;
+  }
+
+  clone(): Response {
+    const headersObj: Record<string, string> = {};
+    for (const [key, value] of this.headers) {
+      headersObj[key] = value;
+    }
+    return new Response(this._body, {
+      status: this.status,
+      statusText: this.statusText,
+      headers: headersObj,
+    });
+  }
+}
+
+/**
+ * Minimal Request class for fetch testing.
+ */
+export class Request {
+  public readonly url: string;
+  public readonly method: string;
+  public readonly headers: Map<string, string>;
+  public readonly body: string | null;
+
+  constructor(
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string },
+  ) {
+    this.url = url;
+    this.method = init?.method ?? 'GET';
+    this.body = init?.body ?? null;
+    this.headers = new Map<string, string>();
+    if (init?.headers) {
+      for (const [key, value] of Object.entries(init.headers)) {
+        this.headers.set(key, value);
+      }
+    }
+  }
+}
+
+/** Fetch handler type. */
+type FetchHandler = (
+  url: string,
+  options?: RequestInit,
+) => Response | Promise<Response>;
+
+/** Minimal RequestInit for fetch. */
+interface RequestInit {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+/** Performance API stub interface. */
+interface PerformanceStub {
+  now(): number;
+  mark(_name: string): void;
+  measure(_name: string, _start?: string, _end?: string): void;
+  getEntries(): unknown[];
+  getEntriesByName(_name: string): unknown[];
+  getEntriesByType(_type: string): unknown[];
+}
+
+/** Screen stub interface. */
+interface ScreenStub {
+  width: number;
+  height: number;
+  availWidth: number;
+  availHeight: number;
+  colorDepth: number;
+  pixelDepth: number;
+}
+
+/**
  * Options for createWindow factory.
  */
 export interface WindowOptions {
   innerWidth?: number;
   innerHeight?: number;
   matchMediaMatches?: boolean;
+  screenWidth?: number;
+  screenHeight?: number;
+  devicePixelRatio?: number;
 }
 
 /**
@@ -190,12 +303,23 @@ export class Window {
   public sessionStorage: Storage;
   public innerWidth: number;
   public innerHeight: number;
+  public URL: typeof URL;
+  public URLSearchParams: typeof URLSearchParams;
+  public performance: PerformanceStub;
+  public console: typeof globalThis.console;
+  public screen: ScreenStub;
+  public devicePixelRatio: number;
+  public scrollX: number;
+  public scrollY: number;
+  public pageXOffset: number;
+  public pageYOffset: number;
 
   private eventListeners: Map<string, Array<(event: Event) => void>> =
     new Map();
   private rafCallbacks: Map<number, (timestamp: number) => void> = new Map();
   private rafIdCounter = 0;
   private _matchMediaMatches: boolean;
+  private _fetchHandler: FetchHandler | null = null;
 
   constructor(options?: WindowOptions) {
     this.document = new Document();
@@ -207,6 +331,38 @@ export class Window {
     this.innerWidth = options?.innerWidth ?? 1024;
     this.innerHeight = options?.innerHeight ?? 768;
     this._matchMediaMatches = options?.matchMediaMatches ?? false;
+    this.URL = URL;
+    this.URLSearchParams = URLSearchParams;
+    this.performance = {
+      now(): number {
+        return Date.now();
+      },
+      mark(_name: string): void {},
+      measure(_name: string, _start?: string, _end?: string): void {},
+      getEntries(): unknown[] {
+        return [];
+      },
+      getEntriesByName(_name: string): unknown[] {
+        return [];
+      },
+      getEntriesByType(_type: string): unknown[] {
+        return [];
+      },
+    };
+    this.console = globalThis.console;
+    this.screen = {
+      width: options?.screenWidth ?? 1920,
+      height: options?.screenHeight ?? 1080,
+      availWidth: options?.screenWidth ?? 1920,
+      availHeight: options?.screenHeight ?? 1080,
+      colorDepth: 24,
+      pixelDepth: 24,
+    };
+    this.devicePixelRatio = options?.devicePixelRatio ?? 1;
+    this.scrollX = 0;
+    this.scrollY = 0;
+    this.pageXOffset = 0;
+    this.pageYOffset = 0;
   }
 
   matchMedia(query: string): MediaQueryList {
@@ -219,6 +375,19 @@ export class Window {
     const style: Record<string, string> = {};
     void el;
     return style;
+  }
+
+  async fetch(url: string, options?: RequestInit): Promise<Response> {
+    if (!this._fetchHandler) {
+      throw new Error(
+        'fetch is not configured. Use window.configureFetch() to set up responses.',
+      );
+    }
+    return this._fetchHandler(url, options);
+  }
+
+  configureFetch(handler: FetchHandler): void {
+    this._fetchHandler = handler;
   }
 
   addEventListener(type: string, listener: (event: Event) => void): void {

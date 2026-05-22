@@ -506,3 +506,123 @@ export const mock = {
   restoreAllMocks,
   hoisted,
 };
+
+// ---------------------------------------------------------------------------
+// Environment variable stubbing
+// ---------------------------------------------------------------------------
+
+/** Internal registry of stubbed env vars for restoration. */
+const stubbedEnvs: Array<{
+  name: string;
+  hadOriginal: boolean;
+  original: string | undefined;
+}> = [];
+
+/**
+ * Stub an environment variable.
+ */
+function stubEnv(name: string, value: string): void {
+  const hadOriginal = name in process.env;
+  const original = process.env[name];
+  stubbedEnvs.push({ name, hadOriginal, original });
+  process.env[name] = value;
+}
+
+/**
+ * Restore all stubbed environment variables to their original values.
+ */
+function unstubAllEnvs(): void {
+  while (stubbedEnvs.length > 0) {
+    const entry = stubbedEnvs.pop()!;
+    if (entry.hadOriginal) {
+      process.env[entry.name] = entry.original;
+    } else {
+      delete process.env[entry.name];
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// waitFor / waitUntil
+// ---------------------------------------------------------------------------
+
+interface WaitOptions {
+  timeout?: number;
+  interval?: number;
+}
+
+/**
+ * Retry a callback until it does not throw.
+ * Returns the callback's return value on success.
+ */
+async function waitFor<T>(
+  callback: () => T | Promise<T>,
+  options?: WaitOptions,
+): Promise<T> {
+  const timeout = options?.timeout ?? 1000;
+  const interval = options?.interval ?? 50;
+  const start = Date.now();
+  let lastError: unknown;
+
+  while (true) {
+    try {
+      const result = await callback();
+      return result;
+    } catch (err: unknown) {
+      lastError = err;
+    }
+    if (Date.now() - start >= timeout) {
+      throw lastError instanceof Error
+        ? lastError
+        : new Error(String(lastError));
+    }
+    await new Promise<void>((resolve) => {
+      originalSetTimeout(resolve, interval);
+    });
+  }
+}
+
+/**
+ * Retry a callback until it returns a truthy value.
+ * Returns the truthy value on success.
+ */
+async function waitUntil<T>(
+  callback: () => T | Promise<T>,
+  options?: WaitOptions,
+): Promise<T> {
+  const timeout = options?.timeout ?? 1000;
+  const interval = options?.interval ?? 50;
+  const start = Date.now();
+
+  while (true) {
+    const result = await callback();
+    if (result) {
+      return result;
+    }
+    if (Date.now() - start >= timeout) {
+      throw new Error('vi.waitUntil timed out');
+    }
+    await new Promise<void>((resolve) => {
+      originalSetTimeout(resolve, interval);
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// vi namespace — vitest-compatible alias object
+// ---------------------------------------------------------------------------
+
+/**
+ * The `vi` object mirrors vitest's API for compatibility.
+ */
+export const vi = {
+  fn,
+  spyOn,
+  useFakeTimers,
+  useRealTimers,
+  stubEnv,
+  unstubAllEnvs,
+  waitFor,
+  waitUntil,
+  ...mock,
+};

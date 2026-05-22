@@ -79,6 +79,7 @@ export {
   useFakeTimers,
   useRealTimers,
   mock,
+  vi,
 } from './mocking/index.js';
 
 export {

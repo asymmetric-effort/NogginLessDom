@@ -52,6 +52,36 @@ function deepEqualWithAsymmetric(actual: unknown, expected: unknown): boolean {
 }
 
 /**
+ * Partial deep match: checks that every key in expected exists in actual
+ * with a matching value. Extra keys in actual are allowed.
+ */
+function deepMatchObject(actual: unknown, expected: unknown): boolean {
+  if (isAsymmetricMatcher(expected)) {
+    return expected.asymmetricMatch(actual);
+  }
+  if (actual === expected) return true;
+  if (actual === null || expected === null) return actual === expected;
+  if (typeof actual !== 'object' || typeof expected !== 'object') {
+    return Object.is(actual, expected);
+  }
+
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual)) return false;
+    // Each element in expected must match the corresponding element in actual
+    return expected.every((item, i) => {
+      if (i >= actual.length) return false;
+      return deepMatchObject(actual[i], item);
+    });
+  }
+
+  const actualObj = actual as Record<string, unknown>;
+  const expectedObj = expected as Record<string, unknown>;
+  return Object.keys(expectedObj).every((key) =>
+    deepMatchObject(actualObj[key], expectedObj[key]),
+  );
+}
+
+/**
  * Check if two argument arrays match, supporting asymmetric matchers.
  */
 export function argsMatch(actual: unknown[], expected: unknown[]): boolean {
@@ -106,6 +136,9 @@ interface Matchers<T> {
   toBeLessThan(expected: number): void;
   toBeLessThanOrEqual(expected: number): void;
   toBeCloseTo(expected: number, precision?: number): void;
+  toMatchObject(expected: Record<string, unknown> | unknown[]): void;
+  toHaveBeenCalledOnce(): void;
+  toSatisfy(predicate: (value: unknown) => boolean): void;
   toHaveBeenCalled(): void;
   toHaveBeenCalledTimes(n: number): void;
   toHaveBeenCalledWith(...args: unknown[]): void;
@@ -412,6 +445,24 @@ type CustomMatcherFn = (
 /** Registry for custom matchers added via expect.extend(). */
 const customMatcherRegistry = new Map<string, CustomMatcherFn>();
 
+/** Module-level assertion tracking state. */
+interface ExpectState {
+  assertionCount: number;
+  expectedAssertionCount: number | null;
+  isExpectingAssertions: boolean;
+}
+
+const expectState: ExpectState = {
+  assertionCount: 0,
+  expectedAssertionCount: null,
+  isExpectingAssertions: false,
+};
+
+/** Increment the assertion counter. Called by every matcher. */
+function trackAssertion(): void {
+  expectState.assertionCount++;
+}
+
 /**
  * Create an assertion wrapper for the given value.
  */
@@ -419,6 +470,7 @@ export function expect<T>(actual: T): Matchers<T> {
   let negated = false;
   const matchers: Matchers<T> = {
     toBe(expected: T): void {
+      trackAssertion();
       if (negated) {
         assert.notStrictEqual(actual, expected);
       } else {
@@ -427,6 +479,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toEqual(expected: T): void {
+      trackAssertion();
       // Check if expected contains any asymmetric matchers
       if (hasAsymmetricMatcher(expected)) {
         const matches = deepEqualWithAsymmetric(actual, expected);
@@ -446,6 +499,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toStrictEqual(expected: T): void {
+      trackAssertion();
       if (negated) {
         assert.notDeepStrictEqual(actual, expected);
       } else {
@@ -454,6 +508,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeTruthy(): void {
+      trackAssertion();
       if (negated) {
         assert.ok(!actual, `Expected ${String(actual)} to be falsy`);
       } else {
@@ -462,6 +517,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeFalsy(): void {
+      trackAssertion();
       if (negated) {
         assert.ok(actual, `Expected ${String(actual)} to be truthy`);
       } else {
@@ -470,6 +526,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeNull(): void {
+      trackAssertion();
       if (negated) {
         assert.notStrictEqual(actual, null);
       } else {
@@ -478,6 +535,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeUndefined(): void {
+      trackAssertion();
       if (negated) {
         assert.notStrictEqual(actual, undefined);
       } else {
@@ -486,6 +544,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeDefined(): void {
+      trackAssertion();
       if (negated) {
         assert.strictEqual(actual, undefined);
       } else {
@@ -494,6 +553,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeNaN(): void {
+      trackAssertion();
       const isNaN = Number.isNaN(actual);
       if (negated) {
         assert.ok(!isNaN, `Expected ${String(actual)} not to be NaN`);
@@ -505,6 +565,7 @@ export function expect<T>(actual: T): Matchers<T> {
     toBeInstanceOf(
       expected: abstract new (...args: unknown[]) => unknown,
     ): void {
+      trackAssertion();
       if (negated) {
         assert.ok(
           !(actual instanceof expected),
@@ -519,6 +580,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toContain(expected: unknown): void {
+      trackAssertion();
       const arr = actual as unknown[];
       if (negated) {
         assert.ok(
@@ -534,6 +596,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveLength(expected: number): void {
+      trackAssertion();
       const length = (actual as unknown as { length: number }).length;
       if (negated) {
         assert.notStrictEqual(length, expected);
@@ -543,6 +606,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveProperty(key: string, value?: unknown): void {
+      trackAssertion();
       const has = key in (actual as object);
       if (negated) {
         assert.ok(!has, `Expected object not to have property "${key}"`);
@@ -558,6 +622,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toMatch(expected: string | RegExp): void {
+      trackAssertion();
       const str = actual as unknown as string;
       if (typeof expected === 'string') {
         if (negated) {
@@ -581,6 +646,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toThrow(expected?: string | RegExp | Error): void {
+      trackAssertion();
       const fn = actual as unknown as () => void;
       if (negated) {
         assert.doesNotThrow(fn);
@@ -598,6 +664,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeGreaterThan(expected: number): void {
+      trackAssertion();
       if (negated) {
         assert.ok((actual as unknown as number) <= expected);
       } else {
@@ -606,6 +673,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeGreaterThanOrEqual(expected: number): void {
+      trackAssertion();
       if (negated) {
         assert.ok((actual as unknown as number) < expected);
       } else {
@@ -614,6 +682,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeLessThan(expected: number): void {
+      trackAssertion();
       if (negated) {
         assert.ok((actual as unknown as number) >= expected);
       } else {
@@ -622,6 +691,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeLessThanOrEqual(expected: number): void {
+      trackAssertion();
       if (negated) {
         assert.ok((actual as unknown as number) > expected);
       } else {
@@ -630,6 +700,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toBeCloseTo(expected: number, precision = 2): void {
+      trackAssertion();
       const diff = Math.abs((actual as unknown as number) - expected);
       const threshold = Math.pow(10, -precision) / 2;
       if (negated) {
@@ -646,6 +717,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveBeenCalled(): void {
+      trackAssertion();
       const mock = getMockState(actual);
       if (negated) {
         assert.ok(
@@ -658,6 +730,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveBeenCalledTimes(n: number): void {
+      trackAssertion();
       const mock = getMockState(actual);
       if (negated) {
         assert.ok(
@@ -674,6 +747,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveBeenCalledWith(...args: unknown[]): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const found = mock.calls.some((call: unknown[]) => argsMatch(call, args));
       if (negated) {
@@ -690,6 +764,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveBeenLastCalledWith(...args: unknown[]): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const lastCall = mock.calls[mock.calls.length - 1];
       const matches = lastCall && argsMatch(lastCall, args);
@@ -707,6 +782,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveBeenNthCalledWith(n: number, ...args: unknown[]): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const nthCall = mock.calls[n - 1];
       const matches = nthCall && argsMatch(nthCall, args);
@@ -724,6 +800,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveReturned(): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const hasReturn = mock.results.some(
         (r: { type: string }) => r.type === 'return',
@@ -736,6 +813,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveReturnedTimes(n: number): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const returnCount = mock.results.filter(
         (r: { type: string }) => r.type === 'return',
@@ -755,6 +833,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveReturnedWith(value: unknown): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const found = mock.results.some(
         (r: { type: string; value: unknown }) =>
@@ -774,6 +853,7 @@ export function expect<T>(actual: T): Matchers<T> {
     },
 
     toHaveLastReturnedWith(value: unknown): void {
+      trackAssertion();
       const mock = getMockState(actual);
       const lastResult = mock.results[mock.results.length - 1];
       const matches =
@@ -793,12 +873,63 @@ export function expect<T>(actual: T): Matchers<T> {
       }
     },
 
+    toMatchObject(expected: Record<string, unknown> | unknown[]): void {
+      trackAssertion();
+      const matches = deepMatchObject(actual, expected);
+      if (negated) {
+        assert.ok(
+          !matches,
+          `Expected ${JSON.stringify(actual)} not to match object ${JSON.stringify(expected)}`,
+        );
+      } else {
+        assert.ok(
+          matches,
+          `Expected ${JSON.stringify(actual)} to match object ${JSON.stringify(expected)}`,
+        );
+      }
+    },
+
+    toHaveBeenCalledOnce(): void {
+      trackAssertion();
+      const mock = getMockState(actual);
+      if (negated) {
+        assert.ok(
+          mock.calls.length !== 1,
+          `Expected mock not to have been called exactly once, but it was called ${mock.calls.length} time(s)`,
+        );
+      } else {
+        assert.strictEqual(
+          mock.calls.length,
+          1,
+          `Expected mock to have been called once, but it was called ${mock.calls.length} time(s)`,
+        );
+      }
+    },
+
+    toSatisfy(predicate: (value: unknown) => boolean): void {
+      trackAssertion();
+      const result = predicate(actual);
+      if (negated) {
+        assert.ok(
+          !result,
+          `Expected ${JSON.stringify(actual)} not to satisfy predicate`,
+        );
+      } else {
+        assert.ok(
+          result,
+          `Expected ${JSON.stringify(actual)} to satisfy predicate`,
+        );
+      }
+    },
+
     toMatchSnapshot(snapshotName?: string): void {
+      trackAssertion();
       const name = snapshotName ?? 'default';
       matchSnapshot(actual, name);
     },
 
     toMatchInlineSnapshot(inlineSnapshot?: string): void {
+      trackAssertion();
       matchInlineSnapshot(actual, inlineSnapshot);
     },
 
@@ -931,4 +1062,48 @@ expect.not = {
       return !expect.stringMatching(pattern).asymmetricMatch(actual);
     },
   }),
+};
+
+/** Set the expected number of assertions for the current test. */
+expect.assertions = (count: number): void => {
+  expectState.expectedAssertionCount = count;
+};
+
+/** Declare that at least one assertion must run in the current test. */
+expect.hasAssertions = (): void => {
+  expectState.isExpectingAssertions = true;
+};
+
+/** Get the current assertion tracking state. */
+expect.getState = (): {
+  assertionCount: number;
+  expectedAssertionCount: number | null;
+  isExpectingAssertions: boolean;
+} => ({
+  assertionCount: expectState.assertionCount,
+  expectedAssertionCount: expectState.expectedAssertionCount,
+  isExpectingAssertions: expectState.isExpectingAssertions,
+});
+
+/** Reset assertion tracking state (call at the start of each test). */
+expect.resetState = (): void => {
+  expectState.assertionCount = 0;
+  expectState.expectedAssertionCount = null;
+  expectState.isExpectingAssertions = false;
+};
+
+/** Verify assertion counts (call at the end of each test). Throws if expectations are not met. */
+expect.verifyAssertions = (): void => {
+  if (expectState.expectedAssertionCount !== null) {
+    if (expectState.assertionCount !== expectState.expectedAssertionCount) {
+      throw new Error(
+        `Expected ${expectState.expectedAssertionCount} assertions, but ${expectState.assertionCount} were called`,
+      );
+    }
+  }
+  if (expectState.isExpectingAssertions) {
+    if (expectState.assertionCount === 0) {
+      throw new Error(`Expected at least one assertion, but none were called`);
+    }
+  }
 };

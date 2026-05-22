@@ -68,14 +68,156 @@ interface DOMStringMap {
  * Base DOM Node.
  */
 export class Node {
+  /** Document position bitmask constants */
+  public static readonly DOCUMENT_POSITION_DISCONNECTED = 1;
+  public static readonly DOCUMENT_POSITION_PRECEDING = 2;
+  public static readonly DOCUMENT_POSITION_FOLLOWING = 4;
+  public static readonly DOCUMENT_POSITION_CONTAINS = 8;
+  public static readonly DOCUMENT_POSITION_CONTAINED_BY = 16;
+
   public nodeType: number;
   public nodeName: string;
   public childNodes: Node[] = [];
   public parentNode: Node | null = null;
+  public ownerDocument: Document | null = null;
 
   constructor(nodeType: number, nodeName: string) {
     this.nodeType = nodeType;
     this.nodeName = nodeName;
+  }
+
+  get parentElement(): Element | null {
+    if (this.parentNode instanceof Element) {
+      return this.parentNode;
+    }
+    return null;
+  }
+
+  get nodeValue(): string | null {
+    return null;
+  }
+
+  set nodeValue(_value: string | null) {
+    // No-op for non-text nodes
+  }
+
+  normalize(): void {
+    const newChildren: Node[] = [];
+    for (const child of this.childNodes) {
+      if (child instanceof TextNode) {
+        if (child.data === '') {
+          child.parentNode = null;
+          continue;
+        }
+        const last =
+          newChildren.length > 0 ? newChildren[newChildren.length - 1] : null;
+        if (last instanceof TextNode) {
+          last.data = last.data + child.data;
+          child.parentNode = null;
+          continue;
+        }
+      } else {
+        child.normalize();
+      }
+      newChildren.push(child);
+    }
+    this.childNodes = newChildren;
+  }
+
+  isEqualNode(other: Node | null): boolean {
+    if (other === null) return false;
+    if (this.nodeType !== other.nodeType) return false;
+    if (this.nodeName !== other.nodeName) return false;
+    if (this.childNodes.length !== other.childNodes.length) return false;
+
+    // For elements, compare attributes
+    if (this instanceof Element && other instanceof Element) {
+      const thisAttrs = this.getAttributeEntries();
+      const otherAttrs = other.getAttributeEntries();
+      if (thisAttrs.length !== otherAttrs.length) return false;
+      for (const [key, value] of thisAttrs) {
+        if (other.getAttribute(key) !== value) return false;
+      }
+    }
+
+    // For text nodes, compare data
+    if (this instanceof TextNode && other instanceof TextNode) {
+      if (this.data !== other.data) return false;
+    }
+
+    // Compare children recursively
+    for (let i = 0; i < this.childNodes.length; i++) {
+      if (!this.childNodes[i]!.isEqualNode(other.childNodes[i]!)) return false;
+    }
+    return true;
+  }
+
+  isSameNode(other: Node | null): boolean {
+    return this === other;
+  }
+
+  compareDocumentPosition(other: Node): number {
+    if (this === other) return 0;
+
+    // Get ancestors for both nodes
+    const thisAncestors: Node[] = [];
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let n: Node | null = this;
+    while (n) {
+      thisAncestors.push(n);
+      n = n.parentNode;
+    }
+
+    const otherAncestors: Node[] = [];
+    n = other;
+    while (n) {
+      otherAncestors.push(n);
+      n = n.parentNode;
+    }
+
+    // Check if this contains other
+    if (thisAncestors.includes(other)) {
+      // other is an ancestor of this → other CONTAINS this, other PRECEDES this
+      return 8 | 2; // CONTAINS | PRECEDING
+    }
+    if (otherAncestors.includes(this)) {
+      // this is an ancestor of other → other is CONTAINED_BY this, other FOLLOWS this
+      return 16 | 4; // CONTAINED_BY | FOLLOWING
+    }
+
+    // Find common ancestor
+    const thisRoot = thisAncestors[thisAncestors.length - 1];
+    const otherRoot = otherAncestors[otherAncestors.length - 1];
+    if (thisRoot !== otherRoot) {
+      return 1 | 2 | 4; // DISCONNECTED | PRECEDING | FOLLOWING (implementation-defined order)
+    }
+
+    // Find the common ancestor and determine order
+    const thisSet = new Set(thisAncestors);
+    // Walk other's ancestors to find the first common ancestor
+    let commonAncestor: Node | null = null;
+    for (const ancestor of otherAncestors) {
+      if (thisSet.has(ancestor)) {
+        commonAncestor = ancestor;
+        break;
+      }
+    }
+
+    if (!commonAncestor) {
+      return 1; // DISCONNECTED
+    }
+
+    // Find which child of commonAncestor leads to this vs other
+    const thisChild = thisAncestors[thisAncestors.indexOf(commonAncestor) - 1];
+    const otherChild =
+      otherAncestors[otherAncestors.indexOf(commonAncestor) - 1];
+
+    for (const child of commonAncestor.childNodes) {
+      if (child === thisChild) return 4; // other FOLLOWS
+      if (child === otherChild) return 2; // other PRECEDES
+    }
+
+    return 1; // DISCONNECTED (fallback)
   }
 
   appendChild(child: Node): Node {
@@ -222,6 +364,14 @@ export class TextNode extends Node {
     notifyCharacterDataMutation(this, oldValue);
   }
 
+  override get nodeValue(): string | null {
+    return this._data;
+  }
+
+  override set nodeValue(value: string | null) {
+    this.data = value ?? '';
+  }
+
   override get textContent(): string {
     return this._data;
   }
@@ -263,11 +413,20 @@ export class Comment extends Node {
  * DOM Event.
  */
 export class Event {
+  public static readonly NONE = 0;
+  public static readonly CAPTURING_PHASE = 1;
+  public static readonly AT_TARGET = 2;
+  public static readonly BUBBLING_PHASE = 3;
+
   public readonly type: string;
   public readonly bubbles: boolean;
   public readonly cancelable: boolean;
+  public readonly isTrusted: boolean = false;
+  public readonly timeStamp: number;
   public defaultPrevented = false;
   public propagationStopped = false;
+  public immediatePropagationStopped = false;
+  public eventPhase = 0;
   public target: Node | null = null;
   public currentTarget: Node | null = null;
 
@@ -278,6 +437,7 @@ export class Event {
     this.type = type ?? '';
     this.bubbles = options?.bubbles ?? false;
     this.cancelable = options?.cancelable ?? false;
+    this.timeStamp = Date.now();
   }
 
   preventDefault(): void {
@@ -288,6 +448,22 @@ export class Event {
 
   stopPropagation(): void {
     this.propagationStopped = true;
+  }
+
+  stopImmediatePropagation(): void {
+    this.propagationStopped = true;
+    this.immediatePropagationStopped = true;
+  }
+
+  composedPath(): Node[] {
+    if (!this.target) return [];
+    const path: Node[] = [];
+    let current: Node | null = this.target;
+    while (current) {
+      path.push(current);
+      current = current.parentNode;
+    }
+    return path;
   }
 }
 
@@ -300,8 +476,14 @@ export class Element extends Node {
   public className = '';
   public namespaceURI: string | null = null;
   private attributes: Map<string, string> = new Map();
-  private eventListeners: Map<string, Array<(event: Event) => void>> =
-    new Map();
+  private _captureListeners: Map<
+    string,
+    Array<{ fn: (event: Event) => void; once: boolean }>
+  > = new Map();
+  private _bubbleListeners: Map<
+    string,
+    Array<{ fn: (event: Event) => void; once: boolean }>
+  > = new Map();
   private _classList: DOMTokenList | null = null;
   private _style: CSSStyleDeclaration | null = null;
   private _shadowRoot: ShadowRootType | null = null;
@@ -344,50 +526,133 @@ export class Element extends Node {
     return [...this.attributes.entries()];
   }
 
-  addEventListener(type: string, listener: (event: Event) => void): void {
-    if (!this.eventListeners.has(type)) {
-      this.eventListeners.set(type, []);
+  addEventListener(
+    type: string,
+    listener: (event: Event) => void,
+    options?:
+      | boolean
+      | { capture?: boolean; once?: boolean; passive?: boolean },
+  ): void {
+    const capture =
+      typeof options === 'boolean' ? options : (options?.capture ?? false);
+    const once =
+      typeof options === 'boolean' ? false : (options?.once ?? false);
+    const map = capture ? this._captureListeners : this._bubbleListeners;
+    if (!map.has(type)) {
+      map.set(type, []);
     }
-    this.eventListeners.get(type)!.push(listener);
+    map.get(type)!.push({ fn: listener, once });
   }
 
-  removeEventListener(type: string, listener: (event: Event) => void): void {
-    const listeners = this.eventListeners.get(type);
-    if (listeners) {
-      const index = listeners.indexOf(listener);
+  removeEventListener(
+    type: string,
+    listener: (event: Event) => void,
+    options?: boolean | { capture?: boolean },
+  ): void {
+    const capture =
+      typeof options === 'boolean' ? options : (options?.capture ?? false);
+    const map = capture ? this._captureListeners : this._bubbleListeners;
+    const entries = map.get(type);
+    if (entries) {
+      const index = entries.findIndex((e) => e.fn === listener);
       if (index !== -1) {
-        listeners.splice(index, 1);
+        entries.splice(index, 1);
+      }
+    }
+  }
+
+  private _fireListeners(
+    event: Event,
+    entries: Array<{ fn: (event: Event) => void; once: boolean }>,
+    type: string,
+    map: Map<string, Array<{ fn: (event: Event) => void; once: boolean }>>,
+  ): void {
+    const snapshot = entries.slice();
+    for (const entry of snapshot) {
+      if (event.immediatePropagationStopped) break;
+      entry.fn(event);
+      if (entry.once) {
+        const current = map.get(type);
+        if (current) {
+          const idx = current.indexOf(entry);
+          if (idx !== -1) current.splice(idx, 1);
+        }
       }
     }
   }
 
   dispatchEvent(event: Event): boolean {
-    // Set event.target to the element that originally dispatched the event
     event.target = this;
 
-    // Target phase: fire listeners on the target element
-    event.currentTarget = this;
-    const listeners = this.eventListeners.get(event.type) ?? [];
-    for (const listener of listeners) {
-      listener(event);
+    // Build path from target to root
+    const path: Element[] = [];
+    let current: Node | null = this as Node;
+    while (current) {
+      if (current instanceof Element) {
+        path.push(current);
+      }
+      current = current.parentNode;
     }
 
-    // Bubble phase: walk up parentNode chain if event bubbles
-    if (event.bubbles && !event.propagationStopped) {
-      let ancestor = this.parentNode;
-      while (ancestor && !event.propagationStopped) {
-        if (ancestor instanceof Element) {
-          event.currentTarget = ancestor;
-          const ancestorListeners =
-            ancestor.eventListeners.get(event.type) ?? [];
-          for (const listener of ancestorListeners) {
-            listener(event);
-          }
-        }
-        ancestor = ancestor.parentNode;
+    // Capture phase: root -> target (excluding target)
+    const ancestors = path.slice(1).reverse();
+    for (const ancestor of ancestors) {
+      if (event.propagationStopped) break;
+      event.eventPhase = 1; // CAPTURING_PHASE
+      event.currentTarget = ancestor;
+      const captureEntries = ancestor._captureListeners.get(event.type) ?? [];
+      ancestor._fireListeners(
+        event,
+        captureEntries,
+        event.type,
+        ancestor._captureListeners,
+      );
+    }
+
+    // Target phase: fire both capture and bubble listeners on target in registration order
+    if (!event.propagationStopped) {
+      event.eventPhase = 2; // AT_TARGET
+      event.currentTarget = this;
+      // At the target, fire all listeners (capture + bubble) in registration order
+      // We interleave them by firing bubble list which contains all non-capture listeners
+      const targetCapture = this._captureListeners.get(event.type) ?? [];
+      const targetBubble = this._bubbleListeners.get(event.type) ?? [];
+      // Fire all target listeners: bubble first then capture (matching registration order typical behavior)
+      // Actually at target phase, all listeners fire regardless of capture flag, in registration order.
+      // We fire bubble listeners first, then capture listeners to maintain typical add order.
+      this._fireListeners(
+        event,
+        targetBubble,
+        event.type,
+        this._bubbleListeners,
+      );
+      if (!event.immediatePropagationStopped) {
+        this._fireListeners(
+          event,
+          targetCapture,
+          event.type,
+          this._captureListeners,
+        );
       }
     }
 
+    // Bubble phase: target -> root (excluding target)
+    if (event.bubbles && !event.propagationStopped) {
+      for (const ancestor of path.slice(1)) {
+        if (event.propagationStopped) break;
+        event.eventPhase = 3; // BUBBLING_PHASE
+        event.currentTarget = ancestor;
+        const bubbleEntries = ancestor._bubbleListeners.get(event.type) ?? [];
+        ancestor._fireListeners(
+          event,
+          bubbleEntries,
+          event.type,
+          ancestor._bubbleListeners,
+        );
+      }
+    }
+
+    event.eventPhase = 0;
     event.currentTarget = null;
     return !event.defaultPrevented;
   }
@@ -718,6 +983,7 @@ export class Document extends Node {
 
   constructor() {
     super(9, '#document');
+    this.ownerDocument = null;
   }
 
   // ---- Custom Elements ----
@@ -735,7 +1001,9 @@ export class Document extends Node {
     // Check custom elements first
     const CustomCtor = this.customElements.get(tagName.toLowerCase());
     if (CustomCtor) {
-      return new CustomCtor();
+      const el = new CustomCtor();
+      el.ownerDocument = this;
+      return el;
     }
 
     // Lazy import to avoid circular dependency with html-elements.ts
@@ -744,17 +1012,25 @@ export class Document extends Node {
       require('./html-elements.js') as typeof import('./html-elements.js');
     const Ctor = HTML_ELEMENT_MAP[upper];
     if (Ctor) {
-      return new Ctor();
+      const el = new Ctor();
+      el.ownerDocument = this;
+      return el;
     }
-    return new Element(tagName);
+    const el = new Element(tagName);
+    el.ownerDocument = this;
+    return el;
   }
 
   createElementNS(namespaceURI: string, qualifiedName: string): Element {
-    return new Element(qualifiedName, namespaceURI);
+    const el = new Element(qualifiedName, namespaceURI);
+    el.ownerDocument = this;
+    return el;
   }
 
   createTextNode(data: string): TextNode {
-    return new TextNode(data);
+    const text = new TextNode(data);
+    text.ownerDocument = this;
+    return text;
   }
 
   getElementById(id: string): Element | null {
@@ -774,7 +1050,9 @@ export class Document extends Node {
   }
 
   createComment(data: string): Comment {
-    return new Comment(data);
+    const comment = new Comment(data);
+    comment.ownerDocument = this;
+    return comment;
   }
 
   querySelectorAll(selector: string): NodeList {

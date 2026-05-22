@@ -123,6 +123,8 @@ interface DescribeFn {
   todo: (name: string, fn?: SuiteFn) => void;
   each: ReturnType<typeof makeDescribeEach>;
   concurrent: (name: string, fn: SuiteFn) => void;
+  skipIf: (condition: unknown) => (name: string, fn: SuiteFn) => void;
+  runIf: (condition: unknown) => (name: string, fn: SuiteFn) => void;
 }
 
 /**
@@ -146,6 +148,24 @@ const describe: DescribeFn = Object.assign(
     concurrent(name: string, fn: SuiteFn): void {
       nodeDescribe(name, { concurrency: true }, fn);
     },
+    skipIf(condition: unknown): (name: string, fn: SuiteFn) => void {
+      return (name: string, fn: SuiteFn): void => {
+        if (condition) {
+          nodeDescribe(name, { skip: true }, fn);
+        } else {
+          nodeDescribe(name, fn);
+        }
+      };
+    },
+    runIf(condition: unknown): (name: string, fn: SuiteFn) => void {
+      return (name: string, fn: SuiteFn): void => {
+        if (condition) {
+          nodeDescribe(name, fn);
+        } else {
+          nodeDescribe(name, { skip: true }, fn);
+        }
+      };
+    },
   },
 );
 
@@ -160,6 +180,9 @@ interface ItFn {
   todo: (name: string, fn?: TestFn) => void;
   each: ReturnType<typeof makeEach>;
   concurrent: (name: string, fn: TestFn, options?: TestOptions) => void;
+  skipIf: (condition: unknown) => (name: string, fn: TestFn) => void;
+  runIf: (condition: unknown) => (name: string, fn: TestFn) => void;
+  fails: (name: string, fn: TestFn) => void;
 }
 
 function baseIt(name: string, fn: TestFn, options?: TestOptions): void {
@@ -205,6 +228,37 @@ const it: ItFn = Object.assign(
         },
         fn,
       );
+    },
+    skipIf(condition: unknown): (name: string, fn: TestFn) => void {
+      return (name: string, fn: TestFn): void => {
+        if (condition) {
+          nodeIt(name, { skip: true }, fn);
+        } else {
+          nodeIt(name, fn);
+        }
+      };
+    },
+    runIf(condition: unknown): (name: string, fn: TestFn) => void {
+      return (name: string, fn: TestFn): void => {
+        if (condition) {
+          nodeIt(name, fn);
+        } else {
+          nodeIt(name, { skip: true }, fn);
+        }
+      };
+    },
+    fails(name: string, fn: TestFn): void {
+      nodeIt(name, async () => {
+        let threw = false;
+        try {
+          await fn();
+        } catch {
+          threw = true;
+        }
+        if (!threw) {
+          throw new Error('Expected test to fail but it passed');
+        }
+      });
     },
   },
 );
