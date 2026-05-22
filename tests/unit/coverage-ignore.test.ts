@@ -107,6 +107,103 @@ line6`;
     });
   });
 
+  describe('istanbul ignore class', () => {
+    it('should ignore an entire class', () => {
+      const source = `line1
+/* istanbul ignore class */
+class Foo {
+  bar() {}
+}
+line6`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.startLine, 3);
+      assert.equal(ranges[0]!.endLine, 5);
+      assert.equal(ranges[0]!.type, 'class');
+    });
+
+    it('should parse reason on class directive', () => {
+      const source = `line1
+/* istanbul ignore class -- legacy code */
+class Foo {
+  bar() {}
+}
+line6`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.type, 'class');
+      assert.equal(ranges[0]!.reason, 'legacy code');
+    });
+  });
+
+  describe('reason strings', () => {
+    it('should parse reason from istanbul ignore next', () => {
+      const source = `line1
+/* istanbul ignore next -- reason text */
+line3`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.reason, 'reason text');
+    });
+
+    it('should parse reason from v8 ignore next', () => {
+      const source = `line1
+/* v8 ignore next -- hard to test */
+line3`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.reason, 'hard to test');
+    });
+
+    it('should have no reason when none provided', () => {
+      const source = `line1
+/* istanbul ignore next */
+line3`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.reason, undefined);
+    });
+  });
+
+  describe('v8 ignore next N', () => {
+    it('should ignore next N lines', () => {
+      const source = `line1
+/* v8 ignore next 3 */
+line3
+line4
+line5
+line6`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.startLine, 3);
+      assert.equal(ranges[0]!.endLine, 5);
+      assert.equal(ranges[0]!.type, 'line');
+    });
+
+    it('should parse reason on v8 ignore next N', () => {
+      const source = `line1
+/* v8 ignore next 2 -- platform specific */
+line3
+line4
+line5`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.startLine, 3);
+      assert.equal(ranges[0]!.endLine, 4);
+      assert.equal(ranges[0]!.reason, 'platform specific');
+    });
+
+    it('should clamp to end of file', () => {
+      const source = `line1
+/* v8 ignore next 10 */
+line3`;
+      const ranges = findIgnoreRanges(source);
+      assert.equal(ranges.length, 1);
+      assert.equal(ranges[0]!.startLine, 3);
+      assert.equal(ranges[0]!.endLine, 3);
+    });
+  });
+
   describe('multiple directives', () => {
     it('should handle multiple ignore next directives', () => {
       const source = `line1

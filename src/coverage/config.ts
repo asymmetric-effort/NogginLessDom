@@ -1,9 +1,22 @@
+export interface GlobThresholds {
+  lines?: number;
+  functions?: number;
+  branches?: number;
+  statements?: number;
+}
+
 export interface CoverageThresholds {
   lines?: number;
   functions?: number;
   branches?: number;
   statements?: number;
   perFile?: boolean;
+  /** If true, set all metric thresholds to 100%. */
+  100?: boolean;
+  /** If true, store flag for auto-updating thresholds (actual update logic deferred). */
+  autoUpdate?: boolean;
+  /** Glob-pattern-keyed thresholds for specific file groups. */
+  glob?: Record<string, GlobThresholds>;
 }
 
 export interface CoverageWatermarks {
@@ -25,6 +38,11 @@ export interface CoverageConfig {
   watermarks?: CoverageWatermarks;
   skipFull?: boolean;
   all?: boolean;
+  cleanOnRerun?: boolean;
+  allowExternal?: boolean;
+  extension?: string[];
+  reportOnFailure?: boolean;
+  processingConcurrency?: number;
 }
 
 export interface ResolvedCoverageConfig {
@@ -39,6 +57,11 @@ export interface ResolvedCoverageConfig {
   all: boolean;
   watermarks: Required<CoverageWatermarks>;
   thresholds?: CoverageThresholds;
+  cleanOnRerun: boolean;
+  allowExternal: boolean;
+  extension: string[];
+  reportOnFailure: boolean;
+  processingConcurrency: number;
 }
 
 export function getDefaultConfig(): CoverageConfig {
@@ -68,6 +91,11 @@ export function getDefaultConfig(): CoverageConfig {
       statements: [50, 80],
     },
     thresholds: undefined,
+    cleanOnRerun: true,
+    allowExternal: false,
+    extension: ['.ts', '.js', '.tsx', '.jsx'],
+    reportOnFailure: false,
+    processingConcurrency: 1,
   };
 }
 
@@ -105,5 +133,13 @@ export function mergeConfig(
         ([50, 80] as [number, number]),
     },
     thresholds: userConfig.thresholds ?? defaults.thresholds,
+    cleanOnRerun: userConfig.cleanOnRerun ?? defaults.cleanOnRerun ?? true,
+    allowExternal: userConfig.allowExternal ?? defaults.allowExternal ?? false,
+    extension: userConfig.extension ??
+      defaults.extension ?? ['.ts', '.js', '.tsx', '.jsx'],
+    reportOnFailure:
+      userConfig.reportOnFailure ?? defaults.reportOnFailure ?? false,
+    processingConcurrency:
+      userConfig.processingConcurrency ?? defaults.processingConcurrency ?? 1,
   };
 }

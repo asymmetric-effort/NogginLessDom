@@ -11,6 +11,10 @@ export { JsonReporter, JsonSummaryReporter } from './json.js';
 export { LcovReporter } from './lcov.js';
 export { CoberturaReporter } from './cobertura.js';
 export { CloverReporter } from './clover.js';
+export { TextSummaryReporter } from './text-summary.js';
+export { LcovOnlyReporter } from './lcovonly.js';
+export { TeamcityReporter } from './teamcity.js';
+export { HtmlReporter } from './html.js';
 
 import type {
   CoverageMap,
@@ -22,6 +26,10 @@ import { JsonReporter, JsonSummaryReporter } from './json.js';
 import { LcovReporter } from './lcov.js';
 import { CoberturaReporter } from './cobertura.js';
 import { CloverReporter } from './clover.js';
+import { TextSummaryReporter } from './text-summary.js';
+import { LcovOnlyReporter } from './lcovonly.js';
+import { TeamcityReporter } from './teamcity.js';
+import { HtmlReporter } from './html.js';
 
 export interface CoverageReporter {
   onStart?(): void | Promise<void>;
@@ -100,6 +108,58 @@ export function createJsonSummaryReporter(
   };
 }
 
+export function createTextSummaryReporter(
+  options: ReporterOptions,
+): CoverageReporter {
+  const reporter = new TextSummaryReporter(options);
+  return {
+    onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
+      reporter.onEnd(coverageMap, globalSummary);
+    },
+  };
+}
+
+export function createLcovOnlyReporter(
+  options: ReporterOptions,
+): CoverageReporter {
+  const reporter = new LcovOnlyReporter(options);
+  return {
+    onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
+      reporter.onEnd(coverageMap, globalSummary);
+    },
+  };
+}
+
+export function createTeamcityReporter(
+  options: ReporterOptions,
+): CoverageReporter {
+  const reporter = new TeamcityReporter(options);
+  return {
+    onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
+      reporter.onEnd(coverageMap, globalSummary);
+    },
+  };
+}
+
+export function createHtmlReporter(options: ReporterOptions): CoverageReporter {
+  const reporter = new HtmlReporter(options);
+  return {
+    onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
+      reporter.onEnd(coverageMap, globalSummary);
+    },
+  };
+}
+
+export function createNoneReporter(
+  _options: ReporterOptions,
+): CoverageReporter {
+  return {
+    onEnd(_coverageMap: CoverageMap, _globalSummary: CoverageSummary): void {
+      // no-op
+    },
+  };
+}
+
 const REPORTER_FACTORIES: Record<string, ReporterFactory> = {
   text: createTextReporter,
   json: createJsonReporter,
@@ -107,6 +167,11 @@ const REPORTER_FACTORIES: Record<string, ReporterFactory> = {
   lcov: createLcovReporter,
   cobertura: createCoberturaReporter,
   clover: createCloverReporter,
+  'text-summary': createTextSummaryReporter,
+  lcovonly: createLcovOnlyReporter,
+  teamcity: createTeamcityReporter,
+  html: createHtmlReporter,
+  none: createNoneReporter,
 };
 
 export function getReporterFactory(name: string): ReporterFactory {

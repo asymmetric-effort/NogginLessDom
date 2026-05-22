@@ -21,17 +21,19 @@ import {
 } from './coverage-map.js';
 import { shouldIncludeFile } from './filter.js';
 import { findIgnoreRanges, applyIgnoreRanges } from './ignore.js';
+import { offsetToLocation } from './v8-to-istanbul.js';
 
 // Re-export types consumers need
 export type {
   CoverageConfig,
   CoverageThresholds,
+  GlobThresholds,
   ResolvedCoverageConfig,
 } from './config.js';
 export { getDefaultConfig, mergeConfig } from './config.js';
 export type { CoverageSummary, FileCoverage } from './coverage-map.js';
 export { CoverageMap } from './coverage-map.js';
-export { shouldIncludeFile } from './filter.js';
+export { shouldIncludeFile, matchesPattern } from './filter.js';
 export {
   findIgnoreRanges,
   applyIgnoreRanges,
@@ -320,23 +322,28 @@ function processV8Coverage(
 
     if (!shouldIncludeFile(relativePath, config)) continue;
 
-    // Convert V8 coverage to FileCoverage format
-    const fc = v8ToFileCoverage(filePath, script);
-
-    // Apply ignore ranges if we can read the source
+    // Try to read source content for proper line mapping and ignore ranges
+    let sourceContent: string | undefined;
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fs = require('node:fs') as {
         readFileSync(p: string, e: string): string;
       };
-      const source = fs.readFileSync(filePath, 'utf-8');
-      const ignoreRanges = findIgnoreRanges(source);
+      sourceContent = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      // If we can't read the file, proceed without source content
+    }
+
+    // Convert V8 coverage to FileCoverage format with proper line mapping
+    const fc = v8ToFileCoverage(filePath, script, sourceContent);
+
+    // Apply ignore ranges if we have source content
+    if (sourceContent !== undefined) {
+      const ignoreRanges = findIgnoreRanges(sourceContent);
       if (ignoreRanges.length > 0) {
         files.set(filePath, applyIgnoreRanges(fc, ignoreRanges));
         continue;
       }
-    } catch {
-      // If we can't read the file, use as-is
     }
 
     files.set(filePath, fc);
@@ -348,6 +355,7 @@ function processV8Coverage(
 function v8ToFileCoverage(
   filePath: string,
   script: V8ScriptCoverage,
+  sourceContent?: string,
 ): FileCoverage {
   const statementMap: Record<string, Range> = {};
   const fnMap: Record<string, FunctionMapping> = {};
@@ -358,6 +366,15 @@ function v8ToFileCoverage(
 
   let stmtIdx = 0;
   let fnIdx = 0;
+  let branchIdx = 0;
+
+  // Helper: convert byte offset to Location using source content when available
+  const toLocation = (offset: number): { line: number; column: number } => {
+    if (sourceContent !== undefined) {
+      return offsetToLocation(sourceContent, offset);
+    }
+    return { line: 1, column: offset };
+  };
 
   for (const fn of script.functions) {
     // Each function's first range is the function itself
@@ -365,32 +382,69 @@ function v8ToFileCoverage(
       const firstRange = fn.ranges[0]!;
       const fnKey = String(fnIdx);
 
+      const fnStart = toLocation(firstRange.startOffset);
+      const fnEnd = toLocation(firstRange.endOffset);
+      const fnRange: Range = { start: fnStart, end: fnEnd };
+
       fnMap[fnKey] = {
         name: fn.functionName || '(anonymous)',
-        decl: {
-          start: { line: 1, column: firstRange.startOffset },
-          end: { line: 1, column: firstRange.endOffset },
-        },
-        loc: {
-          start: { line: 1, column: firstRange.startOffset },
-          end: { line: 1, column: firstRange.endOffset },
-        },
-        line: 1,
+        decl: fnRange,
+        loc: fnRange,
+        line: fnStart.line,
       };
       f[fnKey] = firstRange.count;
       fnIdx++;
 
-      // Additional ranges are branches/statements
-      for (let i = 1; i < fn.ranges.length; i++) {
-        const range = fn.ranges[i]!;
-        const sKey = String(stmtIdx);
+      // Add statement for the function range
+      const fnStmtKey = String(stmtIdx);
+      statementMap[fnStmtKey] = fnRange;
+      s[fnStmtKey] = firstRange.count;
+      stmtIdx++;
 
-        statementMap[sKey] = {
-          start: { line: 1, column: range.startOffset },
-          end: { line: 1, column: range.endOffset },
-        };
-        s[sKey] = range.count;
-        stmtIdx++;
+      // Process block coverage ranges as branches
+      if (fn.isBlockCoverage && fn.ranges.length > 1) {
+        const branchLocations: Range[] = [];
+        const branchCounts: number[] = [];
+
+        for (let i = 1; i < fn.ranges.length; i++) {
+          const range = fn.ranges[i]!;
+          const rangeStart = toLocation(range.startOffset);
+          const rangeEnd = toLocation(range.endOffset);
+          const blockRange: Range = { start: rangeStart, end: rangeEnd };
+
+          branchLocations.push(blockRange);
+          branchCounts.push(range.count);
+
+          // Each block range is also a statement
+          const sKey = String(stmtIdx);
+          statementMap[sKey] = blockRange;
+          s[sKey] = range.count;
+          stmtIdx++;
+        }
+
+        if (branchLocations.length > 0) {
+          const bKey = String(branchIdx);
+          branchMap[bKey] = {
+            type: 'if',
+            locations: branchLocations,
+            line: branchLocations[0]!.start.line,
+          };
+          b[bKey] = branchCounts;
+          branchIdx++;
+        }
+      } else {
+        // Non-block ranges: additional ranges are statements
+        for (let i = 1; i < fn.ranges.length; i++) {
+          const range = fn.ranges[i]!;
+          const sKey = String(stmtIdx);
+
+          statementMap[sKey] = {
+            start: toLocation(range.startOffset),
+            end: toLocation(range.endOffset),
+          };
+          s[sKey] = range.count;
+          stmtIdx++;
+        }
       }
     }
   }

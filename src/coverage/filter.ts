@@ -64,7 +64,7 @@ function globToRegex(pattern: string): RegExp {
   return new RegExp(`^${result}$`);
 }
 
-function matchesPattern(filePath: string, pattern: string): boolean {
+export function matchesPattern(filePath: string, pattern: string): boolean {
   const regex = globToRegex(pattern);
   return regex.test(filePath);
 }
