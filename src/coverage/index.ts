@@ -219,17 +219,83 @@ function filterChangedFiles(coverageMap: CoverageMap): void {
 // ---------------------------------------------------------------------------
 
 /**
+ * Issue #96: Clean reports directory on rerun when cleanOnRerun is true
+ * and coverage was previously active.
+ */
+export function cleanReportsDirectoryOnRerun(
+  config: ResolvedCoverageConfig,
+  wasActive: boolean,
+): void {
+  if (!config.cleanOnRerun || !wasActive) return;
+  const dir = config.reportsDirectory;
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/**
+ * Issue #96: Determine whether coverage reports should be generated.
+ * When thresholds failed and reportOnFailure is false, skip reporting.
+ */
+export function shouldReportCoverage(
+  thresholdResult: ThresholdResult | undefined,
+  reportOnFailure: boolean,
+): boolean {
+  if (!thresholdResult) return true;
+  if (thresholdResult.passed) return true;
+  return reportOnFailure;
+}
+
+/**
+ * Issue #97: Auto-update thresholds when coverage improved.
+ * Writes a `.coveragethresholds.json` file in the reports directory.
+ */
+export function autoUpdateThresholds(
+  summary: CoverageSummary,
+  thresholds: CoverageThresholds,
+  reportsDirectory: string,
+): void {
+  if (!thresholds.autoUpdate) return;
+
+  const metrics = ['lines', 'functions', 'branches', 'statements'] as const;
+  let anyImproved = false;
+  const updated: Partial<Record<(typeof metrics)[number], number>> = {};
+
+  for (const metric of metrics) {
+    const configured = thresholds[metric];
+    if (configured === undefined) continue;
+    const actual = summary[metric].pct;
+    if (actual > configured) {
+      updated[metric] = actual;
+      anyImproved = true;
+    } else {
+      updated[metric] = configured;
+    }
+  }
+
+  if (!anyImproved) return;
+
+  fs.mkdirSync(reportsDirectory, { recursive: true });
+  const filePath = nodePath.join(reportsDirectory, '.coveragethresholds.json');
+  fs.writeFileSync(filePath, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
+}
+
+/**
  * Start collecting code coverage.
  */
 export async function startCoverage(
   config?: Partial<CoverageConfig>,
 ): Promise<void> {
+  // Issue #96: cleanOnRerun — if coverage was previously active, clean first
+  const wasActive = isCollecting;
   if (isCollecting) {
     throw new Error(
       'Coverage collection is already active. Call stopCoverage() first.',
     );
   }
   activeConfig = mergeConfig(config ?? {});
+
+  // Issue #96: cleanOnRerun check
+  cleanReportsDirectoryOnRerun(activeConfig, wasActive);
+
   cleanReportsDirectory(activeConfig);
 
   // Issue #67: custom provider module support
@@ -332,8 +398,21 @@ export async function stopCoverage(): Promise<CoverageResult> {
   const savedConfig = activeConfig;
   activeConfig = undefined;
 
-  // Generate reports
-  await reportCoverage(coverageMap, savedConfig);
+  // Issue #97: auto-update thresholds if coverage improved
+  if (savedConfig.thresholds?.autoUpdate && result.thresholdResult) {
+    autoUpdateThresholds(
+      summary,
+      savedConfig.thresholds,
+      savedConfig.reportsDirectory,
+    );
+  }
+
+  // Issue #96: reportOnFailure — skip reporting if thresholds failed and reportOnFailure is false
+  if (
+    shouldReportCoverage(result.thresholdResult, savedConfig.reportOnFailure)
+  ) {
+    await reportCoverage(coverageMap, savedConfig);
+  }
 
   return result;
 }

@@ -9,6 +9,7 @@ import {
   unmock,
   resetModules,
   getMockedModule,
+  autoMock,
 } from './module-mock.js';
 
 /** Internal registry of all created mock functions for bulk operations. */
@@ -45,6 +46,14 @@ interface MockInstance<TArgs extends unknown[] = unknown[], TReturn = unknown> {
   mockName(name: string): MockInstance<TArgs, TReturn>;
   getMockName(): string;
   getMockImplementation(): ((...args: TArgs) => TReturn) | undefined;
+  withImplementation(
+    impl: (...args: TArgs) => TReturn,
+    callback: () => void,
+  ): void;
+  withImplementation(
+    impl: (...args: TArgs) => TReturn,
+    callback: () => Promise<void>,
+  ): Promise<void>;
   mockClear(): void;
   mockReset(): void;
   mockRestore(): void;
@@ -189,6 +198,31 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
     return currentImpl;
   };
 
+  const withImplBody = (
+    impl: (...args: TArgs) => TReturn,
+    callback: (() => void) | (() => Promise<void>),
+  ): void | Promise<void> => {
+    const previousImpl = currentImpl;
+    currentImpl = impl;
+    let callbackResult: void | Promise<void>;
+    try {
+      callbackResult = callback();
+    } catch (error) {
+      currentImpl = previousImpl;
+      throw error;
+    }
+    if (callbackResult instanceof Promise) {
+      return callbackResult.finally(() => {
+        currentImpl = previousImpl;
+      });
+    }
+    currentImpl = previousImpl;
+  };
+  mockFn.withImplementation = withImplBody as MockInstance<
+    TArgs,
+    TReturn
+  >['withImplementation'];
+
   return mockFn;
 }
 
@@ -331,6 +365,15 @@ const originalClearTimeout = globalThis.clearTimeout;
 const originalSetInterval = globalThis.setInterval;
 const originalClearInterval = globalThis.clearInterval;
 const originalDateNow = Date.now;
+const OriginalDate = globalThis.Date;
+const originalSetImmediate =
+  typeof globalThis.setImmediate !== 'undefined'
+    ? globalThis.setImmediate
+    : undefined;
+const originalClearImmediate =
+  typeof globalThis.clearImmediate !== 'undefined'
+    ? globalThis.clearImmediate
+    : undefined;
 
 interface FakeTimerOptions {
   now?: number | Date;
@@ -349,6 +392,8 @@ interface FakeTimerController {
   runOnlyPendingTimers(): void;
   runOnlyPendingTimersAsync(): Promise<void>;
   setSystemTime(time: number | Date): void;
+  getMockedSystemTime(): Date | null;
+  getRealSystemTime(): number;
   readonly now: number;
 }
 
@@ -377,68 +422,154 @@ export function useFakeTimers(
   fakeTimerState = { now: initialNow, timers: new Map(), nextId: 1 };
   const state = fakeTimerState;
 
-  (globalThis as Record<string, unknown>).setTimeout = ((
-    cb: () => void,
-    delay = 0,
-  ): number => {
-    const id = state.nextId++;
-    state.timers.set(id, {
-      callback: cb,
-      delay,
-      repeat: false,
-      scheduledAt: state.now,
+  // Determine which APIs to fake
+  const toFake =
+    typeof optionsOrNow === 'object' && optionsOrNow !== null
+      ? optionsOrNow.toFake
+      : undefined;
+  const shouldFake = (name: string): boolean =>
+    toFake === undefined || toFake.includes(name);
+
+  if (shouldFake('setTimeout')) {
+    (globalThis as Record<string, unknown>).setTimeout = ((
+      cb: () => void,
+      delay = 0,
+    ): number => {
+      const id = state.nextId++;
+      state.timers.set(id, {
+        callback: cb,
+        delay,
+        repeat: false,
+        scheduledAt: state.now,
+      });
+      return id;
+    }) as unknown as typeof setTimeout;
+  }
+
+  if (shouldFake('clearTimeout')) {
+    (globalThis as Record<string, unknown>).clearTimeout = ((
+      id: number,
+    ): void => {
+      state.timers.delete(id);
+    }) as unknown as typeof clearTimeout;
+  }
+
+  if (shouldFake('setInterval')) {
+    (globalThis as Record<string, unknown>).setInterval = ((
+      cb: () => void,
+      delay = 0,
+    ): number => {
+      const id = state.nextId++;
+      state.timers.set(id, {
+        callback: cb,
+        delay,
+        repeat: true,
+        scheduledAt: state.now,
+      });
+      return id;
+    }) as unknown as typeof setInterval;
+  }
+
+  if (shouldFake('clearInterval')) {
+    (globalThis as Record<string, unknown>).clearInterval = ((
+      id: number,
+    ): void => {
+      state.timers.delete(id);
+    }) as unknown as typeof clearInterval;
+  }
+
+  // Mock setImmediate/clearImmediate if available
+  if (shouldFake('setImmediate') && originalSetImmediate !== undefined) {
+    (globalThis as Record<string, unknown>).setImmediate = ((
+      cb: () => void,
+    ): number => {
+      const id = state.nextId++;
+      state.timers.set(id, {
+        callback: cb,
+        delay: 0,
+        repeat: false,
+        scheduledAt: state.now,
+      });
+      return id;
+    }) as unknown as typeof setImmediate;
+  }
+
+  if (shouldFake('clearImmediate') && originalClearImmediate !== undefined) {
+    (globalThis as Record<string, unknown>).clearImmediate = ((
+      id: number,
+    ): void => {
+      state.timers.delete(id);
+    }) as unknown as typeof clearImmediate;
+  }
+
+  if (shouldFake('Date')) {
+    Date.now = (): number => state.now;
+
+    // Mock the Date constructor
+    const FakeDate = function FakeDate(
+      this: Date,
+      ...args: unknown[]
+    ): Date | string {
+      if (!(this instanceof FakeDate)) {
+        // Called without new — Date() returns a string
+        return new OriginalDate(state.now).toString();
+      }
+      if (args.length === 0) {
+        return new OriginalDate(state.now);
+      }
+      // Delegate to original Date for all other signatures
+      if (args.length === 1) {
+        return new OriginalDate(args[0] as string | number);
+      }
+      return new OriginalDate(
+        args[0] as number,
+        args[1] as number,
+        (args[2] as number) ?? 1,
+        (args[3] as number) ?? 0,
+        (args[4] as number) ?? 0,
+        (args[5] as number) ?? 0,
+        (args[6] as number) ?? 0,
+      );
+    } as unknown as DateConstructor;
+
+    // Copy static methods
+    FakeDate.now = (): number => state.now;
+    FakeDate.parse = OriginalDate.parse;
+    FakeDate.UTC = OriginalDate.UTC;
+    Object.defineProperty(FakeDate, 'prototype', {
+      value: OriginalDate.prototype,
+      writable: false,
+      configurable: false,
     });
-    return id;
-  }) as unknown as typeof setTimeout;
 
-  (globalThis as Record<string, unknown>).clearTimeout = ((
-    id: number,
-  ): void => {
-    state.timers.delete(id);
-  }) as unknown as typeof clearTimeout;
-
-  (globalThis as Record<string, unknown>).setInterval = ((
-    cb: () => void,
-    delay = 0,
-  ): number => {
-    const id = state.nextId++;
-    state.timers.set(id, {
-      callback: cb,
-      delay,
-      repeat: true,
-      scheduledAt: state.now,
-    });
-    return id;
-  }) as unknown as typeof setInterval;
-
-  (globalThis as Record<string, unknown>).clearInterval = ((
-    id: number,
-  ): void => {
-    state.timers.delete(id);
-  }) as unknown as typeof clearInterval;
-
-  Date.now = (): number => state.now;
+    globalThis.Date = FakeDate;
+  }
 
   const controller: FakeTimerController = {
     advanceTimersByTime(ms: number): void {
       const target = state.now + ms;
-      while (state.now < target) {
-        let nextFire = target;
+      let didWork = true;
+      while (didWork) {
+        didWork = false;
+        let nextFire = Infinity;
         for (const [, timer] of state.timers) {
           const fireAt = timer.scheduledAt + timer.delay;
           if (fireAt <= target && fireAt < nextFire) {
             nextFire = fireAt;
           }
         }
-        state.now = nextFire;
-        for (const [id, timer] of state.timers) {
-          const fireAt = timer.scheduledAt + timer.delay;
-          if (fireAt <= state.now) {
-            timer.callback();
-            if (timer.repeat) {
-              timer.scheduledAt = state.now;
-            } else {
-              state.timers.delete(id);
+        if (nextFire <= target && nextFire !== Infinity) {
+          state.now = nextFire;
+          for (const [id, timer] of state.timers) {
+            const fireAt = timer.scheduledAt + timer.delay;
+            if (fireAt <= state.now) {
+              timer.callback();
+              if (timer.repeat) {
+                timer.scheduledAt = state.now;
+              } else {
+                state.timers.delete(id);
+              }
+              didWork = true;
             }
           }
         }
@@ -448,7 +579,9 @@ export function useFakeTimers(
 
     advanceTimersByTimeAsync(ms: number): Promise<void> {
       this.advanceTimersByTime(ms);
-      return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        queueMicrotask(resolve);
+      });
     },
 
     advanceTimersToNextTimer(): void {
@@ -467,7 +600,9 @@ export function useFakeTimers(
 
     advanceTimersToNextTimerAsync(): Promise<void> {
       this.advanceTimersToNextTimer();
-      return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        queueMicrotask(resolve);
+      });
     },
 
     getTimerCount(): number {
@@ -483,7 +618,9 @@ export function useFakeTimers(
 
     runAllTimersAsync(): Promise<void> {
       this.runAllTimers();
-      return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        queueMicrotask(resolve);
+      });
     },
 
     runOnlyPendingTimers(): void {
@@ -537,7 +674,9 @@ export function useFakeTimers(
 
     runOnlyPendingTimersAsync(): Promise<void> {
       this.runOnlyPendingTimers();
-      return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        queueMicrotask(resolve);
+      });
     },
 
     setSystemTime(time: number | Date): void {
@@ -546,6 +685,14 @@ export function useFakeTimers(
       } else {
         state.now = time;
       }
+    },
+
+    getMockedSystemTime(): Date | null {
+      return new OriginalDate(state.now);
+    },
+
+    getRealSystemTime(): number {
+      return originalDateNow.call(OriginalDate);
     },
 
     get now(): number {
@@ -564,8 +711,31 @@ export function useRealTimers(): void {
   globalThis.clearTimeout = originalClearTimeout;
   globalThis.setInterval = originalSetInterval;
   globalThis.clearInterval = originalClearInterval;
-  Date.now = originalDateNow;
+  // Restore Date constructor first, then fix Date.now on the original
+  globalThis.Date = OriginalDate;
+  OriginalDate.now = originalDateNow;
+  if (originalSetImmediate !== undefined) {
+    globalThis.setImmediate = originalSetImmediate;
+  }
+  if (originalClearImmediate !== undefined) {
+    globalThis.clearImmediate = originalClearImmediate;
+  }
   fakeTimerState = null;
+}
+
+/**
+ * Return the current mocked system time as a Date, or null if not using fake timers.
+ */
+export function getMockedSystemTime(): Date | null {
+  if (fakeTimerState === null) return null;
+  return new OriginalDate(fakeTimerState.now);
+}
+
+/**
+ * Return the real system time (Date.now()) regardless of fake timer state.
+ */
+export function getRealSystemTime(): number {
+  return originalDateNow.call(OriginalDate);
 }
 
 /**
@@ -647,12 +817,26 @@ function hoisted<T>(factory: () => T): T {
 }
 
 /**
+ * Import a module and auto-mock all its exports.
+ * Functions become mock functions, primitives are kept as-is.
+ */
+async function importMock(moduleName: string): Promise<unknown> {
+  const realModule = await import(moduleName);
+  return autoMock(realModule as Record<string, unknown>);
+}
+
+/**
  * The `mock` object aggregates all mocking utilities.
  */
 export const mock = {
   module: mockModule,
+  /** Explicitly non-hoisted module mock (equivalent to module()). */
+  doMock: mockModule,
   importActual,
+  importMock,
   unmock,
+  /** Alias for unmock (explicitly non-hoisted). */
+  doUnmock: unmock,
   resetModules,
   getMockedModule,
   stubGlobal,
@@ -784,6 +968,8 @@ export const vi = {
   spyOn,
   useFakeTimers,
   useRealTimers,
+  getMockedSystemTime,
+  getRealSystemTime,
   stubEnv,
   unstubAllEnvs,
   waitFor,

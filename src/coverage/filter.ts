@@ -4,6 +4,7 @@
  */
 
 import type { CoverageConfig } from './config.js';
+import * as nodePath from 'node:path';
 
 /** Default directory patterns that are always excluded from coverage. */
 const DEFAULT_EXCLUDES: readonly string[] = [
@@ -80,6 +81,24 @@ export function shouldIncludeFile(
   filePath: string,
   config: CoverageConfig,
 ): boolean {
+  // Issue #96: allowExternal — reject files outside process.cwd() when false
+  if (config.allowExternal === false && nodePath.isAbsolute(filePath)) {
+    const cwd = process.cwd();
+    const resolved = nodePath.resolve(filePath);
+    if (!resolved.startsWith(cwd + '/') && resolved !== cwd) {
+      return false;
+    }
+  }
+
+  // Issue #96: extension — check file extension against config.extension array
+  const extensions = config.extension;
+  if (extensions !== undefined && extensions.length > 0) {
+    const ext = nodePath.extname(filePath);
+    if (!extensions.includes(ext)) {
+      return false;
+    }
+  }
+
   // Check default excludes first
   if (matchesAny(filePath, DEFAULT_EXCLUDES)) {
     return false;

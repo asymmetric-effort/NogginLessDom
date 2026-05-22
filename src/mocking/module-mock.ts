@@ -18,7 +18,10 @@ interface MockFactoryHelpers {
  */
 export function autoMock<T extends Record<string, unknown>>(
   moduleExports: T,
+  seen?: Set<object>,
 ): T {
+  const visited = seen ?? new Set<object>();
+  visited.add(moduleExports);
   const result: Record<string, unknown> = {};
   for (const key of Object.keys(moduleExports)) {
     const value = moduleExports[key];
@@ -27,9 +30,10 @@ export function autoMock<T extends Record<string, unknown>>(
     } else if (
       value !== null &&
       typeof value === 'object' &&
-      !Array.isArray(value)
+      !Array.isArray(value) &&
+      !visited.has(value)
     ) {
-      result[key] = autoMock(value as Record<string, unknown>);
+      result[key] = autoMock(value as Record<string, unknown>, visited);
     } else {
       result[key] = value;
     }
