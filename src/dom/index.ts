@@ -296,6 +296,7 @@ export class Element extends Node {
   public tagName: string;
   public id = '';
   public className = '';
+  public namespaceURI: string | null = null;
   private attributes: Map<string, string> = new Map();
   private eventListeners: Map<string, Array<(event: Event) => void>> =
     new Map();
@@ -306,9 +307,13 @@ export class Element extends Node {
   private _dataset: DOMStringMap | null = null;
   private _boundingRect: DOMRectInit = {};
 
-  constructor(tagName: string) {
-    super(1, tagName.toUpperCase());
-    this.tagName = tagName.toUpperCase();
+  constructor(tagName: string, namespaceURI?: string | null) {
+    const isSVG =
+      namespaceURI != null && namespaceURI !== 'http://www.w3.org/1999/xhtml';
+    const resolvedName = isSVG ? tagName : tagName.toUpperCase();
+    super(1, resolvedName);
+    this.tagName = resolvedName;
+    this.namespaceURI = namespaceURI ?? null;
   }
 
   getAttribute(name: string): string | null {
@@ -425,7 +430,7 @@ export class Element extends Node {
   }
 
   override cloneNode(deep?: boolean): Element {
-    const clone = new Element(this.tagName);
+    const clone = new Element(this.tagName, this.namespaceURI);
     for (const [key, value] of this.attributes) {
       clone.setAttribute(key, value);
     }
@@ -717,6 +722,10 @@ export class Document extends Node {
       return new Ctor();
     }
     return new Element(tagName);
+  }
+
+  createElementNS(namespaceURI: string, qualifiedName: string): Element {
+    return new Element(qualifiedName, namespaceURI);
   }
 
   createTextNode(data: string): TextNode {

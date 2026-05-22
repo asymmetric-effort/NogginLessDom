@@ -47,7 +47,10 @@ export function serializeNode(node: Node): string {
   }
 
   if (node instanceof Element) {
-    const tag = node.tagName.toLowerCase();
+    const isSVG =
+      node.namespaceURI != null &&
+      node.namespaceURI !== 'http://www.w3.org/1999/xhtml';
+    const tag = isSVG ? node.tagName : node.tagName.toLowerCase();
     let attrs = '';
 
     const attrEntries = node.getAttributeEntries();
