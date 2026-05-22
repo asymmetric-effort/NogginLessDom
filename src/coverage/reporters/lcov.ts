@@ -1,8 +1,4 @@
-import type {
-  CoverageMap,
-  CoverageSummary,
-  FileCoverage,
-} from './types.js';
+import type { CoverageMap, CoverageSummary, FileCoverage } from './types.js';
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -79,7 +75,9 @@ function generateFileRecord(coverage: FileCoverage): string {
       for (let i = 0; i < counts.length; i++) {
         const count = counts[i];
         if (count !== undefined) {
-          lines.push(`BRDA:${String(branch.line)},${key},${String(i)},${String(count)}`);
+          lines.push(
+            `BRDA:${String(branch.line)},${key},${String(i)},${String(count)}`,
+          );
           branchesFound++;
           if (count > 0) {
             branchesHit++;

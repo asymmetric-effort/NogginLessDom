@@ -80,16 +80,29 @@ export function mergeConfig(
     provider: 'v8',
     include: userConfig.include ?? defaults.include ?? [],
     exclude: userConfig.exclude ?? defaults.exclude ?? [],
-    reportsDirectory: userConfig.reportsDirectory ?? defaults.reportsDirectory ?? './coverage',
+    reportsDirectory:
+      userConfig.reportsDirectory ?? defaults.reportsDirectory ?? './coverage',
     reporter: userConfig.reporter ?? defaults.reporter ?? ['text'],
     clean: userConfig.clean ?? defaults.clean ?? true,
     skipFull: userConfig.skipFull ?? defaults.skipFull ?? false,
     all: userConfig.all ?? defaults.all ?? false,
     watermarks: {
-      lines: userConfig.watermarks?.lines ?? defaults.watermarks?.lines ?? [50, 80] as [number, number],
-      functions: userConfig.watermarks?.functions ?? defaults.watermarks?.functions ?? [50, 80] as [number, number],
-      branches: userConfig.watermarks?.branches ?? defaults.watermarks?.branches ?? [50, 80] as [number, number],
-      statements: userConfig.watermarks?.statements ?? defaults.watermarks?.statements ?? [50, 80] as [number, number],
+      lines:
+        userConfig.watermarks?.lines ??
+        defaults.watermarks?.lines ??
+        ([50, 80] as [number, number]),
+      functions:
+        userConfig.watermarks?.functions ??
+        defaults.watermarks?.functions ??
+        ([50, 80] as [number, number]),
+      branches:
+        userConfig.watermarks?.branches ??
+        defaults.watermarks?.branches ??
+        ([50, 80] as [number, number]),
+      statements:
+        userConfig.watermarks?.statements ??
+        defaults.watermarks?.statements ??
+        ([50, 80] as [number, number]),
     },
     thresholds: userConfig.thresholds ?? defaults.thresholds,
   };

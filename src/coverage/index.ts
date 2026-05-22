@@ -101,7 +101,14 @@ interface V8CoverageRange {
 
 async function createV8Provider(): Promise<V8CoverageProvider> {
   // Dynamic import since node:inspector/promises may not be available in all runtimes
-  let session: { post(method: string, params?: Record<string, unknown>): Promise<Record<string, unknown>> } | undefined;
+  let session:
+    | {
+        post(
+          method: string,
+          params?: Record<string, unknown>,
+        ): Promise<Record<string, unknown>>;
+      }
+    | undefined;
 
   return {
     async start(): Promise<void> {
@@ -236,9 +243,13 @@ function createCoverageMap(files: Map<string, FileCoverage>): CoverageMap {
 /**
  * Start collecting code coverage.
  */
-export async function startCoverage(config?: Partial<CoverageConfig>): Promise<void> {
+export async function startCoverage(
+  config?: Partial<CoverageConfig>,
+): Promise<void> {
   if (isCollecting) {
-    throw new Error('Coverage collection is already active. Call stopCoverage() first.');
+    throw new Error(
+      'Coverage collection is already active. Call stopCoverage() first.',
+    );
   }
   activeConfig = mergeConfig(config ?? {});
   provider = await createV8Provider();
@@ -251,7 +262,9 @@ export async function startCoverage(config?: Partial<CoverageConfig>): Promise<v
  */
 export async function takeCoverage(): Promise<CoverageResult> {
   if (!isCollecting || !provider || !activeConfig) {
-    throw new Error('Coverage collection is not active. Call startCoverage() first.');
+    throw new Error(
+      'Coverage collection is not active. Call startCoverage() first.',
+    );
   }
 
   const v8Data = await provider.take();
@@ -262,7 +275,10 @@ export async function takeCoverage(): Promise<CoverageResult> {
   const result: CoverageResult = { coverageMap, summary };
 
   if (activeConfig.thresholds) {
-    result.thresholdResult = checkCoverageThresholds(summary, activeConfig.thresholds);
+    result.thresholdResult = checkCoverageThresholds(
+      summary,
+      activeConfig.thresholds,
+    );
   }
 
   return result;
@@ -273,7 +289,9 @@ export async function takeCoverage(): Promise<CoverageResult> {
  */
 export async function stopCoverage(): Promise<CoverageResult> {
   if (!isCollecting || !provider || !activeConfig) {
-    throw new Error('Coverage collection is not active. Call startCoverage() first.');
+    throw new Error(
+      'Coverage collection is not active. Call startCoverage() first.',
+    );
   }
 
   const v8Data = await provider.stop();
@@ -284,7 +302,10 @@ export async function stopCoverage(): Promise<CoverageResult> {
   const result: CoverageResult = { coverageMap, summary };
 
   if (activeConfig.thresholds) {
-    result.thresholdResult = checkCoverageThresholds(summary, activeConfig.thresholds);
+    result.thresholdResult = checkCoverageThresholds(
+      summary,
+      activeConfig.thresholds,
+    );
   }
 
   isCollecting = false;
@@ -306,7 +327,9 @@ export async function reportCoverage(
   config?: Partial<CoverageConfig>,
 ): Promise<void> {
   const resolved = config
-    ? ('reporter' in config && 'reportsDirectory' in config ? config as ResolvedCoverageConfig : mergeConfig(config))
+    ? 'reporter' in config && 'reportsDirectory' in config
+      ? (config as ResolvedCoverageConfig)
+      : mergeConfig(config)
     : mergeConfig({});
 
   const summary = coverageMap.toSummary();
@@ -370,7 +393,9 @@ function processV8Coverage(
     // Apply ignore ranges if we can read the source
     try {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require('node:fs') as { readFileSync(p: string, e: string): string };
+      const fs = require('node:fs') as {
+        readFileSync(p: string, e: string): string;
+      };
       const source = fs.readFileSync(filePath, 'utf-8');
       const ignoreRanges = findIgnoreRanges(source);
       if (ignoreRanges.length > 0) {
@@ -391,9 +416,39 @@ function v8ToFileCoverage(
   filePath: string,
   script: V8ScriptCoverage,
 ): FileCoverage {
-  const statementMap: Record<string, { start: { line: number; column: number }; end: { line: number; column: number } }> = {};
-  const fnMap: Record<string, { name: string; decl: { start: { line: number; column: number }; end: { line: number; column: number } }; loc: { start: { line: number; column: number }; end: { line: number; column: number } }; line: number }> = {};
-  const branchMap: Record<string, { type: string; locations: Array<{ start: { line: number; column: number }; end: { line: number; column: number } }>; line: number }> = {};
+  const statementMap: Record<
+    string,
+    {
+      start: { line: number; column: number };
+      end: { line: number; column: number };
+    }
+  > = {};
+  const fnMap: Record<
+    string,
+    {
+      name: string;
+      decl: {
+        start: { line: number; column: number };
+        end: { line: number; column: number };
+      };
+      loc: {
+        start: { line: number; column: number };
+        end: { line: number; column: number };
+      };
+      line: number;
+    }
+  > = {};
+  const branchMap: Record<
+    string,
+    {
+      type: string;
+      locations: Array<{
+        start: { line: number; column: number };
+        end: { line: number; column: number };
+      }>;
+      line: number;
+    }
+  > = {};
   const s: Record<string, number> = {};
   const f: Record<string, number> = {};
   const b: Record<string, number[]> = {};
@@ -448,7 +503,10 @@ function v8ToFileCoverage(
   };
 }
 
-function printTextReport(coverageMap: CoverageMap, summary: CoverageSummary): void {
+function printTextReport(
+  coverageMap: CoverageMap,
+  summary: CoverageSummary,
+): void {
   const files = coverageMap.files();
   if (files.length === 0) return;
 
@@ -457,10 +515,18 @@ function printTextReport(coverageMap: CoverageMap, summary: CoverageSummary): vo
   console.log(separator);
   console.log('Coverage Summary:');
   console.log(separator);
-  console.log(`  Statements : ${summary.statements.pct}% (${summary.statements.covered}/${summary.statements.total})`);
-  console.log(`  Branches   : ${summary.branches.pct}% (${summary.branches.covered}/${summary.branches.total})`);
-  console.log(`  Functions  : ${summary.functions.pct}% (${summary.functions.covered}/${summary.functions.total})`);
-  console.log(`  Lines      : ${summary.lines.pct}% (${summary.lines.covered}/${summary.lines.total})`);
+  console.log(
+    `  Statements : ${summary.statements.pct}% (${summary.statements.covered}/${summary.statements.total})`,
+  );
+  console.log(
+    `  Branches   : ${summary.branches.pct}% (${summary.branches.covered}/${summary.branches.total})`,
+  );
+  console.log(
+    `  Functions  : ${summary.functions.pct}% (${summary.functions.covered}/${summary.functions.total})`,
+  );
+  console.log(
+    `  Lines      : ${summary.lines.pct}% (${summary.lines.covered}/${summary.lines.total})`,
+  );
   console.log(separator);
   /* eslint-enable no-console */
 }

@@ -9,7 +9,12 @@ export interface ThresholdResult {
 
 type MetricKey = 'lines' | 'functions' | 'branches' | 'statements';
 
-const METRIC_KEYS: MetricKey[] = ['lines', 'functions', 'branches', 'statements'];
+const METRIC_KEYS: MetricKey[] = [
+  'lines',
+  'functions',
+  'branches',
+  'statements',
+];
 
 export function checkThresholds(
   summary: CoverageSummary,

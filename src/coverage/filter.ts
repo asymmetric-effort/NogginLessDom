@@ -70,7 +70,7 @@ function matchesPattern(filePath: string, pattern: string): boolean {
 }
 
 function matchesAny(filePath: string, patterns: readonly string[]): boolean {
-  return patterns.some(pattern => matchesPattern(filePath, pattern));
+  return patterns.some((pattern) => matchesPattern(filePath, pattern));
 }
 
 /**

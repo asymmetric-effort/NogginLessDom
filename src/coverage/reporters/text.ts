@@ -81,7 +81,15 @@ function groupFilesByDirectory(filePaths: string[]): DirectoryGroup[] {
   for (const [dirPath, files] of dirMap) {
     groups.push({
       dirPath: dirPath.startsWith('/') ? dirPath.slice(1) : dirPath,
-      files: files.map(f => ({ ...f, summary: { lines: { total: 0, covered: 0, skipped: 0, pct: 0 }, statements: { total: 0, covered: 0, skipped: 0, pct: 0 }, functions: { total: 0, covered: 0, skipped: 0, pct: 0 }, branches: { total: 0, covered: 0, skipped: 0, pct: 0 } } })),
+      files: files.map((f) => ({
+        ...f,
+        summary: {
+          lines: { total: 0, covered: 0, skipped: 0, pct: 0 },
+          statements: { total: 0, covered: 0, skipped: 0, pct: 0 },
+          functions: { total: 0, covered: 0, skipped: 0, pct: 0 },
+          branches: { total: 0, covered: 0, skipped: 0, pct: 0 },
+        },
+      })),
     });
   }
 
@@ -92,7 +100,11 @@ function colorize(text: string, color: string): string {
   return `${color}${text}${ANSI_RESET}`;
 }
 
-function makeMetricCell(metric: CoverageMetric, watermark: [number, number], width: number): string {
+function makeMetricCell(
+  metric: CoverageMetric,
+  watermark: [number, number],
+  width: number,
+): string {
   const pctStr = padLeft(formatPct(metric.pct), width);
   const color = colorForPct(metric.pct, watermark);
   return colorize(pctStr, color);
@@ -131,21 +143,40 @@ export class TextReporter {
     }
     const fileColWidth = Math.max(COL_FILE, maxFileWidth + 1);
 
-    const sep = '-'.repeat(fileColWidth) + '|' + '-'.repeat(COL_STMTS + 2) + '|' + '-'.repeat(COL_BRANCH + 2) + '|' + '-'.repeat(COL_FUNCS + 2) + '|' + '-'.repeat(COL_LINES + 2) + '|';
+    const sep =
+      '-'.repeat(fileColWidth) +
+      '|' +
+      '-'.repeat(COL_STMTS + 2) +
+      '|' +
+      '-'.repeat(COL_BRANCH + 2) +
+      '|' +
+      '-'.repeat(COL_FUNCS + 2) +
+      '|' +
+      '-'.repeat(COL_LINES + 2) +
+      '|';
 
     function makeRow(
       fileLabel: string,
       stmts: string,
       branch: string,
       funcs: string,
-      lines: string
+      lines: string,
     ): string {
       return (
-        padRight(fileLabel, fileColWidth) + '|' +
-        ' ' + stmts + ' |' +
-        ' ' + branch + ' |' +
-        ' ' + funcs + ' |' +
-        ' ' + lines + ' |'
+        padRight(fileLabel, fileColWidth) +
+        '|' +
+        ' ' +
+        stmts +
+        ' |' +
+        ' ' +
+        branch +
+        ' |' +
+        ' ' +
+        funcs +
+        ' |' +
+        ' ' +
+        lines +
+        ' |'
       );
     }
 
@@ -159,9 +190,21 @@ export class TextReporter {
 
     const allFilesRow = makeRow(
       padRight('All files', fileColWidth),
-      makeMetricCell(globalSummary.statements, this.watermarks.statements, COL_STMTS),
-      makeMetricCell(globalSummary.branches, this.watermarks.branches, COL_BRANCH),
-      makeMetricCell(globalSummary.functions, this.watermarks.functions, COL_FUNCS),
+      makeMetricCell(
+        globalSummary.statements,
+        this.watermarks.statements,
+        COL_STMTS,
+      ),
+      makeMetricCell(
+        globalSummary.branches,
+        this.watermarks.branches,
+        COL_BRANCH,
+      ),
+      makeMetricCell(
+        globalSummary.functions,
+        this.watermarks.functions,
+        COL_FUNCS,
+      ),
       makeMetricCell(globalSummary.lines, this.watermarks.lines, COL_LINES),
     );
 
@@ -177,32 +220,48 @@ export class TextReporter {
     for (const group of groups) {
       // Filter files if skipFull
       const visibleFiles = this.options.skipFull
-        ? group.files.filter(f => !isFull(f.summary))
+        ? group.files.filter((f) => !isFull(f.summary))
         : group.files;
 
       if (visibleFiles.length === 0) continue;
 
       // Directory header row (no metrics, just label)
       if (group.dirPath) {
-        rows.push(makeRow(
-          padRight(' ' + group.dirPath, fileColWidth),
-          padLeft('', COL_STMTS),
-          padLeft('', COL_BRANCH),
-          padLeft('', COL_FUNCS),
-          padLeft('', COL_LINES),
-        ));
+        rows.push(
+          makeRow(
+            padRight(' ' + group.dirPath, fileColWidth),
+            padLeft('', COL_STMTS),
+            padLeft('', COL_BRANCH),
+            padLeft('', COL_FUNCS),
+            padLeft('', COL_LINES),
+          ),
+        );
       }
 
       for (const file of visibleFiles) {
         const summary = file.summary;
         const prefix = group.dirPath ? '  ' : ' ';
-        rows.push(makeRow(
-          padRight(prefix + file.name, fileColWidth),
-          makeMetricCell(summary.statements, this.watermarks.statements, COL_STMTS),
-          makeMetricCell(summary.branches, this.watermarks.branches, COL_BRANCH),
-          makeMetricCell(summary.functions, this.watermarks.functions, COL_FUNCS),
-          makeMetricCell(summary.lines, this.watermarks.lines, COL_LINES),
-        ));
+        rows.push(
+          makeRow(
+            padRight(prefix + file.name, fileColWidth),
+            makeMetricCell(
+              summary.statements,
+              this.watermarks.statements,
+              COL_STMTS,
+            ),
+            makeMetricCell(
+              summary.branches,
+              this.watermarks.branches,
+              COL_BRANCH,
+            ),
+            makeMetricCell(
+              summary.functions,
+              this.watermarks.functions,
+              COL_FUNCS,
+            ),
+            makeMetricCell(summary.lines, this.watermarks.lines, COL_LINES),
+          ),
+        );
       }
     }
 

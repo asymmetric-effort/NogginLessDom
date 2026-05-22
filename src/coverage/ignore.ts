@@ -17,14 +17,11 @@ export interface IgnoreRange {
 const IGNORE_NEXT_PATTERN =
   /\/\*\s*(?:v8|istanbul|c8)\s+ignore\s+(?:next|if|else)\s*\*\//g;
 
-const IGNORE_START_PATTERN =
-  /\/\*\s*(?:v8|c8)\s+ignore\s+start\s*\*\//g;
+const IGNORE_START_PATTERN = /\/\*\s*(?:v8|c8)\s+ignore\s+start\s*\*\//g;
 
-const IGNORE_STOP_PATTERN =
-  /\/\*\s*(?:v8|c8)\s+ignore\s+stop\s*\*\//g;
+const IGNORE_STOP_PATTERN = /\/\*\s*(?:v8|c8)\s+ignore\s+stop\s*\*\//g;
 
-const IGNORE_FILE_PATTERN =
-  /\/\*\s*istanbul\s+ignore\s+file\s*\*\//g;
+const IGNORE_FILE_PATTERN = /\/\*\s*istanbul\s+ignore\s+file\s*\*\//g;
 
 /**
  * Find all coverage ignore ranges in source code.
@@ -104,7 +101,7 @@ export function findIgnoreRanges(source: string): IgnoreRange[] {
 }
 
 function isLineInRange(line: number, ranges: IgnoreRange[]): boolean {
-  return ranges.some(r => line >= r.startLine && line <= r.endLine);
+  return ranges.some((r) => line >= r.startLine && line <= r.endLine);
 }
 
 /**

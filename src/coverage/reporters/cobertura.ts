@@ -1,8 +1,4 @@
-import type {
-  CoverageMap,
-  CoverageSummary,
-  FileCoverage,
-} from './types.js';
+import type { CoverageMap, CoverageSummary, FileCoverage } from './types.js';
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -25,18 +21,29 @@ function computeRate(total: number, covered: number): string {
   return (covered / total).toFixed(4);
 }
 
-function generatePackage(filePath: string, coverage: FileCoverage, summary: CoverageSummary): string {
+function generatePackage(
+  filePath: string,
+  coverage: FileCoverage,
+  summary: CoverageSummary,
+): string {
   const lines: string[] = [];
   const lastSlash = filePath.lastIndexOf('/');
   const dirName = lastSlash >= 0 ? filePath.slice(0, lastSlash) : '.';
   const fileName = lastSlash >= 0 ? filePath.slice(lastSlash + 1) : filePath;
 
   const lineRate = computeRate(summary.lines.total, summary.lines.covered);
-  const branchRate = computeRate(summary.branches.total, summary.branches.covered);
+  const branchRate = computeRate(
+    summary.branches.total,
+    summary.branches.covered,
+  );
 
-  lines.push(`      <package name="${escapeXml(dirName)}" line-rate="${lineRate}" branch-rate="${branchRate}" complexity="0">`);
+  lines.push(
+    `      <package name="${escapeXml(dirName)}" line-rate="${lineRate}" branch-rate="${branchRate}" complexity="0">`,
+  );
   lines.push('        <classes>');
-  lines.push(`          <class name="${escapeXml(fileName)}" filename="${escapeXml(filePath)}" line-rate="${lineRate}" branch-rate="${branchRate}" complexity="0">`);
+  lines.push(
+    `          <class name="${escapeXml(fileName)}" filename="${escapeXml(filePath)}" line-rate="${lineRate}" branch-rate="${branchRate}" complexity="0">`,
+  );
   lines.push('            <methods>');
 
   const fnKeys = Object.keys(coverage.fnMap);
@@ -44,9 +51,13 @@ function generatePackage(filePath: string, coverage: FileCoverage, summary: Cove
     const fn = coverage.fnMap[key];
     const hits = coverage.f[key];
     if (fn && hits !== undefined) {
-      lines.push(`              <method name="${escapeXml(fn.name)}" signature="" line-rate="${hits > 0 ? '1.0000' : '0.0000'}" branch-rate="1.0000">`);
+      lines.push(
+        `              <method name="${escapeXml(fn.name)}" signature="" line-rate="${hits > 0 ? '1.0000' : '0.0000'}" branch-rate="1.0000">`,
+      );
       lines.push('                <lines>');
-      lines.push(`                  <line number="${String(fn.line)}" hits="${String(hits)}"/>`);
+      lines.push(
+        `                  <line number="${String(fn.line)}" hits="${String(hits)}"/>`,
+      );
       lines.push('                </lines>');
       lines.push('              </method>');
     }
@@ -77,7 +88,9 @@ function generatePackage(filePath: string, coverage: FileCoverage, summary: Cove
           }
         }
       }
-      lines.push(`              <line number="${String(lineNum)}" hits="${String(hits)}"${branchAttr}/>`);
+      lines.push(
+        `              <line number="${String(lineNum)}" hits="${String(hits)}"${branchAttr}/>`,
+      );
     }
   }
 
@@ -96,16 +109,29 @@ export class CoberturaReporter {
     this.options = options;
   }
 
-  formatCobertura(coverageMap: CoverageMap, globalSummary: CoverageSummary): string {
+  formatCobertura(
+    coverageMap: CoverageMap,
+    globalSummary: CoverageSummary,
+  ): string {
     const lines: string[] = [];
 
-    const lineRate = computeRate(globalSummary.lines.total, globalSummary.lines.covered);
-    const branchRate = computeRate(globalSummary.branches.total, globalSummary.branches.covered);
+    const lineRate = computeRate(
+      globalSummary.lines.total,
+      globalSummary.lines.covered,
+    );
+    const branchRate = computeRate(
+      globalSummary.branches.total,
+      globalSummary.branches.covered,
+    );
     const timestamp = Date.now();
 
     lines.push('<?xml version="1.0" ?>');
-    lines.push('<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">');
-    lines.push(`<coverage line-rate="${lineRate}" branch-rate="${branchRate}" lines-valid="${String(globalSummary.lines.total)}" lines-covered="${String(globalSummary.lines.covered)}" branches-valid="${String(globalSummary.branches.total)}" branches-covered="${String(globalSummary.branches.covered)}" complexity="0" version="1" timestamp="${String(timestamp)}">`);
+    lines.push(
+      '<!DOCTYPE coverage SYSTEM "http://cobertura.sourceforge.net/xml/coverage-04.dtd">',
+    );
+    lines.push(
+      `<coverage line-rate="${lineRate}" branch-rate="${branchRate}" lines-valid="${String(globalSummary.lines.total)}" lines-covered="${String(globalSummary.lines.covered)}" branches-valid="${String(globalSummary.branches.total)}" branches-covered="${String(globalSummary.branches.covered)}" complexity="0" version="1" timestamp="${String(timestamp)}">`,
+    );
     lines.push('  <sources>');
     lines.push('    <source>.</source>');
     lines.push('  </sources>');
@@ -124,8 +150,15 @@ export class CoberturaReporter {
   }
 
   onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
-    const outputPath = join(this.options.reportsDirectory, 'cobertura-coverage.xml');
+    const outputPath = join(
+      this.options.reportsDirectory,
+      'cobertura-coverage.xml',
+    );
     mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, this.formatCobertura(coverageMap, globalSummary), 'utf-8');
+    writeFileSync(
+      outputPath,
+      this.formatCobertura(coverageMap, globalSummary),
+      'utf-8',
+    );
   }
 }

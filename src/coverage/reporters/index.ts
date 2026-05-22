@@ -12,7 +12,11 @@ export { LcovReporter } from './lcov.js';
 export { CoberturaReporter } from './cobertura.js';
 export { CloverReporter } from './clover.js';
 
-import type { CoverageMap, CoverageSummary, CoverageWatermarks } from './types.js';
+import type {
+  CoverageMap,
+  CoverageSummary,
+  CoverageWatermarks,
+} from './types.js';
 import { TextReporter } from './text.js';
 import { JsonReporter, JsonSummaryReporter } from './json.js';
 import { LcovReporter } from './lcov.js';
@@ -22,7 +26,10 @@ import { CloverReporter } from './clover.js';
 export interface CoverageReporter {
   onStart?(): void | Promise<void>;
   onFileProcessed?(filePath: string, summary: CoverageSummary): void;
-  onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void | Promise<void>;
+  onEnd(
+    coverageMap: CoverageMap,
+    globalSummary: CoverageSummary,
+  ): void | Promise<void>;
 }
 
 export interface ReporterOptions {
@@ -60,7 +67,9 @@ export function createLcovReporter(options: ReporterOptions): CoverageReporter {
   };
 }
 
-export function createCoberturaReporter(options: ReporterOptions): CoverageReporter {
+export function createCoberturaReporter(
+  options: ReporterOptions,
+): CoverageReporter {
   const reporter = new CoberturaReporter(options);
   return {
     onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
@@ -69,7 +78,9 @@ export function createCoberturaReporter(options: ReporterOptions): CoverageRepor
   };
 }
 
-export function createCloverReporter(options: ReporterOptions): CoverageReporter {
+export function createCloverReporter(
+  options: ReporterOptions,
+): CoverageReporter {
   const reporter = new CloverReporter(options);
   return {
     onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
@@ -78,7 +89,9 @@ export function createCloverReporter(options: ReporterOptions): CoverageReporter
   };
 }
 
-export function createJsonSummaryReporter(options: ReporterOptions): CoverageReporter {
+export function createJsonSummaryReporter(
+  options: ReporterOptions,
+): CoverageReporter {
   const reporter = new JsonSummaryReporter(options);
   return {
     onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
@@ -99,7 +112,9 @@ const REPORTER_FACTORIES: Record<string, ReporterFactory> = {
 export function getReporterFactory(name: string): ReporterFactory {
   const factory = REPORTER_FACTORIES[name];
   if (!factory) {
-    throw new Error(`Unknown reporter: "${name}". Available reporters: ${Object.keys(REPORTER_FACTORIES).join(', ')}`);
+    throw new Error(
+      `Unknown reporter: "${name}". Available reporters: ${Object.keys(REPORTER_FACTORIES).join(', ')}`,
+    );
   }
   return factory;
 }

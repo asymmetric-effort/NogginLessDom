@@ -144,10 +144,7 @@ function mergeFileCoverage(a: FileCoverage, b: FileCoverage): FileCoverage {
   }
 
   // Merge branch counts
-  const allBranchKeys = new Set([
-    ...Object.keys(a.b),
-    ...Object.keys(b.b),
-  ]);
+  const allBranchKeys = new Set([...Object.keys(a.b), ...Object.keys(b.b)]);
   for (const key of allBranchKeys) {
     const aArr = a.b[key] ?? [];
     const bArr = b.b[key] ?? [];
@@ -163,10 +160,7 @@ function mergeFileCoverage(a: FileCoverage, b: FileCoverage): FileCoverage {
 }
 
 function addSummaries(a: CoverageSummary, b: CoverageSummary): CoverageSummary {
-  const addMetric = (
-    am: MetricSummary,
-    bm: MetricSummary,
-  ): MetricSummary => {
+  const addMetric = (am: MetricSummary, bm: MetricSummary): MetricSummary => {
     const total = am.total + bm.total;
     const covered = am.covered + bm.covered;
     return {

@@ -1,8 +1,4 @@
-import type {
-  CoverageMap,
-  CoverageSummary,
-  FileCoverage,
-} from './types.js';
+import type { CoverageMap, CoverageSummary, FileCoverage } from './types.js';
 
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -36,7 +32,10 @@ export class JsonReporter {
   }
 
   onEnd(coverageMap: CoverageMap, _globalSummary: CoverageSummary): void {
-    const outputPath = join(this.options.reportsDirectory, 'coverage-final.json');
+    const outputPath = join(
+      this.options.reportsDirectory,
+      'coverage-final.json',
+    );
     mkdirSync(dirname(outputPath), { recursive: true });
     writeFileSync(outputPath, this.formatJson(coverageMap), 'utf-8');
   }
@@ -49,7 +48,10 @@ export class JsonSummaryReporter {
     this.options = options;
   }
 
-  formatSummary(coverageMap: CoverageMap, globalSummary: CoverageSummary): string {
+  formatSummary(
+    coverageMap: CoverageMap,
+    globalSummary: CoverageSummary,
+  ): string {
     const result: Record<string, CoverageSummary> = {};
     result['total'] = globalSummary;
     for (const filePath of coverageMap.files()) {
@@ -59,8 +61,15 @@ export class JsonSummaryReporter {
   }
 
   onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
-    const outputPath = join(this.options.reportsDirectory, 'coverage-summary.json');
+    const outputPath = join(
+      this.options.reportsDirectory,
+      'coverage-summary.json',
+    );
     mkdirSync(dirname(outputPath), { recursive: true });
-    writeFileSync(outputPath, this.formatSummary(coverageMap, globalSummary), 'utf-8');
+    writeFileSync(
+      outputPath,
+      this.formatSummary(coverageMap, globalSummary),
+      'utf-8',
+    );
   }
 }
