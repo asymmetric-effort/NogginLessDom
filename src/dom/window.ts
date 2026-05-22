@@ -5,6 +5,7 @@
 
 import { URL, URLSearchParams } from 'node:url';
 import { Document, Element, Event } from './index.js';
+import { CSSStyleDeclaration } from './style.js';
 import { FormData } from './form-data.js';
 import { Headers as NogginHeaders } from './headers.js';
 import {
@@ -298,6 +299,255 @@ interface ScreenStub {
   pixelDepth: number;
 }
 
+/** Set of CSS property names recognized by CSS.supports(). */
+const KNOWN_CSS_PROPERTIES: Set<string> = new Set([
+  'display',
+  'color',
+  'background',
+  'background-color',
+  'background-image',
+  'background-position',
+  'background-repeat',
+  'background-size',
+  'flex',
+  'flex-direction',
+  'flex-wrap',
+  'flex-flow',
+  'flex-grow',
+  'flex-shrink',
+  'flex-basis',
+  'grid',
+  'grid-template',
+  'grid-template-columns',
+  'grid-template-rows',
+  'grid-template-areas',
+  'grid-area',
+  'grid-column',
+  'grid-row',
+  'grid-gap',
+  'gap',
+  'position',
+  'top',
+  'right',
+  'bottom',
+  'left',
+  'z-index',
+  'margin',
+  'margin-top',
+  'margin-right',
+  'margin-bottom',
+  'margin-left',
+  'padding',
+  'padding-top',
+  'padding-right',
+  'padding-bottom',
+  'padding-left',
+  'width',
+  'height',
+  'min-width',
+  'min-height',
+  'max-width',
+  'max-height',
+  'border',
+  'border-width',
+  'border-style',
+  'border-color',
+  'border-radius',
+  'outline',
+  'font',
+  'font-size',
+  'font-family',
+  'font-weight',
+  'font-style',
+  'line-height',
+  'text-align',
+  'text-decoration',
+  'text-transform',
+  'letter-spacing',
+  'word-spacing',
+  'white-space',
+  'overflow',
+  'overflow-x',
+  'overflow-y',
+  'visibility',
+  'opacity',
+  'cursor',
+  'pointer-events',
+  'box-sizing',
+  'float',
+  'clear',
+  'transform',
+  'transition',
+  'animation',
+  'box-shadow',
+  'text-shadow',
+  'content',
+  'list-style',
+  'list-style-type',
+  'vertical-align',
+  'align-items',
+  'align-content',
+  'align-self',
+  'justify-content',
+  'justify-items',
+  'justify-self',
+  'order',
+  'resize',
+  'object-fit',
+  'object-position',
+  'user-select',
+  'appearance',
+  'filter',
+  'backdrop-filter',
+  'clip-path',
+  'will-change',
+  'contain',
+  'aspect-ratio',
+  'accent-color',
+  'caret-color',
+  'scroll-behavior',
+  'writing-mode',
+  'direction',
+  'unicode-bidi',
+  'word-break',
+  'overflow-wrap',
+  'text-overflow',
+  'table-layout',
+  'border-collapse',
+  'border-spacing',
+  'caption-side',
+  'empty-cells',
+  'columns',
+  'column-count',
+  'column-gap',
+  'column-width',
+  'row-gap',
+  'place-items',
+  'place-content',
+  'place-self',
+  'isolation',
+  'mix-blend-mode',
+  'background-blend-mode',
+]);
+
+/** Default display values per element tag name. */
+const DEFAULT_DISPLAY: Record<string, string> = {
+  DIV: 'block',
+  P: 'block',
+  H1: 'block',
+  H2: 'block',
+  H3: 'block',
+  H4: 'block',
+  H5: 'block',
+  H6: 'block',
+  SECTION: 'block',
+  ARTICLE: 'block',
+  HEADER: 'block',
+  FOOTER: 'block',
+  MAIN: 'block',
+  NAV: 'block',
+  ASIDE: 'block',
+  BLOCKQUOTE: 'block',
+  FIGURE: 'block',
+  FIGCAPTION: 'block',
+  ADDRESS: 'block',
+  DETAILS: 'block',
+  SUMMARY: 'block',
+  DIALOG: 'block',
+  FORM: 'block',
+  FIELDSET: 'block',
+  HR: 'block',
+  PRE: 'block',
+  UL: 'block',
+  OL: 'block',
+  DL: 'block',
+  DD: 'block',
+  DT: 'block',
+  SEARCH: 'block',
+  HGROUP: 'block',
+  SPAN: 'inline',
+  A: 'inline',
+  STRONG: 'inline',
+  EM: 'inline',
+  B: 'inline',
+  I: 'inline',
+  U: 'inline',
+  S: 'inline',
+  SMALL: 'inline',
+  SUB: 'inline',
+  SUP: 'inline',
+  ABBR: 'inline',
+  CITE: 'inline',
+  CODE: 'inline',
+  KBD: 'inline',
+  MARK: 'inline',
+  Q: 'inline',
+  SAMP: 'inline',
+  VAR: 'inline',
+  TIME: 'inline',
+  DATA: 'inline',
+  LABEL: 'inline',
+  BDI: 'inline',
+  BDO: 'inline',
+  BR: 'inline',
+  WBR: 'inline',
+  IMG: 'inline',
+  TABLE: 'table',
+  THEAD: 'table-header-group',
+  TBODY: 'table-row-group',
+  TFOOT: 'table-footer-group',
+  TR: 'table-row',
+  TD: 'table-cell',
+  TH: 'table-cell',
+  CAPTION: 'table-caption',
+  COLGROUP: 'table-column-group',
+  COL: 'table-column',
+  LI: 'list-item',
+  INPUT: 'inline-block',
+  BUTTON: 'inline-block',
+  SELECT: 'inline-block',
+  TEXTAREA: 'inline-block',
+};
+
+/** CSS namespace object providing CSS.supports(). */
+interface CSSNamespace {
+  supports(property: string, value: string): boolean;
+  supports(conditionText: string): boolean;
+}
+
+/**
+ * Parse a single "property: value" condition and check support.
+ */
+function cssSupportsSingle(conditionText: string): boolean {
+  // Strip outer parens if present: "(display: flex)" -> "display: flex"
+  let text = conditionText.trim();
+  if (text.startsWith('(') && text.endsWith(')')) {
+    text = text.slice(1, -1).trim();
+  }
+  const colonIdx = text.indexOf(':');
+  if (colonIdx === -1) {
+    return false;
+  }
+  const property = text.slice(0, colonIdx).trim();
+  return KNOWN_CSS_PROPERTIES.has(property);
+}
+
+/**
+ * Create the CSS namespace object.
+ */
+function createCSSNamespace(): CSSNamespace {
+  return {
+    supports(propertyOrCondition: string, value?: string): boolean {
+      if (value !== undefined) {
+        // Two-argument form: CSS.supports(property, value)
+        return KNOWN_CSS_PROPERTIES.has(propertyOrCondition);
+      }
+      // Single-argument form: CSS.supports(conditionText)
+      return cssSupportsSingle(propertyOrCondition);
+    },
+  };
+}
+
 /**
  * Options for createWindow factory.
  */
@@ -328,6 +578,7 @@ export class Window {
   public console: typeof globalThis.console;
   public screen: ScreenStub;
   public devicePixelRatio: number;
+  public CSS: CSSNamespace;
   public scrollX: number;
   public scrollY: number;
   public pageXOffset: number;
@@ -394,6 +645,7 @@ export class Window {
       colorDepth: 24,
       pixelDepth: 24,
     };
+    this.CSS = createCSSNamespace();
     this.devicePixelRatio = options?.devicePixelRatio ?? 1;
     this.scrollX = 0;
     this.scrollY = 0;
@@ -405,12 +657,26 @@ export class Window {
     return new MediaQueryList(query, this._matchMediaMatches);
   }
 
-  getComputedStyle(el: Element): Record<string, string> {
-    // Without CSS cascade, return an empty style object.
-    // In real DOM this would inspect inline styles, but we keep it simple.
-    const style: Record<string, string> = {};
-    void el;
-    return style;
+  getComputedStyle(el: Element): CSSStyleDeclaration {
+    const computed = new CSSStyleDeclaration();
+
+    // Apply default display value based on tag name
+    const defaultDisplay = DEFAULT_DISPLAY[el.tagName];
+    if (defaultDisplay) {
+      computed.setProperty('display', defaultDisplay);
+    }
+
+    // Overlay inline styles (they take precedence)
+    const inlineStyle = el.style;
+    for (let i = 0; i < inlineStyle.length; i++) {
+      const prop = inlineStyle.item(i);
+      const val = inlineStyle.getPropertyValue(prop);
+      if (val) {
+        computed.setProperty(prop, val);
+      }
+    }
+
+    return computed;
   }
 
   getSelection(): import('./selection.js').Selection {

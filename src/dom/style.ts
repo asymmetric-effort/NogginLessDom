@@ -118,6 +118,13 @@ export class CSSStyleDeclaration {
     return keys[index] ?? '';
   }
 
+  /**
+   * Iterate over all property name/value pairs.
+   */
+  *[Symbol.iterator](): IterableIterator<[string, string]> {
+    yield* this._properties.entries();
+  }
+
   // Allow instanceof checks to work through proxy
   static [Symbol.hasInstance](instance: unknown): boolean {
     const obj = instance as Record<string, unknown>;

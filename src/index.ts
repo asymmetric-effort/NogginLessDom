@@ -54,6 +54,7 @@ export {
   HTMLImageElement,
   HTMLLabelElement,
   HTMLOptionElement,
+  ValidityState,
 } from './dom/html-elements.js';
 
 export {

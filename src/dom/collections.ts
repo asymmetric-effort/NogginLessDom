@@ -73,29 +73,51 @@ export class NodeList {
 
 /**
  * HTMLCollection — live collection returned by getElementsByTagName/ClassName.
+ *
+ * Accepts either a static array of elements (backward compatible) or a query
+ * function that is called on every access to provide live results.
  */
 export class HTMLCollection {
-  private _items: ElementLike[];
+  private _queryFn: () => ElementLike[];
 
   [index: number]: ElementLike | undefined;
 
-  constructor(items: ElementLike[]) {
-    this._items = [...items];
-    for (let i = 0; i < this._items.length; i++) {
-      this[i] = this._items[i];
+  constructor(itemsOrQueryFn: ElementLike[] | (() => ElementLike[])) {
+    if (typeof itemsOrQueryFn === 'function') {
+      this._queryFn = itemsOrQueryFn;
+    } else {
+      const staticItems = [...itemsOrQueryFn];
+      this._queryFn = () => staticItems;
     }
+
+    return new Proxy(this, {
+      get(
+        target: HTMLCollection,
+        prop: string | symbol,
+        receiver: HTMLCollection,
+      ): unknown {
+        if (typeof prop === 'string') {
+          const idx = Number(prop);
+          if (Number.isInteger(idx) && idx >= 0) {
+            return target._queryFn()[idx];
+          }
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    });
   }
 
   get length(): number {
-    return this._items.length;
+    return this._queryFn().length;
   }
 
   item(index: number): ElementLike | null {
-    return this._items[index] ?? null;
+    return this._queryFn()[index] ?? null;
   }
 
   namedItem(name: string): ElementLike | null {
-    for (const el of this._items) {
+    const items = this._queryFn();
+    for (const el of items) {
       if (el.id === name || el.getAttribute('name') === name) {
         return el;
       }
@@ -105,7 +127,7 @@ export class HTMLCollection {
 
   [Symbol.iterator](): Iterator<ElementLike> {
     let i = 0;
-    const items = this._items;
+    const items = this._queryFn();
     return {
       next(): IteratorResult<ElementLike> {
         if (i < items.length) {

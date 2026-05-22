@@ -78,10 +78,81 @@ function dataAttrToCamel(attr: string): string {
 }
 
 /**
+ * Collect descendant elements matching a tag name from the given root.
+ * Used as a query function for live HTMLCollections.
+ */
+function collectDescendantsByTagName(
+  root: Node,
+  tagName: string,
+  upperTag: string,
+): Element[] {
+  const results: Element[] = [];
+  const walk = (node: Node): void => {
+    for (const child of node.childNodes) {
+      if (child instanceof Element) {
+        if (tagName === '*' || child.tagName === upperTag) {
+          results.push(child);
+        }
+      }
+      walk(child);
+    }
+  };
+  walk(root);
+  return results;
+}
+
+/**
+ * Collect descendant elements matching class names from the given root.
+ * Used as a query function for live HTMLCollections.
+ */
+function collectDescendantsByClassName(
+  root: Node,
+  searchClasses: string[],
+): Element[] {
+  const results: Element[] = [];
+  const walk = (node: Node): void => {
+    for (const child of node.childNodes) {
+      if (child instanceof Element) {
+        const elClasses = child.className.split(/\s+/).filter(Boolean);
+        if (searchClasses.every((c) => elClasses.includes(c))) {
+          results.push(child);
+        }
+      }
+      walk(child);
+    }
+  };
+  walk(root);
+  return results;
+}
+
+/**
  * DOMStringMap interface for dataset.
  */
 interface DOMStringMap {
   [key: string]: string | undefined;
+}
+
+/** Interface for custom elements with lifecycle callbacks. */
+interface CustomElementLifecycle {
+  connectedCallback?(): void;
+  disconnectedCallback?(): void;
+  attributeChangedCallback?(
+    name: string,
+    oldValue: string | null,
+    newValue: string | null,
+  ): void;
+}
+
+/** Interface for custom element constructors with observedAttributes. */
+interface CustomElementConstructorWithObserved {
+  observedAttributes?: string[];
+}
+
+/**
+ * Check if a node is a custom element (Element with lifecycle methods).
+ */
+function isCustomElement(node: Node): node is Element & CustomElementLifecycle {
+  return node instanceof Element && node.tagName.includes('-');
 }
 
 /**
@@ -262,6 +333,9 @@ export class Node {
     child.parentNode = this;
     this.childNodes.push(child);
     notifyChildListMutation(this, [child], [], previousSibling, null);
+    if (isCustomElement(child) && child.connectedCallback) {
+      child.connectedCallback();
+    }
     return child;
   }
 
@@ -275,6 +349,9 @@ export class Node {
     this.childNodes.splice(index, 1);
     child.parentNode = null;
     notifyChildListMutation(this, [], [child], previousSibling, nextSibling);
+    if (isCustomElement(child) && child.disconnectedCallback) {
+      child.disconnectedCallback();
+    }
     return child;
   }
 
@@ -296,6 +373,9 @@ export class Node {
       previousSibling,
       referenceChild,
     );
+    if (isCustomElement(newChild) && newChild.connectedCallback) {
+      newChild.connectedCallback();
+    }
     return newChild;
   }
 
@@ -316,6 +396,12 @@ export class Node {
       previousSibling,
       nextSibling,
     );
+    if (isCustomElement(oldChild) && oldChild.disconnectedCallback) {
+      oldChild.disconnectedCallback();
+    }
+    if (isCustomElement(newChild) && newChild.connectedCallback) {
+      newChild.connectedCallback();
+    }
     return oldChild;
   }
 
@@ -557,12 +643,26 @@ export class Element extends Node {
     if (name === 'id') this.id = value;
     if (name === 'class') this.className = value;
     notifyAttributeMutation(this, name, oldValue);
+    if (isCustomElement(this) && this.attributeChangedCallback) {
+      const ctor = this.constructor as CustomElementConstructorWithObserved;
+      const observed = ctor.observedAttributes;
+      if (observed && observed.includes(name)) {
+        this.attributeChangedCallback(name, oldValue, value);
+      }
+    }
   }
 
   removeAttribute(name: string): void {
     const oldValue = this.attributes.get(name) ?? null;
     this.attributes.delete(name);
     notifyAttributeMutation(this, name, oldValue);
+    if (isCustomElement(this) && this.attributeChangedCallback) {
+      const ctor = this.constructor as CustomElementConstructorWithObserved;
+      const observed = ctor.observedAttributes;
+      if (observed && observed.includes(name)) {
+        this.attributeChangedCallback(name, oldValue, null);
+      }
+    }
   }
 
   hasAttribute(name: string): boolean {
@@ -775,38 +875,17 @@ export class Element extends Node {
   }
 
   getElementsByTagName(tagName: string): HTMLCollection {
-    const results: Element[] = [];
     const upperTag = tagName.toUpperCase();
-    const collectDescendants = (node: Node): void => {
-      for (const child of node.childNodes) {
-        if (child instanceof Element) {
-          if (tagName === '*' || child.tagName === upperTag) {
-            results.push(child);
-          }
-          collectDescendants(child);
-        }
-      }
-    };
-    collectDescendants(this);
-    return new HTMLCollection(results);
+    return new HTMLCollection(
+      collectDescendantsByTagName.bind(null, this, tagName, upperTag),
+    );
   }
 
   getElementsByClassName(className: string): HTMLCollection {
     const searchClasses = className.split(/\s+/).filter(Boolean);
-    const results: Element[] = [];
-    const collectDescendants = (node: Node): void => {
-      for (const child of node.childNodes) {
-        if (child instanceof Element) {
-          const elClasses = child.className.split(/\s+/).filter(Boolean);
-          if (searchClasses.every((c) => elClasses.includes(c))) {
-            results.push(child);
-          }
-          collectDescendants(child);
-        }
-      }
-    };
-    collectDescendants(this);
-    return new HTMLCollection(results);
+    return new HTMLCollection(
+      collectDescendantsByClassName.bind(null, this, searchClasses),
+    );
   }
 
   override cloneNode(deep?: boolean): Element {
@@ -1518,38 +1597,17 @@ export class Document extends Node {
   }
 
   getElementsByTagName(tagName: string): HTMLCollection {
-    const results: Element[] = [];
     const upperTag = tagName.toUpperCase();
-    const collect = (node: Node): void => {
-      for (const child of node.childNodes) {
-        if (child instanceof Element) {
-          if (tagName === '*' || child.tagName === upperTag) {
-            results.push(child);
-          }
-        }
-        collect(child);
-      }
-    };
-    collect(this);
-    return new HTMLCollection(results);
+    return new HTMLCollection(
+      collectDescendantsByTagName.bind(null, this, tagName, upperTag),
+    );
   }
 
   getElementsByClassName(className: string): HTMLCollection {
     const searchClasses = className.split(/\s+/).filter(Boolean);
-    const results: Element[] = [];
-    const collect = (node: Node): void => {
-      for (const child of node.childNodes) {
-        if (child instanceof Element) {
-          const elClasses = child.className.split(/\s+/).filter(Boolean);
-          if (searchClasses.every((c) => elClasses.includes(c))) {
-            results.push(child);
-          }
-        }
-        collect(child);
-      }
-    };
-    collect(this);
-    return new HTMLCollection(results);
+    return new HTMLCollection(
+      collectDescendantsByClassName.bind(null, this, searchClasses),
+    );
   }
 
   createDocumentFragment(): Node {
