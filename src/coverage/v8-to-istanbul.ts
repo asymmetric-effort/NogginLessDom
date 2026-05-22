@@ -88,9 +88,14 @@ export function v8ToIstanbul(
       }
 
       if (branchLocations.length > 0) {
+        const branchType = detectBranchType(
+          branchLocations,
+          branchCounts,
+          firstRange.count,
+        );
         const bKey = String(branchIndex);
         branchMap[bKey] = {
-          type: 'if',
+          type: branchType,
           locations: branchLocations,
           line: branchLocations[0]!.start.line,
         };
@@ -109,4 +114,38 @@ export function v8ToIstanbul(
     f,
     b,
   };
+}
+
+/**
+ * Detect branch type based on range structure.
+ *
+ * - 'binary-expr': single inner range with lower count (short-circuit like || or &&)
+ * - 'cond-expr': exactly 2 inner ranges on the same line, both short (ternary)
+ * - 'if': two or more inner ranges spanning multiple lines (if/else)
+ */
+function detectBranchType(
+  locations: Range[],
+  counts: number[],
+  outerCount: number,
+): string {
+  // Single inner range with different count => binary expression (short-circuit)
+  if (locations.length === 1 && counts[0] !== outerCount) {
+    return 'binary-expr';
+  }
+
+  // Exactly 2 inner ranges: check if they look like a ternary (same line, short spans)
+  if (locations.length === 2) {
+    const loc0 = locations[0]!;
+    const loc1 = locations[1]!;
+    const sameLine =
+      loc0.start.line === loc0.end.line &&
+      loc1.start.line === loc1.end.line &&
+      loc0.start.line === loc1.start.line;
+
+    if (sameLine) {
+      return 'cond-expr';
+    }
+  }
+
+  return 'if';
 }

@@ -18,6 +18,8 @@ import type {
 import {
   CoverageMap,
   createCoverageMap as newCoverageMap,
+  serializeCoverageMap,
+  deserializeCoverageMap,
 } from './coverage-map.js';
 import { shouldIncludeFile } from './filter.js';
 import { findIgnoreRanges, applyIgnoreRanges } from './ignore.js';
@@ -32,7 +34,12 @@ export type {
 } from './config.js';
 export { getDefaultConfig, mergeConfig } from './config.js';
 export type { CoverageSummary, FileCoverage } from './coverage-map.js';
-export { CoverageMap } from './coverage-map.js';
+export {
+  CoverageMap,
+  serializeCoverageMap,
+  deserializeCoverageMap,
+  mergeCoverageMaps,
+} from './coverage-map.js';
 export { shouldIncludeFile, matchesPattern } from './filter.js';
 export {
   findIgnoreRanges,
@@ -75,6 +82,12 @@ let activeConfig: ResolvedCoverageConfig | undefined;
 
 /** Whether coverage collection is currently active. */
 let isCollecting = false;
+
+/** Per-test coverage snapshots (start snapshots keyed by test name). */
+const testCoverageSnapshots = new Map<string, CoverageMap>();
+
+/** Per-test coverage results (delta maps keyed by test name). */
+const testCoverageResults = new Map<string, CoverageMap>();
 
 // ---------------------------------------------------------------------------
 // V8 Coverage Provider (thin wrapper around node:inspector/promises)
@@ -301,6 +314,116 @@ export function checkCoverageThresholds(
     passed: failures.length === 0,
     failures,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Per-test coverage tracking (Issue #52)
+// ---------------------------------------------------------------------------
+
+/**
+ * Snapshot current coverage as the baseline for a test.
+ */
+export function startTestCoverage(
+  testName: string,
+  currentCoverage: CoverageMap,
+): void {
+  // Deep-clone the current coverage map by serializing/deserializing
+  const snapshot = deserializeCoverageMap(
+    serializeCoverageMap(currentCoverage),
+  );
+  testCoverageSnapshots.set(testName, snapshot);
+}
+
+/**
+ * Compute the delta coverage since startTestCoverage for a given test.
+ * Returns a CoverageMap representing only the coverage accumulated during the test.
+ */
+export function stopTestCoverage(
+  testName: string,
+  currentCoverage: CoverageMap,
+): CoverageMap {
+  const snapshot = testCoverageSnapshots.get(testName);
+  if (!snapshot) {
+    throw new Error(`No coverage snapshot found for test: ${testName}`);
+  }
+  testCoverageSnapshots.delete(testName);
+
+  const delta = computeCoverageDelta(snapshot, currentCoverage);
+  testCoverageResults.set(testName, delta);
+  return delta;
+}
+
+/**
+ * Get the per-test coverage result for a specific test.
+ */
+export function getTestCoverage(testName: string): CoverageMap | undefined {
+  return testCoverageResults.get(testName);
+}
+
+/**
+ * Get all per-test coverage results.
+ */
+export function getAllTestCoverage(): Map<string, CoverageMap> {
+  return new Map(testCoverageResults);
+}
+
+/**
+ * Compute the difference between a before-snapshot and an after-snapshot.
+ * For each file, subtract before counts from after counts to get the delta.
+ */
+function computeCoverageDelta(
+  before: CoverageMap,
+  after: CoverageMap,
+): CoverageMap {
+  const delta = newCoverageMap();
+
+  for (const filePath of after.files()) {
+    const afterFc = after.fileCoverageFor(filePath);
+
+    let beforeFc: FileCoverage | undefined;
+    try {
+      beforeFc = before.fileCoverageFor(filePath);
+    } catch {
+      // File not in before snapshot — entire coverage is delta
+      delta.addFileCoverage(afterFc);
+      continue;
+    }
+
+    const deltaFc: FileCoverage = {
+      path: filePath,
+      statementMap: { ...afterFc.statementMap },
+      fnMap: { ...afterFc.fnMap },
+      branchMap: { ...afterFc.branchMap },
+      s: {},
+      f: {},
+      b: {},
+    };
+
+    // Delta for statements
+    for (const key of Object.keys(afterFc.s)) {
+      deltaFc.s[key] = (afterFc.s[key] ?? 0) - (beforeFc.s[key] ?? 0);
+    }
+
+    // Delta for functions
+    for (const key of Object.keys(afterFc.f)) {
+      deltaFc.f[key] = (afterFc.f[key] ?? 0) - (beforeFc.f[key] ?? 0);
+    }
+
+    // Delta for branches
+    for (const key of Object.keys(afterFc.b)) {
+      const afterArr = afterFc.b[key] ?? [];
+      const beforeArr = beforeFc.b[key] ?? [];
+      const deltaArr: number[] = [];
+      for (let i = 0; i < afterArr.length; i++) {
+        deltaArr.push((afterArr[i] ?? 0) - (beforeArr[i] ?? 0));
+      }
+      deltaFc.b[key] = deltaArr;
+    }
+
+    delta.addFileCoverage(deltaFc);
+  }
+
+  return delta;
 }
 
 // ---------------------------------------------------------------------------

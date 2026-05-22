@@ -423,3 +423,38 @@ export class CoverageMap {
 export function createCoverageMap(): CoverageMap {
   return new CoverageMap();
 }
+
+/**
+ * Serialize a CoverageMap to a JSON string for cross-process transfer.
+ */
+export function serializeCoverageMap(map: CoverageMap): string {
+  const files: FileCoverage[] = [];
+  for (const filePath of map.files()) {
+    files.push(map.fileCoverageFor(filePath));
+  }
+  return JSON.stringify({ files });
+}
+
+/**
+ * Deserialize a JSON string back into a CoverageMap.
+ */
+export function deserializeCoverageMap(json: string): CoverageMap {
+  const parsed = JSON.parse(json) as { files: FileCoverage[] };
+  const map = new CoverageMap();
+  for (const fc of parsed.files) {
+    map.addFileCoverage(fc);
+  }
+  return map;
+}
+
+/**
+ * Merge multiple CoverageMaps into a single CoverageMap.
+ * Overlapping files have their counts summed.
+ */
+export function mergeCoverageMaps(maps: CoverageMap[]): CoverageMap {
+  const result = new CoverageMap();
+  for (const map of maps) {
+    result.merge(map);
+  }
+  return result;
+}
