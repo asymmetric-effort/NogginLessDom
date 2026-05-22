@@ -198,6 +198,16 @@ export class Node {
     return null;
   }
 
+  get isConnected(): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    let current: Node | null = this;
+    while (current) {
+      if (current instanceof Document) return true;
+      current = current.parentNode;
+    }
+    return false;
+  }
+
   get nodeValue(): string | null {
     return null;
   }
@@ -326,6 +336,9 @@ export class Node {
   }
 
   appendChild(child: Node): Node {
+    if (child.parentNode) {
+      child.parentNode.removeChild(child);
+    }
     const previousSibling =
       this.childNodes.length > 0
         ? this.childNodes[this.childNodes.length - 1]!
@@ -609,8 +622,8 @@ export class Event {
  */
 export class Element extends Node {
   public tagName: string;
-  public id = '';
-  public className = '';
+  private _id = '';
+  private _className = '';
   public namespaceURI: string | null = null;
   private attributes: Map<string, string> = new Map();
   private _captureListeners: Map<
@@ -650,6 +663,24 @@ export class Element extends Node {
     this.namespaceURI = namespaceURI ?? null;
   }
 
+  get id(): string {
+    return this._id;
+  }
+
+  set id(value: string) {
+    this._id = value;
+    this.setAttribute('id', value);
+  }
+
+  get className(): string {
+    return this._className;
+  }
+
+  set className(value: string) {
+    this._className = value;
+    this.setAttribute('class', value);
+  }
+
   getAttribute(name: string): string | null {
     return this.attributes.get(name) ?? null;
   }
@@ -657,8 +688,8 @@ export class Element extends Node {
   setAttribute(name: string, value: string): void {
     const oldValue = this.attributes.get(name) ?? null;
     this.attributes.set(name, value);
-    if (name === 'id') this.id = value;
-    if (name === 'class') this.className = value;
+    if (name === 'id') this._id = value;
+    if (name === 'class') this._className = value;
     notifyAttributeMutation(this, name, oldValue);
     if (isCustomElement(this) && this.attributeChangedCallback) {
       const ctor = this.constructor as CustomElementConstructorWithObserved;
@@ -945,6 +976,13 @@ export class Element extends Node {
   get style(): CSSStyleDeclaration {
     if (!this._style) {
       this._style = new CSSStyleDeclaration();
+      this._style._setOnChange((cssText: string) => {
+        if (cssText) {
+          this.setAttribute('style', cssText);
+        } else {
+          this.removeAttribute('style');
+        }
+      });
     }
     return this._style;
   }
@@ -1076,6 +1114,20 @@ export class Element extends Node {
       });
     }
     return this._dataset;
+  }
+
+  // ---- click ----
+
+  click(): void {
+    // Lazy import to avoid circular dependency with events.ts
+    const { MouseEvent: MouseEventClass } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./events.js') as typeof import('./events.js');
+    const event = new MouseEventClass('click', {
+      bubbles: true,
+      cancelable: true,
+    });
+    this.dispatchEvent(event);
   }
 
   // ---- closest / matches ----
@@ -1553,6 +1605,28 @@ export class Element extends Node {
   }
   set onresize(handler: ((event: Event) => void) | null) {
     this._setEventHandler('resize', handler);
+  }
+
+  // ---- tabIndex ----
+
+  private _tabIndex: number | null = null;
+
+  get tabIndex(): number {
+    if (this._tabIndex !== null) {
+      return this._tabIndex;
+    }
+    const INTERACTIVE_TAGS = new Set([
+      'A',
+      'BUTTON',
+      'INPUT',
+      'SELECT',
+      'TEXTAREA',
+    ]);
+    return INTERACTIVE_TAGS.has(this.tagName) ? 0 : -1;
+  }
+
+  set tabIndex(value: number) {
+    this._tabIndex = value;
   }
 }
 

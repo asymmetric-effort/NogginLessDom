@@ -829,6 +829,32 @@ export class Window {
   set onblur(handler: ((event: Event) => void) | null) {
     this._setEventHandler('blur', handler);
   }
+
+  // ---- Timer methods ----
+
+  setTimeout(
+    callback: (...args: unknown[]) => void,
+    ms?: number,
+    ...args: unknown[]
+  ): ReturnType<typeof globalThis.setTimeout> {
+    return globalThis.setTimeout(callback, ms, ...args);
+  }
+
+  setInterval(
+    callback: (...args: unknown[]) => void,
+    ms?: number,
+    ...args: unknown[]
+  ): ReturnType<typeof globalThis.setInterval> {
+    return globalThis.setInterval(callback, ms, ...args);
+  }
+
+  clearTimeout(id: ReturnType<typeof globalThis.setTimeout>): void {
+    globalThis.clearTimeout(id);
+  }
+
+  clearInterval(id: ReturnType<typeof globalThis.setInterval>): void {
+    globalThis.clearInterval(id);
+  }
 }
 
 /**
@@ -837,5 +863,14 @@ export class Window {
 export function createWindow(options?: WindowOptions): Window {
   const win = new Window(options);
   win.document.defaultView = win;
+
+  // Build default document structure: <html><head></head><body></body></html>
+  const html = win.document.createElement('html');
+  const head = win.document.createElement('head');
+  const body = win.document.createElement('body');
+  html.appendChild(head);
+  html.appendChild(body);
+  win.document.appendChild(html);
+
   return win;
 }

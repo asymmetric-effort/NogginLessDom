@@ -136,7 +136,7 @@ export class HTMLAnchorElement extends Element {
  * HTMLButtonElement — <button>
  */
 export class HTMLButtonElement extends Element {
-  public disabled = false;
+  private _disabled = false;
   public type: 'submit' | 'reset' | 'button' = 'submit';
   public name = '';
   public value = '';
@@ -144,6 +144,19 @@ export class HTMLButtonElement extends Element {
 
   constructor() {
     super('button');
+  }
+
+  get disabled(): boolean {
+    return this._disabled;
+  }
+
+  set disabled(value: boolean) {
+    this._disabled = value;
+    if (value) {
+      this.setAttribute('disabled', '');
+    } else {
+      this.removeAttribute('disabled');
+    }
   }
 }
 
@@ -154,11 +167,11 @@ export class HTMLInputElement extends Element {
   public type = 'text';
   public value = '';
   public name = '';
-  public disabled = false;
-  public checked = false;
+  private _disabled = false;
+  private _checked = false;
   public placeholder = '';
-  public readOnly = false;
-  public required = false;
+  private _readOnly = false;
+  private _required = false;
   public min = '';
   public max = '';
   public step = '';
@@ -172,6 +185,58 @@ export class HTMLInputElement extends Element {
 
   constructor() {
     super('input');
+  }
+
+  get disabled(): boolean {
+    return this._disabled;
+  }
+
+  set disabled(value: boolean) {
+    this._disabled = value;
+    if (value) {
+      this.setAttribute('disabled', '');
+    } else {
+      this.removeAttribute('disabled');
+    }
+  }
+
+  get checked(): boolean {
+    return this._checked;
+  }
+
+  set checked(value: boolean) {
+    this._checked = value;
+    if (value) {
+      this.setAttribute('checked', '');
+    } else {
+      this.removeAttribute('checked');
+    }
+  }
+
+  get readOnly(): boolean {
+    return this._readOnly;
+  }
+
+  set readOnly(value: boolean) {
+    this._readOnly = value;
+    if (value) {
+      this.setAttribute('readonly', '');
+    } else {
+      this.removeAttribute('readonly');
+    }
+  }
+
+  get required(): boolean {
+    return this._required;
+  }
+
+  set required(value: boolean) {
+    this._required = value;
+    if (value) {
+      this.setAttribute('required', '');
+    } else {
+      this.removeAttribute('required');
+    }
   }
 
   get willValidate(): boolean {
@@ -337,16 +402,100 @@ export class HTMLOptionElement extends Element {
  */
 export class HTMLSelectElement extends Element {
   public name = '';
-  public disabled = false;
-  public multiple = false;
-  public required = false;
-  public selectedIndex = -1;
-  public value = '';
+  private _disabled = false;
+  private _multiple = false;
+  private _required = false;
+  private _selectedIndex = -1;
+  private _value: string | null = null;
 
   private _customValidationMessage = '';
 
   constructor() {
     super('select');
+  }
+
+  get selectedIndex(): number {
+    if (this._selectedIndex !== -1) {
+      return this._selectedIndex;
+    }
+    // Auto-select first non-disabled option
+    const opts = this.options;
+    for (let i = 0; i < opts.length; i++) {
+      if (!opts[i]!.disabled) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  set selectedIndex(value: number) {
+    this._selectedIndex = value;
+    this._value = null;
+  }
+
+  get value(): string {
+    // If value was set directly without matching options, return it
+    if (this._value !== null) {
+      return this._value;
+    }
+    const idx = this.selectedIndex;
+    const opts = this.options;
+    if (idx >= 0 && idx < opts.length) {
+      return opts[idx]!.value;
+    }
+    return '';
+  }
+
+  set value(val: string) {
+    const opts = this.options;
+    for (let i = 0; i < opts.length; i++) {
+      if (opts[i]!.value === val) {
+        this._selectedIndex = i;
+        this._value = null;
+        return;
+      }
+    }
+    // No matching option found, store value directly
+    this._value = val;
+  }
+
+  get disabled(): boolean {
+    return this._disabled;
+  }
+
+  set disabled(value: boolean) {
+    this._disabled = value;
+    if (value) {
+      this.setAttribute('disabled', '');
+    } else {
+      this.removeAttribute('disabled');
+    }
+  }
+
+  get multiple(): boolean {
+    return this._multiple;
+  }
+
+  set multiple(value: boolean) {
+    this._multiple = value;
+    if (value) {
+      this.setAttribute('multiple', '');
+    } else {
+      this.removeAttribute('multiple');
+    }
+  }
+
+  get required(): boolean {
+    return this._required;
+  }
+
+  set required(value: boolean) {
+    this._required = value;
+    if (value) {
+      this.setAttribute('required', '');
+    } else {
+      this.removeAttribute('required');
+    }
   }
 
   get willValidate(): boolean {
@@ -399,9 +548,9 @@ export class HTMLSelectElement extends Element {
 export class HTMLTextAreaElement extends Element {
   public value = '';
   public name = '';
-  public disabled = false;
-  public readOnly = false;
-  public required = false;
+  private _disabled = false;
+  private _readOnly = false;
+  private _required = false;
   public placeholder = '';
   public rows = 2;
   public cols = 20;
@@ -413,6 +562,45 @@ export class HTMLTextAreaElement extends Element {
 
   constructor() {
     super('textarea');
+  }
+
+  get disabled(): boolean {
+    return this._disabled;
+  }
+
+  set disabled(value: boolean) {
+    this._disabled = value;
+    if (value) {
+      this.setAttribute('disabled', '');
+    } else {
+      this.removeAttribute('disabled');
+    }
+  }
+
+  get readOnly(): boolean {
+    return this._readOnly;
+  }
+
+  set readOnly(value: boolean) {
+    this._readOnly = value;
+    if (value) {
+      this.setAttribute('readonly', '');
+    } else {
+      this.removeAttribute('readonly');
+    }
+  }
+
+  get required(): boolean {
+    return this._required;
+  }
+
+  set required(value: boolean) {
+    this._required = value;
+    if (value) {
+      this.setAttribute('required', '');
+    } else {
+      this.removeAttribute('required');
+    }
   }
 
   get willValidate(): boolean {

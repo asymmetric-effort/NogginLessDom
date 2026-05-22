@@ -14,11 +14,27 @@ function camelToKebab(str: string): string {
  * Convert kebab-case to camelCase: background-color -> backgroundColor
  */
 
+/** Callback type for notifying the owning element when styles change. */
+type StyleChangeCallback = (cssText: string) => void;
+
 /**
  * CSSStyleDeclaration provides access to an element's inline styles.
  */
 export class CSSStyleDeclaration {
   private _properties: Map<string, string> = new Map();
+  private _onchange: StyleChangeCallback | null = null;
+
+  /** Set a callback that fires whenever a style property changes. */
+  _setOnChange(callback: StyleChangeCallback): void {
+    this._onchange = callback;
+  }
+
+  /** Notify the owner that styles changed. */
+  private _notifyChange(): void {
+    if (this._onchange) {
+      this._onchange(this.cssText);
+    }
+  }
 
   constructor() {
     // Use a Proxy to support arbitrary camelCase property access
@@ -49,7 +65,11 @@ export class CSSStyleDeclaration {
           return true;
         }
         // Check if it's a known own property
-        if (prop === '_properties' || prop === 'cssText') {
+        if (
+          prop === '_properties' ||
+          prop === '_onchange' ||
+          prop === 'cssText'
+        ) {
           (target as unknown as Record<string, unknown>)[prop] = value;
           return true;
         }
@@ -60,6 +80,7 @@ export class CSSStyleDeclaration {
         } else {
           target._properties.set(kebab, String(value));
         }
+        target._notifyChange();
         return true;
       },
     });
@@ -75,11 +96,13 @@ export class CSSStyleDeclaration {
     } else {
       this._properties.set(prop, value);
     }
+    this._notifyChange();
   }
 
   removeProperty(prop: string): string {
     const old = this._properties.get(prop) ?? '';
     this._properties.delete(prop);
+    this._notifyChange();
     return old;
   }
 
@@ -107,6 +130,7 @@ export class CSSStyleDeclaration {
         this._properties.set(prop, val);
       }
     }
+    this._notifyChange();
   }
 
   get length(): number {

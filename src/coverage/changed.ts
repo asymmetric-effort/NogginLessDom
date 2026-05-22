@@ -3,7 +3,7 @@
  * Uses git to determine which files have changed relative to a base branch or HEAD.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 /**
  * Get the list of files changed relative to a base branch or HEAD.
@@ -13,12 +13,24 @@ import { execSync } from 'node:child_process';
  * @returns Array of changed file paths (relative to the repo root).
  */
 export function getChangedFiles(baseBranch?: string): string[] {
-  const command = baseBranch
-    ? `git diff --name-only ${baseBranch}...HEAD`
-    : 'git diff --name-only HEAD';
-
   try {
-    const output = execSync(command, { encoding: 'utf-8' });
+    let output: string;
+    if (baseBranch) {
+      // Validate branch name to prevent injection
+      if (!/^[a-zA-Z0-9_./-]+$/.test(baseBranch)) {
+        throw new Error(`Invalid branch name: ${baseBranch}`);
+      }
+      // Use execFileSync (no shell) to avoid command injection
+      output = execFileSync(
+        'git',
+        ['diff', '--name-only', `${baseBranch}...HEAD`],
+        { encoding: 'utf-8' },
+      );
+    } else {
+      output = execFileSync('git', ['diff', '--name-only', 'HEAD'], {
+        encoding: 'utf-8',
+      });
+    }
     return output
       .split('\n')
       .map((line) => line.trim())
