@@ -3,9 +3,11 @@
  * @module mocking/module-mock
  */
 
+import { createRequire } from 'node:module';
 import { fn } from './index.js';
 
 const moduleRegistry = new Map<string, unknown>();
+const esmRequire = createRequire(import.meta.url);
 
 /** Helper type for the object passed to mock factory functions. */
 interface MockFactoryHelpers {
@@ -88,4 +90,25 @@ export function resetModules(): void {
  */
 export function getMockedModule(moduleName: string): unknown | undefined {
   return moduleRegistry.get(moduleName);
+}
+
+/**
+ * Mock-aware require: if a mock exists for the path, return it.
+ * Otherwise, fall back to the real module via createRequire.
+ */
+export function mockRequire(modulePath: string): unknown {
+  const mocked = moduleRegistry.get(modulePath);
+  if (mocked !== undefined) return mocked;
+  return esmRequire(modulePath);
+}
+
+/**
+ * Mock-aware async import: if a mock exists for the path, return it.
+ * Otherwise, dynamically import the real module and auto-mock its exports.
+ */
+export async function importMockModule(moduleName: string): Promise<unknown> {
+  const mocked = moduleRegistry.get(moduleName);
+  if (mocked !== undefined) return mocked;
+  const realModule = await import(moduleName);
+  return autoMock(realModule as Record<string, unknown>);
 }

@@ -56,7 +56,7 @@ line3`;
       assert.equal(ranges.length, 1);
       assert.equal(ranges[0]!.startLine, 3);
       assert.equal(ranges[0]!.endLine, 3);
-      assert.equal(ranges[0]!.type, 'line');
+      assert.equal(ranges[0]!.type, 'ignore_if');
     });
 
     it('should parse istanbul ignore else', () => {
@@ -67,7 +67,7 @@ line3`;
       assert.equal(ranges.length, 1);
       assert.equal(ranges[0]!.startLine, 3);
       assert.equal(ranges[0]!.endLine, 3);
-      assert.equal(ranges[0]!.type, 'line');
+      assert.equal(ranges[0]!.type, 'ignore_else');
     });
 
     it('should parse istanbul ignore file', () => {

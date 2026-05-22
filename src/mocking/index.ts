@@ -9,7 +9,8 @@ import {
   unmock,
   resetModules,
   getMockedModule,
-  autoMock,
+  mockRequire,
+  importMockModule,
 } from './module-mock.js';
 
 /** Internal registry of all created mock functions for bulk operations. */
@@ -817,12 +818,12 @@ function hoisted<T>(factory: () => T): T {
 }
 
 /**
- * Import a module and auto-mock all its exports.
+ * Import a module with mock-awareness: if a mock is registered, return it.
+ * Otherwise, dynamically import the real module and auto-mock all its exports.
  * Functions become mock functions, primitives are kept as-is.
  */
 async function importMock(moduleName: string): Promise<unknown> {
-  const realModule = await import(moduleName);
-  return autoMock(realModule as Record<string, unknown>);
+  return importMockModule(moduleName);
 }
 
 /**
@@ -834,6 +835,8 @@ export const mock = {
   doMock: mockModule,
   importActual,
   importMock,
+  /** Mock-aware require: returns mock if registered, otherwise real module. */
+  require: mockRequire,
   unmock,
   /** Alias for unmock (explicitly non-hoisted). */
   doUnmock: unmock,

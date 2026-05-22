@@ -92,12 +92,18 @@ export function instrumentSource(
     const line = lines[i]!;
     const trimmed = line.trim();
 
+    // Skip lines that are inside string or template literals
+    if (isInsideStringLiteral(trimmed)) {
+      continue;
+    }
+
     // Detect function declarations: function name(...)
     if (/^(export\s+)?(async\s+)?function\s+\w+/.test(trimmed)) {
       functionLines.add(i);
     }
 
     // Detect arrow functions: const/let/var name = (...) => {
+    // Also handles single-param arrows without parens: const fn = x => {
     if (
       /^(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?\(.*\)\s*=>\s*\{/.test(
         trimmed,
@@ -109,8 +115,32 @@ export function instrumentSource(
       functionLines.add(i);
     }
 
+    // Detect class methods: method() {, async method() {, static method() {
+    // Also get/set accessors: get prop() {, set prop(v) {
+    if (
+      /^(async\s+|static\s+|static\s+async\s+|get\s+|set\s+)?\w+\s*\([^)]*\)\s*\{/.test(
+        trimmed,
+      ) &&
+      !functionLines.has(i) &&
+      !trimmed.startsWith('if') &&
+      !trimmed.startsWith('while') &&
+      !trimmed.startsWith('for') &&
+      !trimmed.startsWith('switch') &&
+      !trimmed.startsWith('catch') &&
+      !trimmed.startsWith('class ') &&
+      !trimmed.startsWith('const ') &&
+      !trimmed.startsWith('let ') &&
+      !trimmed.startsWith('var ') &&
+      !trimmed.startsWith('export ') &&
+      !trimmed.startsWith('import ') &&
+      !trimmed.startsWith('return ') &&
+      !trimmed.startsWith('function ')
+    ) {
+      functionLines.add(i);
+    }
+
     // Detect if statements
-    if (/^\s*if\s*\(/.test(line)) {
+    if (/^if\s*\(/.test(trimmed)) {
       // Look ahead for else
       let hasElse = false;
       let elseLine = -1;
@@ -126,7 +156,7 @@ export function instrumentSource(
         }
         // Stop searching if we encounter another statement-level construct
         if (
-          /^\s*if\s*\(/.test(lines[j]!) ||
+          /^if\s*\(/.test(nextTrimmed) ||
           /^(const|let|var|function|class|return|export|import)\s/.test(
             nextTrimmed,
           )
@@ -306,6 +336,28 @@ export function instrumentSource(
 }
 
 /**
+ * Check if a trimmed line appears to be a string/template literal assignment
+ * rather than actual code with keywords. Detects lines like:
+ *   const s = 'function hello() { ... }';
+ *   const s = "if (x) { ... }";
+ *   const s = `method() {`;
+ */
+function isInsideStringLiteral(trimmed: string): boolean {
+  // Match assignment to a string: const/let/var x = '...' or "..." or `...`
+  if (
+    /^(export\s+)?(const|let|var)\s+\w+\s*=\s*['"`]/.test(trimmed) &&
+    !trimmed.includes('=>')
+  ) {
+    return true;
+  }
+  // Line that is purely a string literal
+  if (/^['"`]/.test(trimmed) && !trimmed.startsWith('`${')) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Extract a function name from a line of code.
  */
 function extractFunctionName(line: string): string {
@@ -316,6 +368,13 @@ function extractFunctionName(line: string): string {
   // const name = (...) => or const name = async (...) =>
   const arrowMatch = /(const|let|var)\s+(\w+)\s*=/.exec(line);
   if (arrowMatch?.[2]) return arrowMatch[2];
+
+  // Class method: [async|static|get|set] name(...)
+  const methodMatch =
+    /^(?:async\s+|static\s+|static\s+async\s+|get\s+|set\s+)?(\w+)\s*\(/.exec(
+      line,
+    );
+  if (methodMatch?.[1]) return methodMatch[1];
 
   return '(anonymous)';
 }

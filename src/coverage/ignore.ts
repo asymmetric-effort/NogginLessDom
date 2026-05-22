@@ -7,7 +7,7 @@ import type { FileCoverage } from './coverage-map.js';
 export interface IgnoreRange {
   startLine: number;
   endLine: number;
-  type: 'line' | 'block' | 'file' | 'class';
+  type: 'line' | 'block' | 'file' | 'class' | 'ignore_if' | 'ignore_else';
   reason?: string;
 }
 
@@ -16,7 +16,13 @@ export interface IgnoreRange {
  * Supports v8, istanbul, and c8 directives.
  */
 const IGNORE_NEXT_PATTERN =
-  /\/\*\s*(?:v8|istanbul|c8)\s+ignore\s+(?:next|if|else)\s*(?:--\s*(.*?)\s*)?\*\//g;
+  /\/\*\s*(?:v8|istanbul|c8)\s+ignore\s+next\s*(?:--\s*(.*?)\s*)?\*\//g;
+
+const IGNORE_IF_PATTERN =
+  /\/\*\s*(?:v8|istanbul|c8)\s+ignore\s+if\s*(?:--\s*(.*?)\s*)?\*\//g;
+
+const IGNORE_ELSE_PATTERN =
+  /\/\*\s*(?:v8|istanbul|c8)\s+ignore\s+else\s*(?:--\s*(.*?)\s*)?\*\//g;
 
 const IGNORE_NEXT_N_PATTERN =
   /\/\*\s*v8\s+ignore\s+next\s+(\d+)\s*(?:--\s*(.*?)\s*)?\*\//g;
@@ -136,7 +142,45 @@ export function findIgnoreRanges(source: string): IgnoreRange[] {
       }
     }
 
-    // Check for next/if/else ignore (only if not inside a block)
+    // Check for istanbul ignore if (only if not inside a block)
+    if (blockStartLine === undefined) {
+      IGNORE_IF_PATTERN.lastIndex = 0;
+      const ifMatch = IGNORE_IF_PATTERN.exec(line);
+      if (ifMatch) {
+        const reason = ifMatch[1]?.trim();
+        const nextLine = lineNum + 1;
+        if (nextLine <= totalLines) {
+          ranges.push({
+            startLine: nextLine,
+            endLine: nextLine,
+            type: 'ignore_if',
+            ...(reason ? { reason } : {}),
+          });
+        }
+        continue;
+      }
+    }
+
+    // Check for istanbul ignore else (only if not inside a block)
+    if (blockStartLine === undefined) {
+      IGNORE_ELSE_PATTERN.lastIndex = 0;
+      const elseMatch = IGNORE_ELSE_PATTERN.exec(line);
+      if (elseMatch) {
+        const reason = elseMatch[1]?.trim();
+        const nextLine = lineNum + 1;
+        if (nextLine <= totalLines) {
+          ranges.push({
+            startLine: nextLine,
+            endLine: nextLine,
+            type: 'ignore_else',
+            ...(reason ? { reason } : {}),
+          });
+        }
+        continue;
+      }
+    }
+
+    // Check for next ignore (only if not inside a block)
     if (blockStartLine === undefined) {
       IGNORE_NEXT_PATTERN.lastIndex = 0;
       const nextMatch = IGNORE_NEXT_PATTERN.exec(line);
@@ -168,7 +212,13 @@ export function findIgnoreRanges(source: string): IgnoreRange[] {
 }
 
 function isLineInRange(line: number, ranges: IgnoreRange[]): boolean {
-  return ranges.some((r) => line >= r.startLine && line <= r.endLine);
+  return ranges.some(
+    (r) =>
+      r.type !== 'ignore_if' &&
+      r.type !== 'ignore_else' &&
+      line >= r.startLine &&
+      line <= r.endLine,
+  );
 }
 
 /**
@@ -216,8 +266,37 @@ export function applyIgnoreRanges(
   const b: Record<string, number[]> = {};
   for (const [key, counts] of Object.entries(fileCoverage.b)) {
     const branchLoc = fileCoverage.branchMap[key];
-    if (branchLoc && isLineInRange(branchLoc.line, ignoreRanges)) {
-      b[key] = counts.map(() => 0);
+    if (branchLoc) {
+      // Check for ignore_if: only zero the if branch (index 0)
+      const ignoreIfRange = ignoreRanges.find(
+        (r) =>
+          r.type === 'ignore_if' &&
+          branchLoc.line >= r.startLine &&
+          branchLoc.line <= r.endLine,
+      );
+      if (ignoreIfRange) {
+        b[key] = counts.map((c, idx) => (idx === 0 ? 0 : c));
+        continue;
+      }
+
+      // Check for ignore_else: only zero the else branch (index 1)
+      const ignoreElseRange = ignoreRanges.find(
+        (r) =>
+          r.type === 'ignore_else' &&
+          branchLoc.line >= r.startLine &&
+          branchLoc.line <= r.endLine,
+      );
+      if (ignoreElseRange) {
+        b[key] = counts.map((c, idx) => (idx === 1 ? 0 : c));
+        continue;
+      }
+
+      // Full ignore (line, block, file, class)
+      if (isLineInRange(branchLoc.line, ignoreRanges)) {
+        b[key] = counts.map(() => 0);
+      } else {
+        b[key] = [...counts];
+      }
     } else {
       b[key] = [...counts];
     }
