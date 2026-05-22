@@ -360,6 +360,21 @@ export class CoverageSummaryInstance implements CoverageSummary {
   }
 }
 
+/**
+ * Represents the difference between two coverage runs (Issue #61).
+ */
+export interface CoverageDiff {
+  improved: string[];
+  regressed: string[];
+  added: string[];
+  removed: string[];
+  summary: {
+    before: CoverageSummary;
+    after: CoverageSummary;
+    delta: CoverageSummary;
+  };
+}
+
 export function createCoverageSummary(): CoverageSummary {
   const empty: MetricSummary = { total: 0, covered: 0, skipped: 0, pct: 100 };
   return {
@@ -477,4 +492,114 @@ export function mergeCoverageMaps(maps: CoverageMap[]): CoverageMap {
     result.merge(map);
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Baseline save/load and diff (Issue #61)
+// ---------------------------------------------------------------------------
+
+import * as fs from 'node:fs';
+
+/**
+ * Save a CoverageMap as a JSON baseline file.
+ */
+export function saveCoverageBaseline(map: CoverageMap, filePath: string): void {
+  const json = serializeCoverageMap(map);
+  fs.writeFileSync(filePath, json, 'utf-8');
+}
+
+/**
+ * Load a CoverageMap from a JSON baseline file.
+ * Returns null if the file does not exist or cannot be parsed.
+ */
+export function loadCoverageBaseline(filePath: string): CoverageMap | null {
+  try {
+    const json = fs.readFileSync(filePath, 'utf-8');
+    return deserializeCoverageMap(json);
+  } catch {
+    return null;
+  }
+}
+
+function subtractMetric(a: MetricSummary, b: MetricSummary): MetricSummary {
+  const total = a.total - b.total;
+  const covered = a.covered - b.covered;
+  return {
+    total,
+    covered,
+    skipped: a.skipped - b.skipped,
+    pct: a.pct - b.pct,
+  };
+}
+
+function subtractSummaries(
+  a: CoverageSummary,
+  b: CoverageSummary,
+): CoverageSummary {
+  return {
+    lines: subtractMetric(a.lines, b.lines),
+    statements: subtractMetric(a.statements, b.statements),
+    functions: subtractMetric(a.functions, b.functions),
+    branches: subtractMetric(a.branches, b.branches),
+  };
+}
+
+/**
+ * Compute the diff between two CoverageMaps.
+ */
+export function diffCoverage(
+  before: CoverageMap,
+  after: CoverageMap,
+): CoverageDiff {
+  const beforeFiles = new Set(before.files());
+  const afterFiles = new Set(after.files());
+
+  const added: string[] = [];
+  const removed: string[] = [];
+  const improved: string[] = [];
+  const regressed: string[] = [];
+
+  for (const file of afterFiles) {
+    if (!beforeFiles.has(file)) {
+      added.push(file);
+    }
+  }
+
+  for (const file of beforeFiles) {
+    if (!afterFiles.has(file)) {
+      removed.push(file);
+    }
+  }
+
+  // Compare files present in both
+  for (const file of afterFiles) {
+    if (!beforeFiles.has(file)) continue;
+
+    const beforeSummary = computeSummary(before.fileCoverageFor(file));
+    const afterSummary = computeSummary(after.fileCoverageFor(file));
+
+    const beforePct = beforeSummary.lines.pct;
+    const afterPct = afterSummary.lines.pct;
+
+    if (afterPct > beforePct) {
+      improved.push(file);
+    } else if (afterPct < beforePct) {
+      regressed.push(file);
+    }
+  }
+
+  const beforeTotalSummary = before.toSummary();
+  const afterTotalSummary = after.toSummary();
+
+  return {
+    improved,
+    regressed,
+    added,
+    removed,
+    summary: {
+      before: beforeTotalSummary,
+      after: afterTotalSummary,
+      delta: subtractSummaries(afterTotalSummary, beforeTotalSummary),
+    },
+  };
 }

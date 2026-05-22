@@ -867,6 +867,45 @@ export class HTMLScriptElement extends Element {
 }
 
 /**
+ * HTMLSlotElement — <slot>
+ */
+export class HTMLSlotElement extends Element {
+  public name = '';
+
+  constructor() {
+    super('slot');
+  }
+
+  assignedNodes(_options?: { flatten?: boolean }): Node[] {
+    // Find the shadow root this slot belongs to
+    let ancestor: Node | null = this.parentNode;
+    // Lazy import to check for ShadowRoot
+    const { ShadowRoot } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./shadow.js') as typeof import('./shadow.js');
+    while (ancestor && !(ancestor instanceof ShadowRoot)) {
+      ancestor = ancestor.parentNode;
+    }
+    if (!ancestor || !(ancestor instanceof ShadowRoot)) return [];
+    const host = ancestor.host;
+    const slotName = this.name;
+    return host.childNodes.filter((child) => {
+      if (child instanceof Element) {
+        return child.slot === slotName;
+      }
+      // Text nodes go to the default (unnamed) slot
+      return slotName === '';
+    });
+  }
+
+  assignedElements(_options?: { flatten?: boolean }): Element[] {
+    return this.assignedNodes(_options).filter(
+      (node): node is Element => node instanceof Element,
+    );
+  }
+}
+
+/**
  * Map of tag names to their typed element constructors.
  */
 export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
@@ -894,4 +933,5 @@ export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
   TH: HTMLTableCellElement,
   FIELDSET: HTMLFieldSetElement,
   SCRIPT: HTMLScriptElement,
+  SLOT: HTMLSlotElement,
 };

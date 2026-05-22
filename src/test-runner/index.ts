@@ -20,6 +20,7 @@ interface TestOptions {
   only?: boolean;
   todo?: boolean | string;
   timeout?: number;
+  retries?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,49 @@ function makeDescribeEach(): (
 }
 
 // ---------------------------------------------------------------------------
+// Shuffle helpers (Fisher-Yates with seeded PRNG)
+// ---------------------------------------------------------------------------
+
+/**
+ * Simple seeded pseudo-random number generator (mulberry32).
+ * Returns a function that produces values in [0, 1).
+ */
+function mulberry32(seed: number): () => number {
+  let s = seed | 0;
+  return (): number => {
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Fisher-Yates in-place shuffle using a seeded PRNG.
+ */
+function fisherYatesShuffle<T>(arr: T[], rand: () => number): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    const tmp: T = arr[i] as T;
+    arr[i] = arr[j] as T;
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
+/**
+ * Get the shuffle seed — from SHUFFLE_SEED env var or Date.now().
+ */
+function getShuffleSeed(): number {
+  const envSeed = process.env.SHUFFLE_SEED;
+  if (envSeed !== undefined && envSeed !== '') {
+    const parsed = Number(envSeed);
+    if (!Number.isNaN(parsed)) return parsed;
+  }
+  return Date.now();
+}
+
+// ---------------------------------------------------------------------------
 // describe
 // ---------------------------------------------------------------------------
 
@@ -125,6 +169,7 @@ interface DescribeFn {
   concurrent: (name: string, fn: SuiteFn) => void;
   skipIf: (condition: unknown) => (name: string, fn: SuiteFn) => void;
   runIf: (condition: unknown) => (name: string, fn: SuiteFn) => void;
+  shuffle: (name: string, fn: SuiteFn) => void;
 }
 
 /**
@@ -166,6 +211,29 @@ const describe: DescribeFn = Object.assign(
         }
       };
     },
+    shuffle(name: string, fn: SuiteFn): void {
+      nodeDescribe(name, () => {
+        // Enable collection mode so baseIt captures instead of registering
+        shuffleCollecting = true;
+        shuffleCollected.length = 0;
+
+        fn();
+
+        shuffleCollecting = false;
+        const tests = shuffleCollected.slice();
+        shuffleCollected.length = 0;
+
+        // Shuffle with Fisher-Yates using a seeded PRNG
+        const seed = getShuffleSeed();
+        const rand = mulberry32(seed);
+        fisherYatesShuffle(tests, rand);
+
+        // Re-register in shuffled order
+        for (const t of tests) {
+          registerIt(t.name, t.fn, t.options);
+        }
+      });
+    },
   },
 );
 
@@ -183,9 +251,50 @@ interface ItFn {
   skipIf: (condition: unknown) => (name: string, fn: TestFn) => void;
   runIf: (condition: unknown) => (name: string, fn: TestFn) => void;
   fails: (name: string, fn: TestFn) => void;
+  retry: (n: number) => (name: string, fn: TestFn) => void;
+  shuffle: ItFn;
 }
 
-function baseIt(name: string, fn: TestFn, options?: TestOptions): void {
+/**
+ * Wrap a test function with retry logic. On failure, re-run up to `retries`
+ * additional times. Only fail after all retries are exhausted.
+ */
+function wrapWithRetries(fn: TestFn, retries: number): TestFn {
+  return async (...args: unknown[]): Promise<void> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        await fn(...args);
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Shuffle collection state
+// ---------------------------------------------------------------------------
+
+interface CollectedTest {
+  name: string;
+  fn: TestFn;
+  options?: TestOptions;
+}
+
+let shuffleCollecting = false;
+const shuffleCollected: CollectedTest[] = [];
+
+/**
+ * Register a test directly with node:test (bypasses shuffle collection).
+ */
+function registerIt(name: string, fn: TestFn, options?: TestOptions): void {
+  const testFn =
+    options?.retries !== undefined && options.retries > 0
+      ? wrapWithRetries(fn, options.retries)
+      : fn;
   nodeIt(
     name,
     {
@@ -194,8 +303,16 @@ function baseIt(name: string, fn: TestFn, options?: TestOptions): void {
       todo: options?.todo,
       timeout: options?.timeout,
     },
-    fn,
+    testFn,
   );
+}
+
+function baseIt(name: string, fn: TestFn, options?: TestOptions): void {
+  if (shuffleCollecting) {
+    shuffleCollected.push({ name, fn, options });
+    return;
+  }
+  registerIt(name, fn, options);
 }
 
 /**
@@ -260,8 +377,16 @@ const it: ItFn = Object.assign(
         }
       });
     },
+    retry(n: number): (name: string, fn: TestFn) => void {
+      return (name: string, fn: TestFn): void =>
+        baseIt(name, fn, { retries: n });
+    },
+    shuffle: undefined as unknown as ItFn, // assigned below
   },
 );
+
+// it.shuffle is an alias for it — shuffling a single test is a no-op
+(it as unknown as Record<string, unknown>).shuffle = it;
 
 /**
  * Alias for `it`.

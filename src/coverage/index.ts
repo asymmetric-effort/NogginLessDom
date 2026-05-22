@@ -23,6 +23,7 @@ import {
 } from './coverage-map.js';
 import { shouldIncludeFile } from './filter.js';
 import { findIgnoreRanges, applyIgnoreRanges } from './ignore.js';
+import { getChangedFiles } from './changed.js';
 import { offsetToLocation } from './v8-to-istanbul.js';
 import { getReporterFactory, type ReporterOptions } from './reporters/index.js';
 import { IstanbulCoverageProvider } from './istanbul-provider.js';
@@ -41,13 +42,22 @@ export type {
   ResolvedCoverageConfig,
 } from './config.js';
 export { getDefaultConfig, mergeConfig } from './config.js';
-export type { CoverageSummary, FileCoverage } from './coverage-map.js';
+export type {
+  CoverageSummary,
+  FileCoverage,
+  CoverageDiff,
+} from './coverage-map.js';
 export {
   CoverageMap,
   serializeCoverageMap,
   deserializeCoverageMap,
   mergeCoverageMaps,
+  saveCoverageBaseline,
+  loadCoverageBaseline,
+  diffCoverage,
 } from './coverage-map.js';
+export { getChangedFiles } from './changed.js';
+export { loadNycConfig } from './nyc-config.js';
 export { shouldIncludeFile, matchesPattern } from './filter.js';
 export {
   findIgnoreRanges,
@@ -90,6 +100,9 @@ let activeConfig: ResolvedCoverageConfig | undefined;
 
 /** Whether coverage collection is currently active. */
 let isCollecting = false;
+
+/** Changed files list for --changed flag filtering (Issue #54). */
+let changedFilesList: string[] | undefined;
 
 /** Per-test coverage snapshots (start snapshots keyed by test name). */
 const testCoverageSnapshots = new Map<string, CoverageMap>();
@@ -192,6 +205,15 @@ function buildCoverageMap(files: Map<string, FileCoverage>): CoverageMap {
   return map;
 }
 
+/**
+ * Filter coverage map to only include changed files (Issue #54).
+ */
+function filterChangedFiles(coverageMap: CoverageMap): void {
+  if (!changedFilesList) return;
+  const changedSet = new Set(changedFilesList.map((f) => nodePath.resolve(f)));
+  coverageMap.filter((filePath) => changedSet.has(nodePath.resolve(filePath)));
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -209,17 +231,25 @@ export async function startCoverage(
   }
   activeConfig = mergeConfig(config ?? {});
   cleanReportsDirectory(activeConfig);
-  if (activeConfig.provider === 'istanbul') {
+
+  // Issue #67: custom provider module support
+  if (activeConfig.customProviderModule) {
+    const customModule = (await import(activeConfig.customProviderModule)) as {
+      createProvider: () => V8CoverageProvider;
+    };
+    provider = customModule.createProvider();
+    await provider.start();
+  } else if (activeConfig.provider === 'istanbul') {
     const istanbulProvider = new IstanbulCoverageProvider();
     await istanbulProvider.start();
     provider = {
-      async start() {
+      async start(): Promise<void> {
         await istanbulProvider.start();
       },
-      async take() {
+      async take(): Promise<V8ScriptCoverage[]> {
         return istanbulProvider.take();
       },
-      async stop() {
+      async stop(): Promise<V8ScriptCoverage[]> {
         return istanbulProvider.stop();
       },
     };
@@ -227,6 +257,18 @@ export async function startCoverage(
     provider = await createV8Provider();
     await provider.start();
   }
+
+  // Issue #54: --changed flag — store changed file list for filtering
+  if (activeConfig.changed) {
+    const baseBranch =
+      typeof activeConfig.changed === 'string'
+        ? activeConfig.changed
+        : undefined;
+    changedFilesList = getChangedFiles(baseBranch);
+  } else {
+    changedFilesList = undefined;
+  }
+
   isCollecting = true;
 }
 
@@ -244,6 +286,7 @@ export async function takeCoverage(): Promise<CoverageResult> {
   const filesMap = processV8Coverage(v8Data, activeConfig);
   const coverageMap = buildCoverageMap(filesMap);
   collectUncoveredFiles(coverageMap, activeConfig);
+  filterChangedFiles(coverageMap);
   const summary = coverageMap.toSummary();
 
   const result: CoverageResult = { coverageMap, summary };
@@ -272,6 +315,7 @@ export async function stopCoverage(): Promise<CoverageResult> {
   const filesMap = processV8Coverage(v8Data, activeConfig);
   const coverageMap = buildCoverageMap(filesMap);
   collectUncoveredFiles(coverageMap, activeConfig);
+  filterChangedFiles(coverageMap);
   const summary = coverageMap.toSummary();
 
   const result: CoverageResult = { coverageMap, summary };
@@ -497,21 +541,50 @@ function processV8Coverage(
     }
 
     // Convert V8 coverage to FileCoverage format with proper line mapping
-    const fc = v8ToFileCoverage(filePath, script, sourceContent);
+    let fc = v8ToFileCoverage(filePath, script, sourceContent);
 
     // Apply ignore ranges if we have source content
     if (sourceContent !== undefined) {
       const ignoreRanges = findIgnoreRanges(sourceContent);
       if (ignoreRanges.length > 0) {
-        files.set(filePath, applyIgnoreRanges(fc, ignoreRanges));
-        continue;
+        fc = applyIgnoreRanges(fc, ignoreRanges);
       }
+    }
+
+    // Filter out ignored class methods from function coverage
+    if (config.ignoreClassMethods.length > 0) {
+      fc = filterIgnoredClassMethods(fc, config.ignoreClassMethods);
     }
 
     files.set(filePath, fc);
   }
 
   return files;
+}
+
+/**
+ * Remove function coverage entries whose name matches any of the ignored class methods.
+ */
+function filterIgnoredClassMethods(
+  fileCoverage: FileCoverage,
+  ignoredMethods: string[],
+): FileCoverage {
+  const ignoredSet = new Set(ignoredMethods);
+  const fnMap: Record<string, FunctionMapping> = {};
+  const f: Record<string, number> = {};
+
+  for (const [key, mapping] of Object.entries(fileCoverage.fnMap)) {
+    if (!ignoredSet.has(mapping.name)) {
+      fnMap[key] = mapping;
+      f[key] = fileCoverage.f[key] ?? 0;
+    }
+  }
+
+  return {
+    ...fileCoverage,
+    fnMap,
+    f,
+  };
 }
 
 function v8ToFileCoverage(

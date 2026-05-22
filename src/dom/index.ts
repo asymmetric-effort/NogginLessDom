@@ -550,13 +550,16 @@ export class Event {
   public target: Node | null = null;
   public currentTarget: Node | null = null;
 
+  public readonly composed: boolean;
+
   constructor(
     type: string,
-    options?: { bubbles?: boolean; cancelable?: boolean },
+    options?: { bubbles?: boolean; cancelable?: boolean; composed?: boolean },
   ) {
     this.type = type ?? '';
     this.bubbles = options?.bubbles ?? false;
     this.cancelable = options?.cancelable ?? false;
+    this.composed = options?.composed ?? false;
     this.timeStamp = Date.now();
   }
 
@@ -577,11 +580,25 @@ export class Event {
 
   composedPath(): Node[] {
     if (!this.target) return [];
+    // Lazy import ShadowRoot
+    const { ShadowRoot: ShadowRootClass } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./shadow.js') as typeof import('./shadow.js');
     const path: Node[] = [];
     let current: Node | null = this.target;
     while (current) {
       path.push(current);
-      current = current.parentNode;
+      const parent: Node | null = current.parentNode;
+      if (parent instanceof ShadowRootClass) {
+        if (this.composed) {
+          // Cross shadow boundary: continue from host
+          current = parent.host;
+          continue;
+        } else {
+          break;
+        }
+      }
+      current = parent;
     }
     return path;
   }
@@ -774,14 +791,31 @@ export class Element extends Node {
   dispatchEvent(event: Event): boolean {
     event.target = this;
 
-    // Build path from target to root
+    // Lazy import ShadowRoot to check shadow boundary
+    const { ShadowRoot: ShadowRootClass } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./shadow.js') as typeof import('./shadow.js');
+
+    // Build path from target to root, crossing shadow boundaries for composed events
     const path: Element[] = [];
     let current: Node | null = this as Node;
     while (current) {
       if (current instanceof Element) {
         path.push(current);
       }
-      current = current.parentNode;
+      const parent: Node | null = current.parentNode;
+      if (parent instanceof ShadowRootClass) {
+        // We hit a shadow root boundary
+        if (event.composed) {
+          // Cross the boundary: continue from the host element
+          current = parent.host;
+          continue;
+        } else {
+          // Non-composed: stop here, don't cross shadow boundary
+          break;
+        }
+      }
+      current = parent;
     }
 
     // Capture phase: root -> target (excluding target)
@@ -915,6 +949,43 @@ export class Element extends Node {
     return this._style;
   }
 
+  // ---- slot property ----
+
+  get slot(): string {
+    return this.getAttribute('slot') ?? '';
+  }
+
+  set slot(value: string) {
+    this.setAttribute('slot', value);
+  }
+
+  get assignedSlot(): Element | null {
+    const parent = this.parentNode;
+    if (!parent || !(parent instanceof Element)) return null;
+    // Parent must be a shadow host with an open shadow root
+    const shadow = parent.shadowRoot;
+    if (!shadow) return null;
+    // Find slot elements in the shadow tree
+    const slotName = this.slot;
+    const findSlot = (node: Node): Element | null => {
+      for (const child of node.childNodes) {
+        if (child instanceof Element && child.tagName === 'SLOT') {
+          // Lazy import to check HTMLSlotElement
+          const { HTMLSlotElement } =
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            require('./html-elements.js') as typeof import('./html-elements.js');
+          if (child instanceof HTMLSlotElement && child.name === slotName) {
+            return child;
+          }
+        }
+        const found = findSlot(child);
+        if (found) return found;
+      }
+      return null;
+    };
+    return findSlot(shadow);
+  }
+
   // ---- Shadow DOM ----
 
   attachShadow(init: { mode: 'open' | 'closed' }): ShadowRootType {
@@ -938,6 +1009,11 @@ export class Element extends Node {
       return this._shadowRoot;
     }
     return null;
+  }
+
+  /** @internal — returns the shadow root regardless of mode, for internal use only. */
+  get _internalShadowRoot(): ShadowRootType | null {
+    return this._shadowRoot;
   }
 
   // ---- dataset ----

@@ -43,6 +43,12 @@ export interface CoverageConfig {
   extension?: string[];
   reportOnFailure?: boolean;
   processingConcurrency?: number;
+  /** When true, use `git diff --name-only HEAD` to get changed files. When a string (branch name), use `git diff --name-only <branch>...HEAD`. */
+  changed?: boolean | string;
+  /** Path to a custom coverage provider module. The module must export a `createProvider()` function. */
+  customProviderModule?: string;
+  /** Class method names to exclude from function coverage. */
+  ignoreClassMethods?: string[];
 }
 
 export interface ResolvedCoverageConfig {
@@ -62,6 +68,9 @@ export interface ResolvedCoverageConfig {
   extension: string[];
   reportOnFailure: boolean;
   processingConcurrency: number;
+  changed?: boolean | string;
+  customProviderModule?: string;
+  ignoreClassMethods: string[];
 }
 
 export function getDefaultConfig(): CoverageConfig {
@@ -96,6 +105,7 @@ export function getDefaultConfig(): CoverageConfig {
     extension: ['.ts', '.js', '.tsx', '.jsx'],
     reportOnFailure: false,
     processingConcurrency: 1,
+    ignoreClassMethods: [],
   };
 }
 
@@ -141,5 +151,9 @@ export function mergeConfig(
       userConfig.reportOnFailure ?? defaults.reportOnFailure ?? false,
     processingConcurrency:
       userConfig.processingConcurrency ?? defaults.processingConcurrency ?? 1,
+    changed: userConfig.changed,
+    customProviderModule: userConfig.customProviderModule,
+    ignoreClassMethods:
+      userConfig.ignoreClassMethods ?? defaults.ignoreClassMethods ?? [],
   };
 }

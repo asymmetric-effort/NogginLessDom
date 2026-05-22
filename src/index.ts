@@ -70,6 +70,7 @@ export {
   HTMLTableCellElement,
   HTMLFieldSetElement,
   HTMLScriptElement,
+  HTMLSlotElement,
   ValidityState,
 } from './dom/html-elements.js';
 
