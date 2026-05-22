@@ -80,3 +80,11 @@ export {
   useRealTimers,
   mock,
 } from './mocking/index.js';
+
+export {
+  startCoverage,
+  takeCoverage,
+  stopCoverage,
+  reportCoverage,
+  checkCoverageThresholds,
+} from './coverage/index.js';
