@@ -21,6 +21,12 @@ import {
 import type { ShadowRoot as ShadowRootType } from './shadow.js';
 import { CookieJar } from './cookie.js';
 import { CustomElementRegistry } from './custom-elements.js';
+import {
+  TreeWalker,
+  NodeIterator,
+  NodeFilter,
+  type NodeFilterCallback,
+} from './tree-walker.js';
 
 /** Stub DOMRect returned by getBoundingClientRect. */
 export interface DOMRect {
@@ -1243,8 +1249,32 @@ export class Document extends Node {
     return new Node(11, '#document-fragment');
   }
 
+  createRange(): import('./range.js').Range {
+    // Lazy import to avoid circular dependency
+    const { Range } =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('./range.js') as typeof import('./range.js');
+    return new Range();
+  }
+
   createEvent(_type: string): Event {
     return new Event('');
+  }
+
+  createTreeWalker(
+    root: Node,
+    whatToShow: number = NodeFilter.SHOW_ALL,
+    filter: NodeFilterCallback | null = null,
+  ): TreeWalker {
+    return new TreeWalker(root, whatToShow, filter);
+  }
+
+  createNodeIterator(
+    root: Node,
+    whatToShow: number = NodeFilter.SHOW_ALL,
+    filter: NodeFilterCallback | null = null,
+  ): NodeIterator {
+    return new NodeIterator(root, whatToShow, filter);
   }
 
   // ---- cookie ----
@@ -1382,6 +1412,11 @@ export { CSSStyleDeclaration } from './style.js';
 // this module. To avoid circular dependencies, they are NOT re-exported here.
 // Import them directly from their respective modules via src/index.ts.
 
-// Note: html-elements.ts, window.ts, and events.ts import from this module.
-// To avoid circular dependency issues, they are NOT re-exported here.
-// Import them directly from their respective modules.
+// tree-walker.ts imports from this module but does not create circular deps
+// because it only imports Node. Re-exported here for convenience.
+export { NodeFilter, TreeWalker, NodeIterator } from './tree-walker.js';
+export type { NodeFilterCallback } from './tree-walker.js';
+
+// Note: html-elements.ts, window.ts, events.ts, range.ts, and selection.ts
+// import from this module. To avoid circular dependency issues, they are NOT
+// re-exported here. Import them directly from their respective modules.

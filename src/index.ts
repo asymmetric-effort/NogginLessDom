@@ -30,7 +30,12 @@ export {
   HTMLCollection,
   DOMTokenList,
   CSSStyleDeclaration,
+  NodeFilter,
+  TreeWalker,
+  NodeIterator,
 } from './dom/index.js';
+
+export type { NodeFilterCallback } from './dom/index.js';
 
 export { MutationObserver, MutationRecord } from './dom/mutation-observer.js';
 export { ResizeObserver, triggerResize } from './dom/resize-observer.js';
@@ -64,6 +69,13 @@ export {
 export { ShadowRoot } from './dom/shadow.js';
 export { CustomElementRegistry } from './dom/custom-elements.js';
 export { CookieJar } from './dom/cookie.js';
+
+export { Range } from './dom/range.js';
+export { Selection } from './dom/selection.js';
+
+export { FormData } from './dom/form-data.js';
+export { Headers } from './dom/headers.js';
+export { atob, btoa } from './dom/web-apis.js';
 
 export {
   CustomEvent,

@@ -5,6 +5,17 @@
 
 import { URL, URLSearchParams } from 'node:url';
 import { Document, Element, Event } from './index.js';
+import { FormData } from './form-data.js';
+import { Headers as NogginHeaders } from './headers.js';
+import {
+  NogginTextEncoder,
+  NogginTextDecoder,
+  NogginBlob,
+  atob,
+  btoa,
+  nogginStructuredClone,
+  nogginQueueMicrotask,
+} from './web-apis.js';
 
 /**
  * In-memory Storage implementation (localStorage / sessionStorage).
@@ -314,12 +325,24 @@ export class Window {
   public pageXOffset: number;
   public pageYOffset: number;
 
+  // Web API properties
+  public FormData: typeof FormData = FormData;
+  public Headers: typeof NogginHeaders = NogginHeaders;
+  public TextEncoder: typeof NogginTextEncoder = NogginTextEncoder;
+  public TextDecoder: typeof NogginTextDecoder = NogginTextDecoder;
+  public Blob: typeof NogginBlob = NogginBlob;
+  public atob: (data: string) => string = atob;
+  public btoa: (data: string) => string = btoa;
+  public structuredClone: typeof nogginStructuredClone = nogginStructuredClone;
+  public queueMicrotask: typeof nogginQueueMicrotask = nogginQueueMicrotask;
+
   private eventListeners: Map<string, Array<(event: Event) => void>> =
     new Map();
   private rafCallbacks: Map<number, (timestamp: number) => void> = new Map();
   private rafIdCounter = 0;
   private _matchMediaMatches: boolean;
   private _fetchHandler: FetchHandler | null = null;
+  private _selection: import('./selection.js').Selection | null = null;
 
   constructor(options?: WindowOptions) {
     this.document = new Document();
@@ -375,6 +398,17 @@ export class Window {
     const style: Record<string, string> = {};
     void el;
     return style;
+  }
+
+  getSelection(): import('./selection.js').Selection {
+    if (!this._selection) {
+      // Lazy import to avoid circular dependency
+      const { Selection } =
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('./selection.js') as typeof import('./selection.js');
+      this._selection = new Selection();
+    }
+    return this._selection;
   }
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
