@@ -6,6 +6,8 @@ import type {
   BranchMapping,
 } from './coverage-map.js';
 import type { V8FunctionCoverage } from './v8-provider.js';
+import { loadSourceMap } from './source-map.js';
+import type { SourceMapConsumer } from './source-map.js';
 
 export function offsetToLocation(source: string, offset: number): Location {
   let line = 1;
@@ -105,7 +107,7 @@ export function v8ToIstanbul(
     }
   }
 
-  return {
+  const coverage: FileCoverage = {
     path: filePath,
     statementMap,
     fnMap,
@@ -113,6 +115,99 @@ export function v8ToIstanbul(
     s,
     f,
     b,
+  };
+
+  // Attempt source map remapping
+  const consumer = loadSourceMap(filePath);
+  if (consumer) {
+    return remapCoverage(coverage, consumer);
+  }
+
+  return coverage;
+}
+
+/**
+ * Remap a FileCoverage's positions from transpiled output to original source
+ * using a SourceMapConsumer.
+ */
+function remapLocation(loc: Location, consumer: SourceMapConsumer): Location {
+  const orig = consumer.originalPositionFor({
+    line: loc.line,
+    column: loc.column,
+  });
+  if (orig.line !== null && orig.column !== null) {
+    return { line: orig.line, column: orig.column };
+  }
+  return loc;
+}
+
+function remapRange(range: Range, consumer: SourceMapConsumer): Range {
+  return {
+    start: remapLocation(range.start, consumer),
+    end: remapLocation(range.end, consumer),
+  };
+}
+
+function remapCoverage(
+  fc: FileCoverage,
+  consumer: SourceMapConsumer,
+): FileCoverage {
+  // Determine the original source path from the first mapping
+  const firstStmtKey = Object.keys(fc.statementMap)[0];
+  let originalPath = fc.path;
+  if (firstStmtKey !== undefined) {
+    const firstStmt = fc.statementMap[firstStmtKey]!;
+    const orig = consumer.originalPositionFor({
+      line: firstStmt.start.line,
+      column: firstStmt.start.column,
+    });
+    if (orig.source !== null) {
+      originalPath = orig.source;
+    }
+  }
+
+  const remappedStatementMap: Record<string, Range> = {};
+  for (const key of Object.keys(fc.statementMap)) {
+    remappedStatementMap[key] = remapRange(fc.statementMap[key]!, consumer);
+  }
+
+  const remappedFnMap: Record<string, FunctionMapping> = {};
+  for (const key of Object.keys(fc.fnMap)) {
+    const fn = fc.fnMap[key]!;
+    const remappedDecl = remapRange(fn.decl, consumer);
+    const remappedLoc = remapRange(fn.loc, consumer);
+    remappedFnMap[key] = {
+      name: fn.name,
+      decl: remappedDecl,
+      loc: remappedLoc,
+      line: remappedDecl.start.line,
+    };
+  }
+
+  const remappedBranchMap: Record<string, BranchMapping> = {};
+  for (const key of Object.keys(fc.branchMap)) {
+    const branch = fc.branchMap[key]!;
+    const remappedLocations = branch.locations.map((loc) =>
+      remapRange(loc, consumer),
+    );
+    remappedBranchMap[key] = {
+      type: branch.type,
+      locations: remappedLocations,
+      line:
+        remappedLocations.length > 0
+          ? remappedLocations[0]!.start.line
+          : branch.line,
+    };
+  }
+
+  return {
+    path: originalPath,
+    statementMap: remappedStatementMap,
+    fnMap: remappedFnMap,
+    branchMap: remappedBranchMap,
+    s: fc.s,
+    f: fc.f,
+    b: fc.b,
   };
 }
 

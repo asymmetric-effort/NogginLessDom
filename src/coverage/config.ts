@@ -47,7 +47,7 @@ export interface CoverageConfig {
 
 export interface ResolvedCoverageConfig {
   enabled: boolean;
-  provider: 'v8';
+  provider: 'v8' | 'istanbul';
   include: string[];
   exclude: string[];
   reportsDirectory: string;
@@ -105,7 +105,7 @@ export function mergeConfig(
   const defaults = getDefaultConfig();
   return {
     enabled: userConfig.enabled ?? defaults.enabled ?? false,
-    provider: 'v8',
+    provider: userConfig.provider ?? defaults.provider ?? 'v8',
     include: userConfig.include ?? defaults.include ?? [],
     exclude: userConfig.exclude ?? defaults.exclude ?? [],
     reportsDirectory:

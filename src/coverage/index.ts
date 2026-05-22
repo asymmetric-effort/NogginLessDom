@@ -24,6 +24,14 @@ import {
 import { shouldIncludeFile } from './filter.js';
 import { findIgnoreRanges, applyIgnoreRanges } from './ignore.js';
 import { offsetToLocation } from './v8-to-istanbul.js';
+import { getReporterFactory, type ReporterOptions } from './reporters/index.js';
+import { IstanbulCoverageProvider } from './istanbul-provider.js';
+import * as fs from 'node:fs';
+import * as nodePath from 'node:path';
+
+// Re-export source map utilities
+export { loadSourceMap, SourceMapConsumer } from './source-map.js';
+export type { RawSourceMap } from './source-map.js';
 
 // Re-export types consumers need
 export type {
@@ -200,8 +208,25 @@ export async function startCoverage(
     );
   }
   activeConfig = mergeConfig(config ?? {});
-  provider = await createV8Provider();
-  await provider.start();
+  cleanReportsDirectory(activeConfig);
+  if (activeConfig.provider === 'istanbul') {
+    const istanbulProvider = new IstanbulCoverageProvider();
+    await istanbulProvider.start();
+    provider = {
+      async start() {
+        await istanbulProvider.start();
+      },
+      async take() {
+        return istanbulProvider.take();
+      },
+      async stop() {
+        return istanbulProvider.stop();
+      },
+    };
+  } else {
+    provider = await createV8Provider();
+    await provider.start();
+  }
   isCollecting = true;
 }
 
@@ -218,6 +243,7 @@ export async function takeCoverage(): Promise<CoverageResult> {
   const v8Data = await provider.take();
   const filesMap = processV8Coverage(v8Data, activeConfig);
   const coverageMap = buildCoverageMap(filesMap);
+  collectUncoveredFiles(coverageMap, activeConfig);
   const summary = coverageMap.toSummary();
 
   const result: CoverageResult = { coverageMap, summary };
@@ -245,6 +271,7 @@ export async function stopCoverage(): Promise<CoverageResult> {
   const v8Data = await provider.stop();
   const filesMap = processV8Coverage(v8Data, activeConfig);
   const coverageMap = buildCoverageMap(filesMap);
+  collectUncoveredFiles(coverageMap, activeConfig);
   const summary = coverageMap.toSummary();
 
   const result: CoverageResult = { coverageMap, summary };
@@ -283,10 +310,22 @@ export async function reportCoverage(
   const summary = coverageMap.toSummary();
 
   for (const reporterName of resolved.reporter ?? ['text']) {
-    if (reporterName === 'text') {
-      printTextReport(coverageMap, summary);
-    }
-    // Other reporters (json, html, lcov) would be handled here
+    const factory = getReporterFactory(reporterName);
+    const options: ReporterOptions = {
+      reportsDirectory: resolved.reportsDirectory ?? './coverage',
+      skipFull: resolved.skipFull,
+      watermarks: resolved.watermarks
+        ? {
+            lines: resolved.watermarks.lines ?? [50, 80],
+            functions: resolved.watermarks.functions ?? [50, 80],
+            branches: resolved.watermarks.branches ?? [50, 80],
+            statements: resolved.watermarks.statements ?? [50, 80],
+          }
+        : undefined,
+    };
+    const reporter = factory(options);
+    if (reporter.onStart) await reporter.onStart();
+    await reporter.onEnd(coverageMap, summary);
   }
 }
 
@@ -583,30 +622,88 @@ function v8ToFileCoverage(
   };
 }
 
-function printTextReport(
-  coverageMap: CoverageMap,
-  summary: CoverageSummary,
-): void {
-  const files = coverageMap.files();
-  if (files.length === 0) return;
+// ---------------------------------------------------------------------------
+// Clean & All helpers
+// ---------------------------------------------------------------------------
 
-  /* eslint-disable no-console */
-  const separator = '-'.repeat(80);
-  console.log(separator);
-  console.log('Coverage Summary:');
-  console.log(separator);
-  console.log(
-    `  Statements : ${summary.statements.pct}% (${summary.statements.covered}/${summary.statements.total})`,
-  );
-  console.log(
-    `  Branches   : ${summary.branches.pct}% (${summary.branches.covered}/${summary.branches.total})`,
-  );
-  console.log(
-    `  Functions  : ${summary.functions.pct}% (${summary.functions.covered}/${summary.functions.total})`,
-  );
-  console.log(
-    `  Lines      : ${summary.lines.pct}% (${summary.lines.covered}/${summary.lines.total})`,
-  );
-  console.log(separator);
-  /* eslint-enable no-console */
+/**
+ * Remove the reports directory if config.clean is true.
+ */
+export function cleanReportsDirectory(config: ResolvedCoverageConfig): void {
+  if (!config.clean) return;
+  const dir = config.reportsDirectory;
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/**
+ * Walk a directory recursively and collect all file paths.
+ */
+function walkDir(dir: string): string[] {
+  const results: string[] = [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return results;
+  }
+  for (const entry of entries) {
+    const fullPath = nodePath.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      results.push(...walkDir(fullPath));
+    } else if (entry.isFile()) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
+
+/**
+ * If config.all is true, find files matching include patterns that are not
+ * already in the coverage map and add zero-count FileCoverage entries for them.
+ */
+export function collectUncoveredFiles(
+  coverageMap: CoverageMap,
+  config: ResolvedCoverageConfig,
+  rootDir?: string,
+): void {
+  if (!config.all) return;
+
+  const root = rootDir ?? process.cwd();
+  const allFiles = walkDir(root);
+  const existingFiles = new Set(coverageMap.files());
+
+  for (const filePath of allFiles) {
+    if (existingFiles.has(filePath)) continue;
+
+    const relativePath = filePath.replace(root + '/', '');
+    if (!shouldIncludeFile(relativePath, config)) continue;
+
+    // Read the file to determine line count for the whole-file statement range
+    let content: string;
+    try {
+      content = fs.readFileSync(filePath, 'utf-8');
+    } catch {
+      continue;
+    }
+
+    const lines = content.split('\n');
+    const lineCount = lines.length;
+
+    const fc: FileCoverage = {
+      path: filePath,
+      statementMap: {
+        '0': {
+          start: { line: 1, column: 0 },
+          end: { line: lineCount, column: (lines[lineCount - 1] ?? '').length },
+        },
+      },
+      fnMap: {},
+      branchMap: {},
+      s: { '0': 0 },
+      f: {},
+      b: {},
+    };
+
+    coverageMap.addFileCoverage(fc);
+  }
 }

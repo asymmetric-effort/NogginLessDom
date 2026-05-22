@@ -371,23 +371,23 @@ export function createCoverageSummary(): CoverageSummary {
 }
 
 export class CoverageMap {
-  private data: Map<string, FileCoverage> = new Map();
+  private _data: Map<string, FileCoverage> = new Map();
 
   addFileCoverage(fc: FileCoverage): void {
-    const existing = this.data.get(fc.path);
+    const existing = this._data.get(fc.path);
     if (existing) {
-      this.data.set(fc.path, mergeFileCoverage(existing, fc));
+      this._data.set(fc.path, mergeFileCoverage(existing, fc));
     } else {
-      this.data.set(fc.path, fc);
+      this._data.set(fc.path, fc);
     }
   }
 
   files(): string[] {
-    return [...this.data.keys()];
+    return [...this._data.keys()];
   }
 
   fileCoverageFor(path: string): FileCoverage {
-    const fc = this.data.get(path);
+    const fc = this._data.get(path);
     if (!fc) {
       throw new Error(`No coverage data for file: ${path}`);
     }
@@ -401,7 +401,7 @@ export class CoverageMap {
   }
 
   toSummary(): CoverageSummary {
-    if (this.data.size === 0) {
+    if (this._data.size === 0) {
       return emptySummary();
     }
     let result = emptySummary();
@@ -409,7 +409,7 @@ export class CoverageMap {
     result.statements.pct = 0;
     result.functions.pct = 0;
     result.branches.pct = 0;
-    for (const fc of this.data.values()) {
+    for (const fc of this._data.values()) {
       result = addSummaries(result, computeSummary(fc));
     }
     return result;
@@ -417,6 +417,26 @@ export class CoverageMap {
 
   fileSummaryFor(path: string): CoverageSummary {
     return computeSummary(this.fileCoverageFor(path));
+  }
+
+  filter(callback: (filePath: string) => boolean): void {
+    for (const filePath of this._data.keys()) {
+      if (!callback(filePath)) {
+        this._data.delete(filePath);
+      }
+    }
+  }
+
+  data(): Record<string, FileCoverage> {
+    const result: Record<string, FileCoverage> = {};
+    for (const [filePath, fc] of this._data.entries()) {
+      result[filePath] = fc;
+    }
+    return result;
+  }
+
+  getCoverageSummary(): CoverageSummary {
+    return this.toSummary();
   }
 }
 
