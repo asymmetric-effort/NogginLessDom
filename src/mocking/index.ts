@@ -36,6 +36,13 @@ interface MockInstance<TArgs extends unknown[] = unknown[], TReturn = unknown> {
   mockImplementationOnce(
     impl: (...args: TArgs) => TReturn,
   ): MockInstance<TArgs, TReturn>;
+  mockResolvedValue(value: Awaited<TReturn>): MockInstance<TArgs, TReturn>;
+  mockResolvedValueOnce(value: Awaited<TReturn>): MockInstance<TArgs, TReturn>;
+  mockRejectedValue(value: unknown): MockInstance<TArgs, TReturn>;
+  mockRejectedValueOnce(value: unknown): MockInstance<TArgs, TReturn>;
+  mockName(name: string): MockInstance<TArgs, TReturn>;
+  getMockName(): string;
+  getMockImplementation(): ((...args: TArgs) => TReturn) | undefined;
   mockClear(): void;
   mockReset(): void;
   mockRestore(): void;
@@ -51,6 +58,7 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
   const onceImpls: Array<(...args: TArgs) => TReturn> = [];
   const onceReturns: TReturn[] = [];
   let returnValue: TReturn | undefined;
+  let mockNameValue = 'vi.fn()';
 
   const state = {
     calls: [] as TArgs[],
@@ -125,6 +133,43 @@ export function fn<TArgs extends unknown[] = unknown[], TReturn = unknown>(
 
   mockFn.mockRestore = (): void => {
     mockFn.mockReset();
+  };
+
+  mockFn.mockResolvedValue = (
+    value: Awaited<TReturn>,
+  ): MockInstance<TArgs, TReturn> => {
+    return mockFn.mockReturnValue(Promise.resolve(value) as TReturn);
+  };
+
+  mockFn.mockResolvedValueOnce = (
+    value: Awaited<TReturn>,
+  ): MockInstance<TArgs, TReturn> => {
+    return mockFn.mockReturnValueOnce(Promise.resolve(value) as TReturn);
+  };
+
+  mockFn.mockRejectedValue = (value: unknown): MockInstance<TArgs, TReturn> => {
+    return mockFn.mockReturnValue(Promise.reject(value) as TReturn);
+  };
+
+  mockFn.mockRejectedValueOnce = (
+    value: unknown,
+  ): MockInstance<TArgs, TReturn> => {
+    return mockFn.mockReturnValueOnce(Promise.reject(value) as TReturn);
+  };
+
+  mockFn.mockName = (name: string): MockInstance<TArgs, TReturn> => {
+    mockNameValue = name;
+    return mockFn;
+  };
+
+  mockFn.getMockName = (): string => {
+    return mockNameValue;
+  };
+
+  mockFn.getMockImplementation = ():
+    | ((...args: TArgs) => TReturn)
+    | undefined => {
+    return currentImpl;
   };
 
   return mockFn;
@@ -615,6 +660,13 @@ async function waitUntil<T>(
 /**
  * The `vi` object mirrors vitest's API for compatibility.
  */
+/**
+ * Identity function for TypeScript type narrowing of mocked values.
+ */
+function mocked<T>(item: T): T {
+  return item;
+}
+
 export const vi = {
   fn,
   spyOn,
@@ -624,5 +676,6 @@ export const vi = {
   unstubAllEnvs,
   waitFor,
   waitUntil,
+  mocked,
   ...mock,
 };

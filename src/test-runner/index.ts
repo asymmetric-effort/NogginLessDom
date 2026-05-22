@@ -297,3 +297,72 @@ export function beforeAll(fn: TestFn): void {
 export function afterAll(fn: TestFn): void {
   after(fn);
 }
+
+// ---------------------------------------------------------------------------
+// Test lifecycle hooks
+// ---------------------------------------------------------------------------
+
+interface TestFailedContext {
+  name: string;
+  error: unknown;
+}
+
+interface TestFinishedContext {
+  name: string;
+  passed: boolean;
+}
+
+type OnTestFailedCallback = (context: TestFailedContext) => void;
+type OnTestFinishedCallback = (context: TestFinishedContext) => void;
+
+const onTestFailedCallbacks: OnTestFailedCallback[] = [];
+const onTestFinishedCallbacks: OnTestFinishedCallback[] = [];
+
+/**
+ * Register a callback to be invoked when a test fails.
+ * The callback receives the test name and the error that caused the failure.
+ */
+export function onTestFailed(
+  callback: (context: TestFailedContext) => void,
+): void {
+  onTestFailedCallbacks.push(callback);
+}
+
+/**
+ * Register a callback to be invoked when a test finishes (pass or fail).
+ * The callback receives the test name and whether it passed.
+ */
+export function onTestFinished(
+  callback: (context: TestFinishedContext) => void,
+): void {
+  onTestFinishedCallbacks.push(callback);
+}
+
+/**
+ * Notify all registered onTestFailed callbacks.
+ * Called internally by the test runner when a test fails.
+ */
+export function notifyTestFailed(context: TestFailedContext): void {
+  for (const cb of onTestFailedCallbacks) {
+    cb(context);
+  }
+}
+
+/**
+ * Notify all registered onTestFinished callbacks.
+ * Called internally by the test runner when a test completes.
+ */
+export function notifyTestFinished(context: TestFinishedContext): void {
+  for (const cb of onTestFinishedCallbacks) {
+    cb(context);
+  }
+}
+
+/**
+ * Clear all registered lifecycle hook callbacks.
+ * Useful for test isolation.
+ */
+export function clearLifecycleHooks(): void {
+  onTestFailedCallbacks.length = 0;
+  onTestFinishedCallbacks.length = 0;
+}

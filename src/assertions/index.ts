@@ -150,6 +150,9 @@ interface Matchers<T> {
   toHaveLastReturnedWith(value: unknown): void;
   toMatchSnapshot(snapshotName?: string): void;
   toMatchInlineSnapshot(inlineSnapshot?: string): void;
+  toBeTypeOf(type: string): void;
+  toThrowErrorMatchingSnapshot(): void;
+  toThrowErrorMatchingInlineSnapshot(snapshot?: string): void;
   not: Matchers<T>;
   resolves: AsyncMatchers<T>;
   rejects: AsyncMatchers<T>;
@@ -931,6 +934,67 @@ export function expect<T>(actual: T): Matchers<T> {
     toMatchInlineSnapshot(inlineSnapshot?: string): void {
       trackAssertion();
       matchInlineSnapshot(actual, inlineSnapshot);
+    },
+
+    toBeTypeOf(type: string): void {
+      trackAssertion();
+      const validTypes = [
+        'string',
+        'number',
+        'boolean',
+        'function',
+        'object',
+        'undefined',
+        'symbol',
+        'bigint',
+      ];
+      if (!validTypes.includes(type)) {
+        throw new Error(
+          `Invalid type "${type}" for toBeTypeOf. Valid types: ${validTypes.join(', ')}`,
+        );
+      }
+      const actualType = typeof actual;
+      if (negated) {
+        assert.ok(
+          actualType !== type,
+          `Expected typeof ${String(actual)} not to be "${type}"`,
+        );
+      } else {
+        assert.ok(
+          actualType === type,
+          `Expected typeof ${String(actual)} to be "${type}", but got "${actualType}"`,
+        );
+      }
+    },
+
+    toThrowErrorMatchingSnapshot(): void {
+      trackAssertion();
+      const fn = actual as unknown as () => void;
+      let thrown: Error | undefined;
+      try {
+        fn();
+      } catch (err) {
+        thrown = err instanceof Error ? err : new Error(String(err));
+      }
+      if (!thrown) {
+        throw new Error('Expected function to throw an error');
+      }
+      matchSnapshot(thrown.message, 'error');
+    },
+
+    toThrowErrorMatchingInlineSnapshot(snapshot?: string): void {
+      trackAssertion();
+      const fn = actual as unknown as () => void;
+      let thrown: Error | undefined;
+      try {
+        fn();
+      } catch (err) {
+        thrown = err instanceof Error ? err : new Error(String(err));
+      }
+      if (!thrown) {
+        throw new Error('Expected function to throw an error');
+      }
+      matchInlineSnapshot(thrown.message, snapshot);
     },
 
     get not(): Matchers<T> {

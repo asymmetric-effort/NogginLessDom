@@ -15,6 +15,8 @@ export {
   afterEach,
   beforeAll,
   afterAll,
+  onTestFailed,
+  onTestFinished,
 } from './test-runner/index.js';
 
 export { expect } from './assertions/index.js';
@@ -54,6 +56,20 @@ export {
   HTMLImageElement,
   HTMLLabelElement,
   HTMLOptionElement,
+  HTMLDialogElement,
+  HTMLCanvasElement,
+  HTMLTemplateElement,
+  HTMLIFrameElement,
+  HTMLVideoElement,
+  HTMLAudioElement,
+  HTMLProgressElement,
+  HTMLMeterElement,
+  HTMLDetailsElement,
+  HTMLTableElement,
+  HTMLTableRowElement,
+  HTMLTableCellElement,
+  HTMLFieldSetElement,
+  HTMLScriptElement,
   ValidityState,
 } from './dom/html-elements.js';
 

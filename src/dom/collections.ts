@@ -87,7 +87,7 @@ export class HTMLCollection {
       this._queryFn = itemsOrQueryFn;
     } else {
       const staticItems = [...itemsOrQueryFn];
-      this._queryFn = () => staticItems;
+      this._queryFn = (): ElementLike[] => staticItems;
     }
 
     return new Proxy(this, {

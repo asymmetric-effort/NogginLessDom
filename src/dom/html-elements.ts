@@ -5,6 +5,21 @@
 
 import { Element, Event, Node } from './index.js';
 
+// Helper to collect descendants by tag
+function collectDescendants(root: Node, tagName: string): Element[] {
+  const results: Element[] = [];
+  const walk = (node: Node): void => {
+    for (const child of node.childNodes) {
+      if (child instanceof Element && child.tagName === tagName) {
+        results.push(child);
+      }
+      walk(child);
+    }
+  };
+  walk(root);
+  return results;
+}
+
 /**
  * ValidityState — represents the validity states of a form element.
  */
@@ -516,6 +531,342 @@ export class HTMLLabelElement extends Element {
 }
 
 /**
+ * HTMLDialogElement — <dialog>
+ */
+export class HTMLDialogElement extends Element {
+  public open = false;
+  public returnValue = '';
+
+  constructor() {
+    super('dialog');
+  }
+
+  show(): void {
+    this.open = true;
+  }
+
+  showModal(): void {
+    this.open = true;
+  }
+
+  close(returnValue?: string): void {
+    this.open = false;
+    if (returnValue !== undefined) {
+      this.returnValue = returnValue;
+    }
+  }
+}
+
+/**
+ * HTMLCanvasElement — <canvas>
+ */
+export class HTMLCanvasElement extends Element {
+  public width = 300;
+  public height = 150;
+
+  constructor() {
+    super('canvas');
+  }
+
+  getContext(_type: string): null {
+    return null;
+  }
+
+  toDataURL(type?: string, _quality?: number): string {
+    if (type) {
+      return `data:${type};base64,`;
+    }
+    return 'data:,';
+  }
+}
+
+/**
+ * HTMLTemplateElement — <template>
+ */
+export class HTMLTemplateElement extends Element {
+  public readonly content: Node;
+
+  constructor() {
+    super('template');
+    this.content = new Node(11, '#document-fragment');
+  }
+}
+
+/**
+ * HTMLIFrameElement — <iframe>
+ */
+export class HTMLIFrameElement extends Element {
+  public src = '';
+  public width = '';
+  public height = '';
+  public name = '';
+  public contentDocument: null = null;
+  public contentWindow: null = null;
+
+  constructor() {
+    super('iframe');
+  }
+}
+
+/**
+ * HTMLVideoElement — <video>
+ */
+export class HTMLVideoElement extends Element {
+  public src = '';
+  public controls = false;
+  public autoplay = false;
+  public loop = false;
+  public muted = false;
+  public width = 0;
+  public height = 0;
+  public currentTime = 0;
+  public duration = 0;
+  public paused = true;
+  public ended = false;
+
+  constructor() {
+    super('video');
+  }
+
+  play(): Promise<void> {
+    this.paused = false;
+    return Promise.resolve();
+  }
+
+  pause(): void {
+    this.paused = true;
+  }
+}
+
+/**
+ * HTMLAudioElement — <audio>
+ */
+export class HTMLAudioElement extends Element {
+  public src = '';
+  public controls = false;
+  public autoplay = false;
+  public loop = false;
+  public muted = false;
+  public currentTime = 0;
+  public duration = 0;
+  public paused = true;
+  public ended = false;
+
+  constructor() {
+    super('audio');
+  }
+
+  play(): Promise<void> {
+    this.paused = false;
+    return Promise.resolve();
+  }
+
+  pause(): void {
+    this.paused = true;
+  }
+}
+
+/**
+ * HTMLProgressElement — <progress>
+ */
+export class HTMLProgressElement extends Element {
+  public value = 0;
+  public max = 1;
+
+  constructor() {
+    super('progress');
+  }
+}
+
+/**
+ * HTMLMeterElement — <meter>
+ */
+export class HTMLMeterElement extends Element {
+  public value = 0;
+  public min = 0;
+  public max = 1;
+  public low = 0;
+  public high = 1;
+  public optimum = 0.5;
+
+  constructor() {
+    super('meter');
+  }
+}
+
+/**
+ * HTMLDetailsElement — <details>
+ */
+export class HTMLDetailsElement extends Element {
+  public open = false;
+
+  constructor() {
+    super('details');
+  }
+}
+
+/**
+ * HTMLTableElement — <table>
+ */
+export class HTMLTableElement extends Element {
+  constructor() {
+    super('table');
+  }
+
+  get rows(): HTMLTableRowElement[] {
+    return collectDescendants(this, 'TR') as HTMLTableRowElement[];
+  }
+
+  get tBodies(): Element[] {
+    return collectDescendants(this, 'TBODY');
+  }
+
+  get tHead(): Element | null {
+    const heads = collectDescendants(this, 'THEAD');
+    return heads.length > 0 ? heads[0]! : null;
+  }
+
+  get tFoot(): Element | null {
+    const foots = collectDescendants(this, 'TFOOT');
+    return foots.length > 0 ? foots[0]! : null;
+  }
+
+  insertRow(index?: number): HTMLTableRowElement {
+    const row = new HTMLTableRowElement();
+    const rows = this.rows;
+    if (index !== undefined && index >= 0 && index < rows.length) {
+      this.insertBefore(row, rows[index]!);
+    } else {
+      this.appendChild(row);
+    }
+    return row;
+  }
+
+  deleteRow(index: number): void {
+    const rows = this.rows;
+    if (index >= 0 && index < rows.length) {
+      this.removeChild(rows[index]!);
+    }
+  }
+
+  createTBody(): Element {
+    const tbody = new Element('tbody');
+    this.appendChild(tbody);
+    return tbody;
+  }
+
+  createTHead(): Element {
+    const thead = new Element('thead');
+    this.appendChild(thead);
+    return thead;
+  }
+
+  createTFoot(): Element {
+    const tfoot = new Element('tfoot');
+    this.appendChild(tfoot);
+    return tfoot;
+  }
+}
+
+/**
+ * HTMLTableRowElement — <tr>
+ */
+export class HTMLTableRowElement extends Element {
+  constructor() {
+    super('tr');
+  }
+
+  get cells(): HTMLTableCellElement[] {
+    return this.childNodes.filter(
+      (child): child is HTMLTableCellElement =>
+        child instanceof HTMLTableCellElement,
+    );
+  }
+
+  insertCell(index?: number): HTMLTableCellElement {
+    const cell = new HTMLTableCellElement();
+    const cells = this.cells;
+    if (index !== undefined && index >= 0 && index < cells.length) {
+      this.insertBefore(cell, cells[index]!);
+    } else {
+      this.appendChild(cell);
+    }
+    return cell;
+  }
+
+  deleteCell(index: number): void {
+    const cells = this.cells;
+    if (index >= 0 && index < cells.length) {
+      this.removeChild(cells[index]!);
+    }
+  }
+
+  get rowIndex(): number {
+    if (!this.parentNode) return -1;
+    // Walk up to find the table
+    let table: HTMLTableElement | null = null;
+    let current: Node | null = this.parentNode;
+    while (current) {
+      if (current instanceof HTMLTableElement) {
+        table = current;
+        break;
+      }
+      current = current.parentNode;
+    }
+    if (!table) return -1;
+    const rows = table.rows;
+    return rows.indexOf(this);
+  }
+}
+
+/**
+ * HTMLTableCellElement — <td>/<th>
+ */
+export class HTMLTableCellElement extends Element {
+  public colSpan = 1;
+  public rowSpan = 1;
+
+  constructor(tagName: string = 'td') {
+    super(tagName);
+  }
+
+  get cellIndex(): number {
+    if (!this.parentNode || !(this.parentNode instanceof HTMLTableRowElement)) {
+      return -1;
+    }
+    const cells = this.parentNode.cells;
+    return cells.indexOf(this);
+  }
+}
+
+/**
+ * HTMLFieldSetElement — <fieldset>
+ */
+export class HTMLFieldSetElement extends Element {
+  public disabled = false;
+  public name = '';
+
+  constructor() {
+    super('fieldset');
+  }
+}
+
+/**
+ * HTMLScriptElement — <script>
+ */
+export class HTMLScriptElement extends Element {
+  public src = '';
+  public type = '';
+  public async = false;
+  public defer = false;
+  public text = '';
+
+  constructor() {
+    super('script');
+  }
+}
+
+/**
  * Map of tag names to their typed element constructors.
  */
 export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
@@ -528,4 +879,19 @@ export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
   IMG: HTMLImageElement,
   LABEL: HTMLLabelElement,
   OPTION: HTMLOptionElement,
+  DIALOG: HTMLDialogElement,
+  CANVAS: HTMLCanvasElement,
+  TEMPLATE: HTMLTemplateElement,
+  IFRAME: HTMLIFrameElement,
+  VIDEO: HTMLVideoElement,
+  AUDIO: HTMLAudioElement,
+  PROGRESS: HTMLProgressElement,
+  METER: HTMLMeterElement,
+  DETAILS: HTMLDetailsElement,
+  TABLE: HTMLTableElement,
+  TR: HTMLTableRowElement,
+  TD: HTMLTableCellElement,
+  TH: HTMLTableCellElement,
+  FIELDSET: HTMLFieldSetElement,
+  SCRIPT: HTMLScriptElement,
 };

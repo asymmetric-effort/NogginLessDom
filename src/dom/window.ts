@@ -598,6 +598,7 @@ export class Window {
   public queueMicrotask: typeof nogginQueueMicrotask = nogginQueueMicrotask;
   public AbortController: typeof NogginAbortController = NogginAbortController;
   public AbortSignal: typeof NogginAbortSignal = NogginAbortSignal;
+  public crypto: Crypto = globalThis.crypto;
 
   private eventListeners: Map<string, Array<(event: Event) => void>> =
     new Map();

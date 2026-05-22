@@ -50,3 +50,8 @@ export const nogginStructuredClone: typeof globalThis.structuredClone =
  */
 export const nogginQueueMicrotask: typeof globalThis.queueMicrotask =
   globalThis.queueMicrotask;
+
+/**
+ * Crypto — re-exported from globalThis.
+ */
+export const nogginCrypto: Crypto = globalThis.crypto;
