@@ -1187,6 +1187,60 @@ export class Document extends Node {
     };
     return search(this);
   }
+
+  // ---- Document collection properties ----
+
+  get forms(): HTMLCollection {
+    return this.getElementsByTagName('form');
+  }
+
+  get images(): HTMLCollection {
+    return this.getElementsByTagName('img');
+  }
+
+  get links(): HTMLCollection {
+    const results: Element[] = [];
+    const collect = (node: Node): void => {
+      for (const child of node.childNodes) {
+        if (
+          child instanceof Element &&
+          (child.tagName === 'A' || child.tagName === 'AREA') &&
+          child.hasAttribute('href')
+        ) {
+          results.push(child);
+        }
+        collect(child);
+      }
+    };
+    collect(this);
+    return new HTMLCollection(results);
+  }
+
+  get scripts(): HTMLCollection {
+    return this.getElementsByTagName('script');
+  }
+
+  get embeds(): HTMLCollection {
+    return this.getElementsByTagName('embed');
+  }
+
+  get anchors(): HTMLCollection {
+    const results: Element[] = [];
+    const collect = (node: Node): void => {
+      for (const child of node.childNodes) {
+        if (
+          child instanceof Element &&
+          child.tagName === 'A' &&
+          child.hasAttribute('name')
+        ) {
+          results.push(child);
+        }
+        collect(child);
+      }
+    };
+    collect(this);
+    return new HTMLCollection(results);
+  }
 }
 
 // Re-export collection types (no circular dep - these don't import from index)
