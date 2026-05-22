@@ -47,8 +47,8 @@
   },
   "homepage": "https://github.com/asymmetric-effort/NogginLessDom#readme",
   "devDependencies": {
-    "@asymmetric-effort/jsonlint": "^0.0.2",
-    "@asymmetric-effort/yamllint": "^0.0.3",
+    "@asymmetric-effort/jsonlint": "^0.0.5",
+    "@asymmetric-effort/yamllint": "^0.0.6",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.59.0",
     "bun-types": "latest",
