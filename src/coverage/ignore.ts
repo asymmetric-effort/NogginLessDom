@@ -2,7 +2,7 @@
  * Parse and handle coverage ignore directives in source code.
  */
 
-import type { FileCoverage } from './reporters/types.js';
+import type { FileCoverage } from './coverage-map.js';
 
 export interface IgnoreRange {
   startLine: number;

@@ -9,10 +9,16 @@ import type {
 } from './config.js';
 import { mergeConfig } from './config.js';
 import type {
-  CoverageMap,
   CoverageSummary,
   FileCoverage,
-} from './reporters/types.js';
+  Range,
+  FunctionMapping,
+  BranchMapping,
+} from './coverage-map.js';
+import {
+  CoverageMap,
+  createCoverageMap as newCoverageMap,
+} from './coverage-map.js';
 import { shouldIncludeFile } from './filter.js';
 import { findIgnoreRanges, applyIgnoreRanges } from './ignore.js';
 
@@ -23,11 +29,8 @@ export type {
   ResolvedCoverageConfig,
 } from './config.js';
 export { getDefaultConfig, mergeConfig } from './config.js';
-export type {
-  CoverageMap,
-  CoverageSummary,
-  FileCoverage,
-} from './reporters/types.js';
+export type { CoverageSummary, FileCoverage } from './coverage-map.js';
+export { CoverageMap } from './coverage-map.js';
 export { shouldIncludeFile } from './filter.js';
 export {
   findIgnoreRanges,
@@ -155,85 +158,15 @@ async function createV8Provider(): Promise<V8CoverageProvider> {
 let provider: V8CoverageProvider | undefined;
 
 // ---------------------------------------------------------------------------
-// Coverage Map implementation
+// Coverage Map helper
 // ---------------------------------------------------------------------------
 
-function createCoverageMap(files: Map<string, FileCoverage>): CoverageMap {
-  return {
-    files(): string[] {
-      return Array.from(files.keys());
-    },
-
-    fileCoverageFor(path: string): FileCoverage {
-      const fc = files.get(path);
-      if (!fc) {
-        throw new Error(`No coverage data for file: ${path}`);
-      }
-      return fc;
-    },
-
-    toSummary(): CoverageSummary {
-      let totalStatements = 0;
-      let coveredStatements = 0;
-      let totalFunctions = 0;
-      let coveredFunctions = 0;
-      let totalBranches = 0;
-      let coveredBranches = 0;
-
-      for (const fc of files.values()) {
-        for (const count of Object.values(fc.s)) {
-          totalStatements++;
-          if (count > 0) coveredStatements++;
-        }
-        for (const count of Object.values(fc.f)) {
-          totalFunctions++;
-          if (count > 0) coveredFunctions++;
-        }
-        for (const counts of Object.values(fc.b)) {
-          for (const count of counts) {
-            totalBranches++;
-            if (count > 0) coveredBranches++;
-          }
-        }
-      }
-
-      const pct = (covered: number, total: number): number =>
-        total === 0 ? 100 : Math.round((covered / total) * 10000) / 100;
-
-      return {
-        lines: {
-          total: totalStatements,
-          covered: coveredStatements,
-          skipped: 0,
-          pct: pct(coveredStatements, totalStatements),
-        },
-        statements: {
-          total: totalStatements,
-          covered: coveredStatements,
-          skipped: 0,
-          pct: pct(coveredStatements, totalStatements),
-        },
-        functions: {
-          total: totalFunctions,
-          covered: coveredFunctions,
-          skipped: 0,
-          pct: pct(coveredFunctions, totalFunctions),
-        },
-        branches: {
-          total: totalBranches,
-          covered: coveredBranches,
-          skipped: 0,
-          pct: pct(coveredBranches, totalBranches),
-        },
-      };
-    },
-
-    fileSummaryFor(path: string): CoverageSummary {
-      const singleMap = new Map<string, FileCoverage>();
-      singleMap.set(path, this.fileCoverageFor(path));
-      return createCoverageMap(singleMap).toSummary();
-    },
-  };
+function buildCoverageMap(files: Map<string, FileCoverage>): CoverageMap {
+  const map = newCoverageMap();
+  for (const fc of files.values()) {
+    map.addFileCoverage(fc);
+  }
+  return map;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +202,7 @@ export async function takeCoverage(): Promise<CoverageResult> {
 
   const v8Data = await provider.take();
   const filesMap = processV8Coverage(v8Data, activeConfig);
-  const coverageMap = createCoverageMap(filesMap);
+  const coverageMap = buildCoverageMap(filesMap);
   const summary = coverageMap.toSummary();
 
   const result: CoverageResult = { coverageMap, summary };
@@ -296,7 +229,7 @@ export async function stopCoverage(): Promise<CoverageResult> {
 
   const v8Data = await provider.stop();
   const filesMap = processV8Coverage(v8Data, activeConfig);
-  const coverageMap = createCoverageMap(filesMap);
+  const coverageMap = buildCoverageMap(filesMap);
   const summary = coverageMap.toSummary();
 
   const result: CoverageResult = { coverageMap, summary };
@@ -416,39 +349,9 @@ function v8ToFileCoverage(
   filePath: string,
   script: V8ScriptCoverage,
 ): FileCoverage {
-  const statementMap: Record<
-    string,
-    {
-      start: { line: number; column: number };
-      end: { line: number; column: number };
-    }
-  > = {};
-  const fnMap: Record<
-    string,
-    {
-      name: string;
-      decl: {
-        start: { line: number; column: number };
-        end: { line: number; column: number };
-      };
-      loc: {
-        start: { line: number; column: number };
-        end: { line: number; column: number };
-      };
-      line: number;
-    }
-  > = {};
-  const branchMap: Record<
-    string,
-    {
-      type: string;
-      locations: Array<{
-        start: { line: number; column: number };
-        end: { line: number; column: number };
-      }>;
-      line: number;
-    }
-  > = {};
+  const statementMap: Record<string, Range> = {};
+  const fnMap: Record<string, FunctionMapping> = {};
+  const branchMap: Record<string, BranchMapping> = {};
   const s: Record<string, number> = {};
   const f: Record<string, number> = {};
   const b: Record<string, number[]> = {};

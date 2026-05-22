@@ -1,81 +1,37 @@
 /**
- * Minimal coverage types for reporters.
- * These mirror the interfaces from coverage-map.ts and will be reconciled later.
+ * Re-export coverage types from the single source of truth (coverage-map.ts).
+ * Also exports reporter-specific types like CoverageWatermarks.
  */
 
-export interface SourceLocation {
-  line: number;
-  column: number;
-}
+export type {
+  Location,
+  Range,
+  FunctionMapping,
+  BranchMapping,
+  FileCoverage,
+  MetricSummary,
+  CoverageSummary,
+} from '../coverage-map.js';
 
-export interface SourceRange {
-  start: SourceLocation;
-  end: SourceLocation;
-}
+export { CoverageMap } from '../coverage-map.js';
 
-export interface StatementMap {
-  [key: string]: SourceRange;
-}
+/**
+ * Backward-compatible aliases for the standardised names.
+ */
+export type { Location as SourceLocation } from '../coverage-map.js';
+export type { Range as SourceRange } from '../coverage-map.js';
+export type { MetricSummary as CoverageMetric } from '../coverage-map.js';
 
-export interface FunctionMapping {
-  name: string;
-  decl: SourceRange;
-  loc: SourceRange;
-  line: number;
-}
+/**
+ * Convenience record aliases (structural equivalents of Record<string, …>).
+ */
+import type { Range, FunctionMapping, BranchMapping } from '../coverage-map.js';
 
-export interface FnMap {
-  [key: string]: FunctionMapping;
-}
-
-export interface BranchMapping {
-  type: string;
-  locations: SourceRange[];
-  line: number;
-}
-
-export interface BranchMap {
-  [key: string]: BranchMapping;
-}
-
-export interface HitCounts {
-  [key: string]: number;
-}
-
-export interface BranchHitCounts {
-  [key: string]: number[];
-}
-
-export interface FileCoverage {
-  path: string;
-  statementMap: StatementMap;
-  fnMap: FnMap;
-  branchMap: BranchMap;
-  s: HitCounts;
-  f: HitCounts;
-  b: BranchHitCounts;
-}
-
-export interface CoverageMetric {
-  total: number;
-  covered: number;
-  skipped: number;
-  pct: number;
-}
-
-export interface CoverageSummary {
-  lines: CoverageMetric;
-  statements: CoverageMetric;
-  functions: CoverageMetric;
-  branches: CoverageMetric;
-}
-
-export interface CoverageMap {
-  files(): string[];
-  fileCoverageFor(path: string): FileCoverage;
-  toSummary(): CoverageSummary;
-  fileSummaryFor(path: string): CoverageSummary;
-}
+export type StatementMap = Record<string, Range>;
+export type FnMap = Record<string, FunctionMapping>;
+export type BranchMap = Record<string, BranchMapping>;
+export type HitCounts = Record<string, number>;
+export type BranchHitCounts = Record<string, number[]>;
 
 export interface CoverageWatermarks {
   statements: [number, number];
