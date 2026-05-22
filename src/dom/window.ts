@@ -16,6 +16,14 @@ import {
   nogginStructuredClone,
   nogginQueueMicrotask,
 } from './web-apis.js';
+import {
+  AbortController as NogginAbortController,
+  AbortSignal as NogginAbortSignal,
+} from './abort.js';
+import {
+  DOMParser as NogginDOMParser,
+  XMLSerializer as NogginXMLSerializer,
+} from './dom-parser.js';
 
 /**
  * In-memory Storage implementation (localStorage / sessionStorage).
@@ -334,7 +342,11 @@ export class Window {
   public atob: (data: string) => string = atob;
   public btoa: (data: string) => string = btoa;
   public structuredClone: typeof nogginStructuredClone = nogginStructuredClone;
+  public DOMParser: typeof NogginDOMParser = NogginDOMParser;
+  public XMLSerializer: typeof NogginXMLSerializer = NogginXMLSerializer;
   public queueMicrotask: typeof nogginQueueMicrotask = nogginQueueMicrotask;
+  public AbortController: typeof NogginAbortController = NogginAbortController;
+  public AbortSignal: typeof NogginAbortSignal = NogginAbortSignal;
 
   private eventListeners: Map<string, Array<(event: Event) => void>> =
     new Map();
@@ -343,6 +355,7 @@ export class Window {
   private _matchMediaMatches: boolean;
   private _fetchHandler: FetchHandler | null = null;
   private _selection: import('./selection.js').Selection | null = null;
+  private _eventHandlers: Map<string, (event: Event) => void> = new Map();
 
   constructor(options?: WindowOptions) {
     this.document = new Document();
@@ -469,6 +482,85 @@ export class Window {
     for (const [, callback] of callbacks) {
       callback(timestamp);
     }
+  }
+
+  // ---- Event handler property helpers ----
+
+  private _getEventHandler(type: string): ((event: Event) => void) | null {
+    return this._eventHandlers.get(type) ?? null;
+  }
+
+  private _setEventHandler(
+    type: string,
+    handler: ((event: Event) => void) | null,
+  ): void {
+    const existing = this._eventHandlers.get(type);
+    if (existing) {
+      this.removeEventListener(type, existing);
+      this._eventHandlers.delete(type);
+    }
+    if (handler) {
+      this._eventHandlers.set(type, handler);
+      this.addEventListener(type, handler);
+    }
+  }
+
+  // ---- On-event properties ----
+
+  get onload(): ((event: Event) => void) | null {
+    return this._getEventHandler('load');
+  }
+  set onload(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('load', handler);
+  }
+
+  get onerror(): ((event: Event) => void) | null {
+    return this._getEventHandler('error');
+  }
+  set onerror(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('error', handler);
+  }
+
+  get onresize(): ((event: Event) => void) | null {
+    return this._getEventHandler('resize');
+  }
+  set onresize(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('resize', handler);
+  }
+
+  get onpopstate(): ((event: Event) => void) | null {
+    return this._getEventHandler('popstate');
+  }
+  set onpopstate(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('popstate', handler);
+  }
+
+  get onhashchange(): ((event: Event) => void) | null {
+    return this._getEventHandler('hashchange');
+  }
+  set onhashchange(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('hashchange', handler);
+  }
+
+  get onbeforeunload(): ((event: Event) => void) | null {
+    return this._getEventHandler('beforeunload');
+  }
+  set onbeforeunload(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('beforeunload', handler);
+  }
+
+  get onfocus(): ((event: Event) => void) | null {
+    return this._getEventHandler('focus');
+  }
+  set onfocus(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('focus', handler);
+  }
+
+  get onblur(): ((event: Event) => void) | null {
+    return this._getEventHandler('blur');
+  }
+  set onblur(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('blur', handler);
   }
 }
 

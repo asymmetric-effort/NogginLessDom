@@ -7,6 +7,7 @@
  */
 
 import { Event } from './index.js';
+import type { DataTransfer } from './data-transfer.js';
 
 /**
  * CustomEvent — extends Event with a detail property.
@@ -272,10 +273,10 @@ export class TouchEvent extends Event {
 }
 
 /**
- * DragEvent — extends MouseEvent with dataTransfer (null stub).
+ * DragEvent — extends MouseEvent with dataTransfer support.
  */
 export class DragEvent extends MouseEvent {
-  public readonly dataTransfer: null;
+  public readonly dataTransfer: DataTransfer | null;
 
   constructor(
     type: string,
@@ -290,10 +291,11 @@ export class DragEvent extends MouseEvent {
       ctrlKey?: boolean;
       shiftKey?: boolean;
       metaKey?: boolean;
+      dataTransfer?: DataTransfer | null;
     },
   ) {
     super(type, options);
-    this.dataTransfer = null;
+    this.dataTransfer = options?.dataTransfer ?? null;
   }
 }
 

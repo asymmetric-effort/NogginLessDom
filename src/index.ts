@@ -77,6 +77,13 @@ export { FormData } from './dom/form-data.js';
 export { Headers } from './dom/headers.js';
 export { atob, btoa } from './dom/web-apis.js';
 
+export { DOMParser, XMLSerializer } from './dom/dom-parser.js';
+
+export { AbortController, AbortSignal } from './dom/abort.js';
+
+export { DataTransfer, DataTransferItemList } from './dom/data-transfer.js';
+export type { DataTransferItem } from './dom/data-transfer.js';
+
 export {
   CustomEvent,
   MouseEvent,

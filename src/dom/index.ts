@@ -536,6 +536,7 @@ export class Element extends Node {
   private _scrollTop = 0;
   private _scrollWidth = 0;
   private _scrollHeight = 0;
+  private _eventHandlers: Map<string, (event: Event) => void> = new Map();
 
   constructor(tagName: string, namespaceURI?: string | null) {
     const isSVG =
@@ -1164,6 +1165,239 @@ export class Element extends Node {
     this._clientTop = metrics.clientTop ?? 0;
     this._scrollWidth = metrics.scrollWidth ?? 0;
     this._scrollHeight = metrics.scrollHeight ?? 0;
+  }
+
+  // ---- Event handler property helpers ----
+
+  private _getEventHandler(type: string): ((event: Event) => void) | null {
+    return this._eventHandlers.get(type) ?? null;
+  }
+
+  private _setEventHandler(
+    type: string,
+    handler: ((event: Event) => void) | null,
+  ): void {
+    const existing = this._eventHandlers.get(type);
+    if (existing) {
+      this.removeEventListener(type, existing);
+      this._eventHandlers.delete(type);
+    }
+    if (handler) {
+      this._eventHandlers.set(type, handler);
+      this.addEventListener(type, handler);
+    }
+  }
+
+  // ---- On-event properties ----
+
+  get onclick(): ((event: Event) => void) | null {
+    return this._getEventHandler('click');
+  }
+  set onclick(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('click', handler);
+  }
+
+  get ondblclick(): ((event: Event) => void) | null {
+    return this._getEventHandler('dblclick');
+  }
+  set ondblclick(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('dblclick', handler);
+  }
+
+  get onmousedown(): ((event: Event) => void) | null {
+    return this._getEventHandler('mousedown');
+  }
+  set onmousedown(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mousedown', handler);
+  }
+
+  get onmouseup(): ((event: Event) => void) | null {
+    return this._getEventHandler('mouseup');
+  }
+  set onmouseup(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mouseup', handler);
+  }
+
+  get onmousemove(): ((event: Event) => void) | null {
+    return this._getEventHandler('mousemove');
+  }
+  set onmousemove(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mousemove', handler);
+  }
+
+  get onmouseover(): ((event: Event) => void) | null {
+    return this._getEventHandler('mouseover');
+  }
+  set onmouseover(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mouseover', handler);
+  }
+
+  get onmouseout(): ((event: Event) => void) | null {
+    return this._getEventHandler('mouseout');
+  }
+  set onmouseout(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mouseout', handler);
+  }
+
+  get onmouseenter(): ((event: Event) => void) | null {
+    return this._getEventHandler('mouseenter');
+  }
+  set onmouseenter(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mouseenter', handler);
+  }
+
+  get onmouseleave(): ((event: Event) => void) | null {
+    return this._getEventHandler('mouseleave');
+  }
+  set onmouseleave(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('mouseleave', handler);
+  }
+
+  get onkeydown(): ((event: Event) => void) | null {
+    return this._getEventHandler('keydown');
+  }
+  set onkeydown(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('keydown', handler);
+  }
+
+  get onkeyup(): ((event: Event) => void) | null {
+    return this._getEventHandler('keyup');
+  }
+  set onkeyup(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('keyup', handler);
+  }
+
+  get onkeypress(): ((event: Event) => void) | null {
+    return this._getEventHandler('keypress');
+  }
+  set onkeypress(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('keypress', handler);
+  }
+
+  get onfocus(): ((event: Event) => void) | null {
+    return this._getEventHandler('focus');
+  }
+  set onfocus(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('focus', handler);
+  }
+
+  get onblur(): ((event: Event) => void) | null {
+    return this._getEventHandler('blur');
+  }
+  set onblur(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('blur', handler);
+  }
+
+  get onchange(): ((event: Event) => void) | null {
+    return this._getEventHandler('change');
+  }
+  set onchange(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('change', handler);
+  }
+
+  get oninput(): ((event: Event) => void) | null {
+    return this._getEventHandler('input');
+  }
+  set oninput(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('input', handler);
+  }
+
+  get onsubmit(): ((event: Event) => void) | null {
+    return this._getEventHandler('submit');
+  }
+  set onsubmit(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('submit', handler);
+  }
+
+  get onreset(): ((event: Event) => void) | null {
+    return this._getEventHandler('reset');
+  }
+  set onreset(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('reset', handler);
+  }
+
+  get onscroll(): ((event: Event) => void) | null {
+    return this._getEventHandler('scroll');
+  }
+  set onscroll(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('scroll', handler);
+  }
+
+  get onwheel(): ((event: Event) => void) | null {
+    return this._getEventHandler('wheel');
+  }
+  set onwheel(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('wheel', handler);
+  }
+
+  get ondrag(): ((event: Event) => void) | null {
+    return this._getEventHandler('drag');
+  }
+  set ondrag(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('drag', handler);
+  }
+
+  get ondragstart(): ((event: Event) => void) | null {
+    return this._getEventHandler('dragstart');
+  }
+  set ondragstart(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('dragstart', handler);
+  }
+
+  get ondragend(): ((event: Event) => void) | null {
+    return this._getEventHandler('dragend');
+  }
+  set ondragend(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('dragend', handler);
+  }
+
+  get ondragover(): ((event: Event) => void) | null {
+    return this._getEventHandler('dragover');
+  }
+  set ondragover(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('dragover', handler);
+  }
+
+  get ondragenter(): ((event: Event) => void) | null {
+    return this._getEventHandler('dragenter');
+  }
+  set ondragenter(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('dragenter', handler);
+  }
+
+  get ondragleave(): ((event: Event) => void) | null {
+    return this._getEventHandler('dragleave');
+  }
+  set ondragleave(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('dragleave', handler);
+  }
+
+  get ondrop(): ((event: Event) => void) | null {
+    return this._getEventHandler('drop');
+  }
+  set ondrop(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('drop', handler);
+  }
+
+  get onload(): ((event: Event) => void) | null {
+    return this._getEventHandler('load');
+  }
+  set onload(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('load', handler);
+  }
+
+  get onerror(): ((event: Event) => void) | null {
+    return this._getEventHandler('error');
+  }
+  set onerror(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('error', handler);
+  }
+
+  get onresize(): ((event: Event) => void) | null {
+    return this._getEventHandler('resize');
+  }
+  set onresize(handler: ((event: Event) => void) | null) {
+    this._setEventHandler('resize', handler);
   }
 }
 
