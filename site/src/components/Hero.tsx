@@ -21,7 +21,14 @@ export function Hero(): ReturnType<typeof createElement> {
     }),
     createElement(
       'h1',
-      { style: { fontSize: '3rem', fontWeight: 'bold', marginBottom: '1rem', color: 'var(--text-primary)' } },
+      {
+        style: {
+          fontSize: '3rem',
+          fontWeight: 'bold',
+          marginBottom: '1rem',
+          color: 'var(--text-primary)',
+        },
+      },
       'NogginLessDom',
     ),
     createElement(
@@ -35,11 +42,18 @@ export function Hero(): ReturnType<typeof createElement> {
           color: 'var(--text-muted)',
         },
       },
-      'A zero-dependency testing framework built on node:test and node:assert. Comprehensive test runner, assertions, DOM simulation, and mocking with maximum supply chain security.',
+      'A zero-dependency TypeScript testing framework with 30+ assertion matchers, 23+ typed HTML elements, complete mocking with vi namespace, snapshot testing, and built-in code coverage. 2,100+ tests across 58 source files ensure rock-solid reliability with maximum supply chain security.',
     ),
     createElement(
       'div',
-      { style: { display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' } },
+      {
+        style: {
+          display: 'flex',
+          gap: '1rem',
+          justifyContent: 'center',
+          flexWrap: 'wrap',
+        },
+      },
       createElement(
         'a',
         {

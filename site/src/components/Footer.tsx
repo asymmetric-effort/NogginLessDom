@@ -2,7 +2,8 @@ import { createElement } from '@asymmetric-effort/specifyjs';
 import { Footer as SpecFooter } from '@asymmetric-effort/specifyjs/components';
 
 declare const __APP_VERSION__: string;
-const VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
+const VERSION =
+  typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0';
 
 export function Footer(): ReturnType<typeof createElement> {
   return SpecFooter({

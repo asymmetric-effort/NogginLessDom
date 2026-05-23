@@ -23,7 +23,7 @@ if (existsSync(contentPath)) {
 // Fallback if content not generated yet
 if (noscriptSections.length === 0) {
   noscriptSections = [
-    { id: 'home', title: 'Home', html: '<h1>NogginLessDom</h1><p>A zero-dependency testing framework.</p>' },
+    { id: 'home', title: 'Home', html: '<h1>NogginLessDom</h1><p>A zero-dependency TypeScript testing framework with 30+ assertion matchers, 23+ typed HTML elements, complete mocking, snapshot testing, and built-in code coverage. Built on node:test and node:assert for maximum supply chain security.</p>' },
   ];
 }
 
@@ -46,6 +46,8 @@ const allRoutes = [
   '#/user/installation',
   '#/user/configuration',
   '#/contributing',
+  '#/api/assertions#snapshot-testing',
+  '#/api/test-runner#code-coverage',
 ];
 
 export default defineConfig({
@@ -64,7 +66,8 @@ export default defineConfig({
       siteUrl: 'https://nogginlessdom.asymmetric-effort.com',
       title: 'NogginLessDom',
       description:
-        'A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking. ' +
+        'A zero-dependency TypeScript testing framework with 30+ assertion matchers, 23+ typed HTML elements, ' +
+        'complete mocking via vi namespace, snapshot testing with custom serializers, and built-in V8/Istanbul code coverage. ' +
         'Built on node:test and node:assert for maximum supply chain security.',
       routes: allRoutes,
       npmPackage: '@asymmetric-effort/nogginlessdom',
@@ -77,7 +80,9 @@ export default defineConfig({
         '@type': 'SoftwareSourceCode',
         name: 'NogginLessDom',
         description:
-          'A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking.',
+          'A zero-dependency TypeScript testing framework with 30+ assertion matchers, 23+ typed HTML elements, complete mocking, snapshot testing, and built-in code coverage. 2,100+ tests across 58 source files.',
+        runtimePlatform: 'Node.js',
+        applicationCategory: 'DeveloperApplication',
         codeRepository: 'https://github.com/asymmetric-effort/NogginLessDom',
         programmingLanguage: 'TypeScript',
         license: 'https://opensource.org/licenses/MIT',

@@ -6,7 +6,9 @@ interface MarkdownPageProps {
   section: string;
 }
 
-export function MarkdownPage(props: MarkdownPageProps): ReturnType<typeof createElement> {
+export function MarkdownPage(
+  props: MarkdownPageProps,
+): ReturnType<typeof createElement> {
   const entry = content[props.section];
   const title = entry?.title || props.title;
   const html = entry?.html || '<p>Content not found.</p>';
@@ -31,10 +33,23 @@ export function MarkdownPage(props: MarkdownPageProps): ReturnType<typeof create
     createElement('div', { dangerouslySetInnerHTML: { __html: html } }),
     createElement(
       'div',
-      { style: { marginTop: '3rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' } },
+      {
+        style: {
+          marginTop: '3rem',
+          paddingTop: '1rem',
+          borderTop: '1px solid var(--border)',
+        },
+      },
       createElement(
         'a',
-        { href: '#/', style: { color: 'var(--accent)', textDecoration: 'none', fontSize: '0.9rem' } },
+        {
+          href: '#/',
+          style: {
+            color: 'var(--accent)',
+            textDecoration: 'none',
+            fontSize: '0.9rem',
+          },
+        },
         '\u2190 Back to home',
       ),
     ),

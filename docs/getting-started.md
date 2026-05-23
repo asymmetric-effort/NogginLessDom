@@ -2,7 +2,7 @@
 
 This guide walks you through installing NogginLessDom, writing your first test,
 and running it. By the end, you will have a working test suite using the test
-runner, assertions, and DOM simulation.
+runner, assertions, DOM simulation, and mocking.
 
 ## Installation
 
@@ -53,8 +53,7 @@ execution and reporting that Node.js provides natively.
 
 ## Assertions
 
-NogginLessDom provides an `expect()` function with chainable matchers that
-mirror familiar testing conventions:
+NogginLessDom provides an `expect()` function with 30+ chainable matchers:
 
 ```typescript
 import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
@@ -63,6 +62,7 @@ describe('Assertions', () => {
   it('checks equality', () => {
     expect('hello').toBe('hello');
     expect({ a: 1 }).toEqual({ a: 1 });
+    expect({ a: 1, b: 2 }).toMatchObject({ a: 1 });
   });
 
   it('checks truthiness', () => {
@@ -70,6 +70,12 @@ describe('Assertions', () => {
     expect(0).toBeFalsy();
     expect(null).toBeNull();
     expect(undefined).toBeUndefined();
+  });
+
+  it('checks types', () => {
+    expect('hello').toBeTypeOf('string');
+    expect(42).toBeTypeOf('number');
+    expect(new Date()).toBeInstanceOf(Date);
   });
 
   it('checks negation', () => {
@@ -82,13 +88,25 @@ describe('Assertions', () => {
       throw new Error('oops');
     }).toThrow('oops');
   });
+
+  it('uses asymmetric matchers', () => {
+    expect({ name: 'Alice', age: 30 }).toEqual(
+      expect.objectContaining({ name: 'Alice' }),
+    );
+    expect([1, 2, 3]).toEqual(expect.arrayContaining([1, 3]));
+  });
+
+  it('uses custom predicates', () => {
+    expect(42).toSatisfy((n: number) => n > 0 && n < 100);
+  });
 });
 ```
 
 ## DOM Testing
 
-NogginLessDom includes a full-featured DOM simulation. You do not need to
-install any separate DOM library.
+NogginLessDom includes a complete DOM simulation with 24 typed HTML element
+classes, 20 event types, Shadow DOM, Custom Elements, and more. You do not need
+to install a separate DOM library.
 
 ```typescript
 import {
@@ -96,6 +114,9 @@ import {
   it,
   expect,
   Document,
+  Event,
+  CustomEvent,
+  MutationObserver,
 } from '@asymmetric-effort/nogginlessdom';
 
 describe('DOM', () => {
@@ -120,27 +141,42 @@ describe('DOM', () => {
     expect(p?.textContent).toBe('Hello, world!');
   });
 
-  it('should handle events', () => {
+  it('should handle events with bubbling', () => {
     const doc = new Document();
+    const div = doc.createElement('div');
     const button = doc.createElement('button');
+    div.appendChild(button);
 
-    let clicked = false;
-    button.addEventListener('click', () => {
-      clicked = true;
+    const clicks: string[] = [];
+    div.addEventListener('click', () => clicks.push('div'));
+    button.addEventListener('click', () => clicks.push('button'));
+
+    button.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(clicks).toEqual(['button', 'div']);
+  });
+
+  it('should dispatch custom events', () => {
+    const doc = new Document();
+    const el = doc.createElement('div');
+    let received: unknown = null;
+
+    el.addEventListener('myevent', (e: Event) => {
+      received = (e as CustomEvent).detail;
     });
 
-    button.dispatchEvent(new Event('click'));
-    expect(clicked).toBe(true);
+    el.dispatchEvent(new CustomEvent('myevent', { detail: { key: 'value' } }));
+    expect(received).toEqual({ key: 'value' });
   });
 });
 ```
 
 ## Mocking
 
-Create mock functions and spy on existing methods:
+Create mock functions, spy on existing methods (including accessors), and use
+the `vi` namespace for a comprehensive mocking API:
 
 ```typescript
-import { describe, it, expect, fn, spyOn } from '@asymmetric-effort/nogginlessdom';
+import { describe, it, expect, fn, spyOn, vi } from '@asymmetric-effort/nogginlessdom';
 
 describe('Mocking', () => {
   it('should track calls to a mock function', () => {
@@ -165,12 +201,19 @@ describe('Mocking', () => {
     expect(spy.mock.calls[0]).toEqual([1, 2]);
     spy.mockRestore();
   });
+
+  it('should mock resolved values', () => {
+    const fetchData = fn();
+    fetchData.mockResolvedValue({ id: 1, name: 'Test' });
+
+    expect(fetchData()).resolves.toEqual({ id: 1, name: 'Test' });
+  });
 });
 ```
 
 ## Timer Mocking
 
-Control the passage of time in your tests:
+Control the passage of time in your tests, including full `Date` mocking:
 
 ```typescript
 import {
@@ -184,16 +227,46 @@ import {
 
 describe('Timers', () => {
   it('should advance fake timers', () => {
-    useFakeTimers();
+    const clock = useFakeTimers();
 
     const callback = fn();
     setTimeout(callback, 1000);
 
     expect(callback.mock.calls).toHaveLength(0);
-    advanceTimersByTime(1000);
+    clock.advanceTimersByTime(1000);
     expect(callback.mock.calls).toHaveLength(1);
 
     useRealTimers();
+  });
+
+  it('should mock Date', () => {
+    const clock = useFakeTimers({ now: new Date('2026-01-01T00:00:00Z') });
+
+    expect(Date.now()).toBe(new Date('2026-01-01T00:00:00Z').getTime());
+
+    clock.setSystemTime(new Date('2026-06-15T12:00:00Z'));
+    expect(Date.now()).toBe(new Date('2026-06-15T12:00:00Z').getTime());
+
+    useRealTimers();
+  });
+});
+```
+
+## Snapshot Testing
+
+Capture and compare values across test runs:
+
+```typescript
+import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
+
+describe('Snapshots', () => {
+  it('should match a snapshot', () => {
+    const data = { name: 'Alice', items: [1, 2, 3] };
+    expect(data).toMatchSnapshot();
+  });
+
+  it('should match an inline snapshot', () => {
+    expect({ greeting: 'hello' }).toMatchInlineSnapshot();
   });
 });
 ```

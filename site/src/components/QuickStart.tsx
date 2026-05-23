@@ -8,23 +8,52 @@ describe('math', () => {
     expect(1 + 1).toBe(2);
   });
 
-  it('compares objects', () => {
-    expect({ a: 1 }).toEqual({ a: 1 });
+  it('compares objects deeply', () => {
+    expect({ a: 1, b: [2, 3] }).toEqual({ a: 1, b: [2, 3] });
+  });
+
+  it('checks types and properties', () => {
+    expect('hello world').toContain('world');
+    expect({ name: 'test' }).toHaveProperty('name');
+    expect(() => { throw new Error('fail'); }).toThrow('fail');
   });
 });`;
 
   const domExample = `import { describe, it, expect, Document } from '@asymmetric-effort/nogginlessdom';
 
 describe('DOM', () => {
-  it('creates elements', () => {
+  it('creates and queries elements', () => {
     const doc = new Document();
     const div = doc.createElement('div');
     div.setAttribute('id', 'app');
-    div.textContent = 'Hello';
+    div.classList.add('container');
+    const span = doc.createElement('span');
+    span.textContent = 'Hello';
+    div.appendChild(span);
 
-    expect(div.tagName).toBe('DIV');
-    expect(div.id).toBe('app');
-    expect(div.textContent).toBe('Hello');
+    expect(div.querySelector('span').textContent).toBe('Hello');
+    expect(div.classList.contains('container')).toBe(true);
+  });
+});`;
+
+  const mockExample = `import { describe, it, expect, vi } from '@asymmetric-effort/nogginlessdom';
+
+describe('mocking', () => {
+  it('tracks calls with vi.fn()', () => {
+    const mockFn = vi.fn((x: number) => x * 2);
+    mockFn(5);
+
+    expect(mockFn).toHaveBeenCalledWith(5);
+    expect(mockFn).toHaveReturnedWith(10);
+  });
+
+  it('uses fake timers', () => {
+    vi.useFakeTimers();
+    const callback = vi.fn();
+    setTimeout(callback, 1000);
+    vi.advanceTimersByTime(1000);
+    expect(callback).toHaveBeenCalled();
+    vi.useRealTimers();
   });
 });`;
 
@@ -39,7 +68,14 @@ describe('DOM', () => {
     },
     createElement(
       'h2',
-      { style: { textAlign: 'center', color: 'var(--text-primary)', marginBottom: '2rem', fontSize: '2rem' } },
+      {
+        style: {
+          textAlign: 'center',
+          color: 'var(--text-primary)',
+          marginBottom: '2rem',
+          fontSize: '2rem',
+        },
+      },
       'Quick Start',
     ),
     createElement(
@@ -55,17 +91,27 @@ describe('DOM', () => {
       },
       codeBlock('Unit Testing', example),
       codeBlock('DOM Testing', domExample),
+      codeBlock('Mocking & Timers', mockExample),
     ),
   );
 }
 
-function codeBlock(title: string, code: string): ReturnType<typeof createElement> {
+function codeBlock(
+  title: string,
+  code: string,
+): ReturnType<typeof createElement> {
   return createElement(
     'div',
     { style: { flex: '1', minWidth: '300px' } },
     createElement(
       'h3',
-      { style: { color: 'var(--accent)', marginBottom: '0.75rem', fontSize: '1rem' } },
+      {
+        style: {
+          color: 'var(--accent)',
+          marginBottom: '0.75rem',
+          fontSize: '1rem',
+        },
+      },
       title,
     ),
     createElement(
