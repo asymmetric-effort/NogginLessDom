@@ -4,7 +4,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { matchSnapshot, matchInlineSnapshot } from './snapshots.js';
+import {
+  matchSnapshot,
+  matchInlineSnapshot,
+  matchFileSnapshot,
+  addSerializer,
+} from './snapshots.js';
+import type { SnapshotSerializer } from './snapshots.js';
 
 /** An object with an asymmetricMatch method used for flexible matching. */
 interface AsymmetricMatcher {
@@ -151,6 +157,7 @@ interface Matchers<T> {
   toHaveLastReturnedWith(value: unknown): void;
   toMatchSnapshot(snapshotName?: string): void;
   toMatchInlineSnapshot(inlineSnapshot?: string): void;
+  toMatchFileSnapshot(filePath: string): void;
   toBeTypeOf(type: string): void;
   toThrowErrorMatchingSnapshot(): void;
   toThrowErrorMatchingInlineSnapshot(snapshot?: string): void;
@@ -1002,13 +1009,17 @@ export function expect<T>(actual: T): Matchers<T> {
 
     toMatchSnapshot(snapshotName?: string): void {
       trackAssertion();
-      const name = snapshotName ?? 'default';
-      matchSnapshot(actual, name);
+      matchSnapshot(actual, snapshotName);
     },
 
     toMatchInlineSnapshot(inlineSnapshot?: string): void {
       trackAssertion();
       matchInlineSnapshot(actual, inlineSnapshot);
+    },
+
+    toMatchFileSnapshot(filePath: string): void {
+      trackAssertion();
+      matchFileSnapshot(actual, filePath);
     },
 
     toBeTypeOf(type: string): void {
@@ -1201,6 +1212,11 @@ expect.not = {
       return !expect.stringMatching(pattern).asymmetricMatch(actual);
     },
   }),
+};
+
+/** Register a custom snapshot serializer. */
+expect.addSnapshotSerializer = (serializer: SnapshotSerializer): void => {
+  addSerializer(serializer);
 };
 
 /** Set the expected number of assertions for the current test. */
