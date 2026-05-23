@@ -602,46 +602,71 @@ function processV8Coverage(
   scripts: V8ScriptCoverage[],
   config: ResolvedCoverageConfig,
 ): Map<string, FileCoverage> {
+  return processV8CoverageBatched(scripts, config);
+}
+
+/**
+ * Issue #102: Process V8 coverage data with batching support.
+ * Uses config.processingConcurrency to process N files at a time.
+ * Exported for testability.
+ */
+export function processV8CoverageBatched(
+  scripts: V8ScriptCoverage[],
+  config: ResolvedCoverageConfig,
+): Map<string, FileCoverage> {
   const files = new Map<string, FileCoverage>();
+  const concurrency = config.processingConcurrency ?? 1;
 
-  for (const script of scripts) {
-    // Filter out non-file URLs and internal scripts
-    if (!script.url || !script.url.startsWith('file://')) continue;
+  // Filter to valid file:// scripts first
+  const validScripts = scripts.filter(
+    (script) => script.url && script.url.startsWith('file://'),
+  );
 
-    const filePath = script.url.replace('file://', '');
-    const relativePath = filePath.replace(process.cwd() + '/', '');
+  // Process in batches of `concurrency`
+  for (
+    let batchStart = 0;
+    batchStart < validScripts.length;
+    batchStart += concurrency
+  ) {
+    const batchEnd = Math.min(batchStart + concurrency, validScripts.length);
+    const batch = validScripts.slice(batchStart, batchEnd);
 
-    if (!shouldIncludeFile(relativePath, config)) continue;
+    for (const script of batch) {
+      const filePath = script.url.replace('file://', '');
+      const relativePath = filePath.replace(process.cwd() + '/', '');
 
-    // Try to read source content for proper line mapping and ignore ranges
-    let sourceContent: string | undefined;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const fs = require('node:fs') as {
-        readFileSync(p: string, e: string): string;
-      };
-      sourceContent = fs.readFileSync(filePath, 'utf-8');
-    } catch {
-      // If we can't read the file, proceed without source content
-    }
+      if (!shouldIncludeFile(relativePath, config)) continue;
 
-    // Convert V8 coverage to FileCoverage format with proper line mapping
-    let fc = v8ToFileCoverage(filePath, script, sourceContent);
-
-    // Apply ignore ranges if we have source content
-    if (sourceContent !== undefined) {
-      const ignoreRanges = findIgnoreRanges(sourceContent);
-      if (ignoreRanges.length > 0) {
-        fc = applyIgnoreRanges(fc, ignoreRanges);
+      // Try to read source content for proper line mapping and ignore ranges
+      let sourceContent: string | undefined;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fsModule = require('node:fs') as {
+          readFileSync(p: string, e: string): string;
+        };
+        sourceContent = fsModule.readFileSync(filePath, 'utf-8');
+      } catch {
+        // If we can't read the file, proceed without source content
       }
-    }
 
-    // Filter out ignored class methods from function coverage
-    if (config.ignoreClassMethods.length > 0) {
-      fc = filterIgnoredClassMethods(fc, config.ignoreClassMethods);
-    }
+      // Convert V8 coverage to FileCoverage format with proper line mapping
+      let fc = v8ToFileCoverage(filePath, script, sourceContent);
 
-    files.set(filePath, fc);
+      // Apply ignore ranges if we have source content
+      if (sourceContent !== undefined) {
+        const ignoreRanges = findIgnoreRanges(sourceContent);
+        if (ignoreRanges.length > 0) {
+          fc = applyIgnoreRanges(fc, ignoreRanges);
+        }
+      }
+
+      // Filter out ignored class methods from function coverage
+      if (config.ignoreClassMethods.length > 0) {
+        fc = filterIgnoredClassMethods(fc, config.ignoreClassMethods);
+      }
+
+      files.set(filePath, fc);
+    }
   }
 
   return files;

@@ -979,4 +979,17 @@ export const vi = {
   waitUntil,
   mocked,
   ...mock,
+  /**
+   * Register a mock for a module path.
+   *
+   * Unlike vitest, NogginLessDom does not use a build transform to hoist
+   * mock registrations above imports. Mocks must be set up BEFORE the
+   * module under test is imported:
+   *
+   * ```ts
+   * mock.module('fs', () => ({ writeFileSync: fn() }));
+   * const { myFunction } = await import('./my-module.js');
+   * ```
+   */
+  mock: mockModule,
 };

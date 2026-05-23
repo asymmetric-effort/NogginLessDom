@@ -1017,6 +1017,11 @@ export function expect<T>(actual: T): Matchers<T> {
       propertyMatchers?: Record<string, unknown>,
     ): void {
       trackAssertion();
+      if (negated) {
+        throw new Error(
+          'Snapshot negation (.not.toMatchSnapshot) is not supported',
+        );
+      }
       matchSnapshot(actual, snapshotName, hint, propertyMatchers);
     },
 
@@ -1073,7 +1078,7 @@ export function expect<T>(actual: T): Matchers<T> {
       if (!thrown) {
         throw new Error('Expected function to throw an error');
       }
-      matchSnapshot(thrown.message, 'error');
+      matchSnapshot(thrown.message);
     },
 
     toThrowErrorMatchingInlineSnapshot(snapshot?: string): void {

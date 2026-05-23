@@ -151,8 +151,9 @@ export function instrumentSource(
       continue;
     }
 
-    // Detect function declarations: function name(...)
-    if (/^(export\s+)?(async\s+)?function\s+\w+/.test(trimmed)) {
+    // Detect function declarations: function name(...), function* name(...),
+    // async function name(...), async function* name(...)
+    if (/^(export\s+)?(async\s+)?function\s*\*?\s+\w+/.test(trimmed)) {
       functionLines.add(i);
     }
 
@@ -169,10 +170,22 @@ export function instrumentSource(
       functionLines.add(i);
     }
 
+    // Issue #110: Detect function expressions: const/let/var name = function() {
+    // or const name = function namedFn() {
+    if (
+      !functionLines.has(i) &&
+      /^(export\s+)?(const|let|var)\s+\w+\s*=\s*(async\s+)?function\s*\*?\s*\w*\s*\(/.test(
+        trimmed,
+      )
+    ) {
+      functionLines.add(i);
+    }
+
     // Detect class methods: method() {, async method() {, static method() {
     // Also get/set accessors: get prop() {, set prop(v) {
+    // Issue #110: Added async generators (*method()), static async generators
     if (
-      /^(async\s+|static\s+|static\s+async\s+|get\s+|set\s+)?\w+\s*\([^)]*\)\s*\{/.test(
+      /^(async\s+|static\s+|static\s+async\s+|get\s+|set\s+)?\*?\s*\w+\s*\([^)]*\)\s*\{/.test(
         trimmed,
       ) &&
       !functionLines.has(i) &&
@@ -578,22 +591,44 @@ export function instrumentSource(
       continue;
     }
 
-    // Regular statement
-    const stmtKey = String(stmtIdx);
-    const col = line.length - line.trimStart().length;
-    statementMap[stmtKey] = {
-      start: { line: lineNum, column: col },
-      end: { line: lineNum, column: line.length },
-    };
-    s[stmtKey] = 0;
-    stmtIdx++;
+    // Issue #111: Multi-statement lines — detect semicolons separating statements
+    const subStatements = splitMultiStatements(line);
+    if (subStatements.length > 1) {
+      const counterParts: string[] = [];
+      for (const sub of subStatements) {
+        const subStmtKey = String(stmtIdx);
+        statementMap[subStmtKey] = {
+          start: { line: lineNum, column: sub.start },
+          end: { line: lineNum, column: sub.end },
+        };
+        s[subStmtKey] = 0;
+        stmtIdx++;
+        counterParts.push(
+          `globalThis.__coverage__['${escapedPath}'].s['${subStmtKey}']++;`,
+        );
+      }
+      outputLines.push(counterParts.join(' '));
+      outputToSourceLine.push(i);
+      outputLines.push(line);
+      outputToSourceLine.push(i);
+    } else {
+      // Regular single statement
+      const stmtKey = String(stmtIdx);
+      const col = line.length - line.trimStart().length;
+      statementMap[stmtKey] = {
+        start: { line: lineNum, column: col },
+        end: { line: lineNum, column: line.length },
+      };
+      s[stmtKey] = 0;
+      stmtIdx++;
 
-    outputLines.push(
-      `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
-    );
-    outputToSourceLine.push(i);
-    outputLines.push(line);
-    outputToSourceLine.push(i);
+      outputLines.push(
+        `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
+      );
+      outputToSourceLine.push(i);
+      outputLines.push(line);
+      outputToSourceLine.push(i);
+    }
   }
 
   const coverageData: FileCoverage = {
@@ -647,22 +682,100 @@ function isInsideStringLiteral(trimmed: string): boolean {
  * Extract a function name from a line of code.
  */
 function extractFunctionName(line: string): string {
-  // function name(...)
-  const fnMatch = /function\s+(\w+)/.exec(line);
+  // function name(...) or function* name(...)
+  const fnMatch = /function\s*\*?\s+(\w+)/.exec(line);
   if (fnMatch?.[1]) return fnMatch[1];
 
   // const name = (...) => or const name = async (...) =>
+  // Also: const name = function() { or const name = function namedFn() {
   const arrowMatch = /(const|let|var)\s+(\w+)\s*=/.exec(line);
   if (arrowMatch?.[2]) return arrowMatch[2];
 
-  // Class method: [async|static|get|set] name(...)
+  // Class method: [async|static|get|set] name(...) or *name(...)
   const methodMatch =
-    /^(?:async\s+|static\s+|static\s+async\s+|get\s+|set\s+)?(\w+)\s*\(/.exec(
+    /^(?:async\s+|static\s+|static\s+async\s+|get\s+|set\s+)?\*?\s*(\w+)\s*\(/.exec(
       line,
     );
   if (methodMatch?.[1]) return methodMatch[1];
 
   return '(anonymous)';
+}
+
+// ---------------------------------------------------------------------------
+// Issue #111: Multi-statement line splitting
+// ---------------------------------------------------------------------------
+
+interface SubStatement {
+  start: number;
+  end: number;
+}
+
+/**
+ * Split a line into multiple statements separated by semicolons.
+ * Ignores semicolons inside strings, parentheses (for-loops), and template literals.
+ * Returns an array of { start, end } column ranges. If the line has only
+ * one statement, returns a single-element array.
+ */
+function splitMultiStatements(line: string): SubStatement[] {
+  // Don't split for-loop headers, while, or control-flow lines
+  if (
+    /^\s*(for|while|do|if|switch|return|throw|class|import|export)\b/.test(line)
+  ) {
+    return [{ start: line.length - line.trimStart().length, end: line.length }];
+  }
+
+  const leadingSpaces = line.length - line.trimStart().length;
+  const results: SubStatement[] = [];
+  let depth = 0; // parentheses depth
+  let braceDepth = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inTemplate = false;
+  let segStart = leadingSpaces;
+
+  for (let j = leadingSpaces; j < line.length; j++) {
+    const ch = line[j]!;
+    const prev = j > 0 ? line[j - 1] : '';
+
+    if (prev !== '\\') {
+      if (ch === "'" && !inDouble && !inTemplate) {
+        inSingle = !inSingle;
+      } else if (ch === '"' && !inSingle && !inTemplate) {
+        inDouble = !inDouble;
+      } else if (ch === '`' && !inSingle && !inDouble) {
+        inTemplate = !inTemplate;
+      }
+    }
+
+    if (inSingle || inDouble || inTemplate) continue;
+
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === '{') braceDepth++;
+    if (ch === '}') braceDepth--;
+
+    if (ch === ';' && depth === 0 && braceDepth === 0) {
+      // End of a sub-statement (include the semicolon)
+      const segEnd = j + 1;
+      const segment = line.slice(segStart, segEnd).trim();
+      if (segment.length > 0 && segment !== ';') {
+        results.push({ start: segStart, end: segEnd });
+      }
+      segStart = j + 1;
+    }
+  }
+
+  // Trailing segment (after last semicolon or the whole line if no semicolons found)
+  if (segStart < line.length) {
+    const trailing = line.slice(segStart).trim();
+    if (trailing.length > 0) {
+      results.push({ start: segStart, end: line.length });
+    }
+  }
+
+  return results.length > 0
+    ? results
+    : [{ start: leadingSpaces, end: line.length }];
 }
 
 // ---------------------------------------------------------------------------

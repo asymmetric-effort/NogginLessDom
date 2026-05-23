@@ -15,6 +15,7 @@ export { TextSummaryReporter } from './text-summary.js';
 export { LcovOnlyReporter } from './lcovonly.js';
 export { TeamcityReporter } from './teamcity.js';
 export { HtmlReporter } from './html.js';
+export { HtmlSpaReporter } from './html-spa.js';
 
 import type {
   CoverageMap,
@@ -30,6 +31,7 @@ import { TextSummaryReporter } from './text-summary.js';
 import { LcovOnlyReporter } from './lcovonly.js';
 import { TeamcityReporter } from './teamcity.js';
 import { HtmlReporter } from './html.js';
+import { HtmlSpaReporter } from './html-spa.js';
 
 export interface CoverageReporter {
   onStart?(): void | Promise<void>;
@@ -150,6 +152,17 @@ export function createHtmlReporter(options: ReporterOptions): CoverageReporter {
   };
 }
 
+export function createHtmlSpaReporter(
+  options: ReporterOptions,
+): CoverageReporter {
+  const reporter = new HtmlSpaReporter(options);
+  return {
+    onEnd(coverageMap: CoverageMap, globalSummary: CoverageSummary): void {
+      reporter.onEnd(coverageMap, globalSummary);
+    },
+  };
+}
+
 export function createNoneReporter(
   _options: ReporterOptions,
 ): CoverageReporter {
@@ -171,6 +184,7 @@ const REPORTER_FACTORIES: Record<string, ReporterFactory> = {
   lcovonly: createLcovOnlyReporter,
   teamcity: createTeamcityReporter,
   html: createHtmlReporter,
+  'html-spa': createHtmlSpaReporter,
   none: createNoneReporter,
 };
 

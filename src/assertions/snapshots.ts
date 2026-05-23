@@ -201,6 +201,7 @@ function printValue(
     const desc = value.description;
     return desc ? `Symbol(${desc})` : 'Symbol()';
   }
+  if (typeof value === 'bigint') return `${value}n`;
   if (typeof value === 'function') {
     const name = value.name || 'anonymous';
     return `[Function ${name}]`;
@@ -218,6 +219,28 @@ function printValue(
       depth,
       refs,
     );
+  }
+
+  // Promise detection
+  if (value instanceof Promise) return 'Promise {}';
+
+  // WeakMap / WeakSet detection
+  if (value instanceof WeakMap) return 'WeakMap {}';
+  if (value instanceof WeakSet) return 'WeakSet {}';
+
+  // TypedArray detection
+  if (ArrayBuffer.isView(value) && !(value instanceof DataView)) {
+    const typedArray = value as unknown as {
+      constructor: { name: string };
+      length: number;
+    };
+    const name = typedArray.constructor.name;
+    const items: string[] = [];
+    for (let i = 0; i < typedArray.length; i++) {
+      items.push(String((value as unknown as Record<number, unknown>)[i]));
+    }
+    if (items.length === 0) return `${name} []`;
+    return `${name} [${items.join(', ')}]`;
   }
 
   // Circular reference detection
@@ -403,8 +426,11 @@ function writeSnapshotFile(
   }
 
   const lines: string[] = [SNAPSHOT_HEADER];
-  for (const [name, value] of snapshots) {
-    lines.push(`exports['${name}'] = \`${escapeForTemplate(value)}\`;`);
+  const sortedKeys = Array.from(snapshots.keys()).sort();
+  for (const name of sortedKeys) {
+    lines.push(
+      `exports['${name}'] = \`${escapeForTemplate(snapshots.get(name)!)}\`;`,
+    );
   }
   fs.writeFileSync(filePath, lines.join('\n\n') + '\n', 'utf-8');
 }

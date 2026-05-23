@@ -8,6 +8,16 @@ import type {
 import type { V8FunctionCoverage } from './v8-provider.js';
 import { loadSourceMap } from './source-map.js';
 import type { SourceMapConsumer } from './source-map.js';
+import { shouldIncludeFile } from './filter.js';
+import type { CoverageConfig } from './config.js';
+
+/**
+ * Issue #98: Filter options for post-remap path checking.
+ */
+export interface ExcludeAfterRemapOptions {
+  include?: string[];
+  exclude?: string[];
+}
 
 export function offsetToLocation(source: string, offset: number): Location {
   let line = 1;
@@ -28,7 +38,8 @@ export function v8ToIstanbul(
   filePath: string,
   sourceContent: string,
   v8Coverage: V8FunctionCoverage[],
-): FileCoverage {
+  filterOptions?: ExcludeAfterRemapOptions,
+): FileCoverage | null {
   const statementMap: Record<string, Range> = {};
   const fnMap: Record<string, FunctionMapping> = {};
   const branchMap: Record<string, BranchMapping> = {};
@@ -117,10 +128,32 @@ export function v8ToIstanbul(
     b,
   };
 
+  // Issue #98: check pre-remap path against include/exclude
+  if (filterOptions) {
+    const filterConfig: CoverageConfig = {
+      include: filterOptions.include,
+      exclude: filterOptions.exclude,
+    };
+    if (!shouldIncludeFile(filePath, filterConfig)) {
+      return null;
+    }
+  }
+
   // Attempt source map remapping
   const consumer = loadSourceMap(filePath);
   if (consumer) {
-    return remapCoverage(coverage, consumer);
+    const remapped = remapCoverage(coverage, consumer);
+    // Issue #98: re-check the remapped path against include/exclude
+    if (filterOptions) {
+      const filterConfig: CoverageConfig = {
+        include: filterOptions.include,
+        exclude: filterOptions.exclude,
+      };
+      if (!shouldIncludeFile(remapped.path, filterConfig)) {
+        return null;
+      }
+    }
+    return remapped;
   }
 
   return coverage;
