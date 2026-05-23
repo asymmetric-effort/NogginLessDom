@@ -39,9 +39,11 @@ export interface SnapshotEnvironment {
  */
 export class NodeSnapshotEnvironment implements SnapshotEnvironment {
   private version: string;
+  private snapshotDir: string;
 
-  constructor(version = '1') {
+  constructor(version = '1', snapshotDir = '__snapshots__') {
     this.version = version;
+    this.snapshotDir = snapshotDir;
   }
 
   getVersion(): string {
@@ -49,7 +51,7 @@ export class NodeSnapshotEnvironment implements SnapshotEnvironment {
   }
 
   getHeader(): string {
-    return `// Snapshot v${this.version}`;
+    return `// Snapshot v${this.version}, https://nogginlessdom.asymmetric-effort.com`;
   }
 
   async readSnapshotFile(filepath: string): Promise<string> {
@@ -67,9 +69,12 @@ export class NodeSnapshotEnvironment implements SnapshotEnvironment {
   }
 
   resolveSnapshotPath(testPath: string): string {
-    const dir = path.dirname(testPath);
     const basename = path.basename(testPath, path.extname(testPath));
-    return path.join(dir, '__snapshots__', `${basename}.snap`);
+    if (path.isAbsolute(this.snapshotDir)) {
+      return path.join(this.snapshotDir, `${basename}.snap`);
+    }
+    const dir = path.dirname(testPath);
+    return path.join(dir, this.snapshotDir, `${basename}.snap`);
   }
 
   async removeSnapshotFile(filepath: string): Promise<void> {

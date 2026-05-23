@@ -165,7 +165,10 @@ describe('SnapshotEnvironment', () => {
   });
 
   it('getHeader returns header comment', () => {
-    assert.strictEqual(env.getHeader(), '// Snapshot v1');
+    assert.strictEqual(
+      env.getHeader(),
+      '// Snapshot v1, https://nogginlessdom.asymmetric-effort.com',
+    );
   });
 
   it('readSnapshotFile returns empty string for missing file', async () => {

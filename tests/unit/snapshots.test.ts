@@ -73,7 +73,7 @@ describe('serialize', () => {
   });
 
   it('should serialize Error', () => {
-    assert.strictEqual(serialize(new Error('oops')), 'Error(oops)');
+    assert.strictEqual(serialize(new Error('oops')), '[Error: oops]');
   });
 
   it('should serialize Map', () => {

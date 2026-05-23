@@ -27,6 +27,12 @@ import { getChangedFiles } from './changed.js';
 import { offsetToLocation } from './v8-to-istanbul.js';
 import { getReporterFactory, type ReporterOptions } from './reporters/index.js';
 import { IstanbulCoverageProvider } from './istanbul-provider.js';
+
+// Re-export IPC integration (Issue #100)
+export {
+  sendCoverageToParent,
+  receiveCoverageFromWorker,
+} from './istanbul-provider.js';
 import * as fs from 'node:fs';
 import * as nodePath from 'node:path';
 

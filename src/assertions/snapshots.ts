@@ -43,6 +43,12 @@ export interface SnapshotSerializer {
   ): string;
 }
 
+/**
+ * Header written at the top of every snapshot file.
+ */
+export const SNAPSHOT_HEADER =
+  '// Snapshot v1, https://nogginlessdom.asymmetric-effort.com';
+
 const serializers: SnapshotSerializer[] = [];
 
 /**
@@ -87,6 +93,82 @@ function resolveConfig(config?: SerializeConfig): Required<SerializeConfig> {
 }
 
 /**
+ * Shape of a DOM-like attribute for HTML element serialization.
+ */
+interface DomLikeAttribute {
+  name: string;
+  value: string;
+}
+
+/**
+ * Shape of a DOM-like element for HTML element serialization.
+ */
+interface DomLikeElement {
+  tagName: string;
+  nodeType: number;
+  attributes?: DomLikeAttribute[];
+  children?: DomLikeChild[];
+}
+
+/**
+ * A child node may be an element or a text node.
+ */
+type DomLikeChild = DomLikeElement | { nodeType: number; textContent?: string };
+
+/**
+ * Check if a value looks like a DOM element (has tagName and nodeType).
+ */
+function isDomLike(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const obj = value as Record<string, unknown>;
+  return (
+    typeof obj['tagName'] === 'string' && typeof obj['nodeType'] === 'number'
+  );
+}
+
+/**
+ * Serialize a DOM-like element to an HTML-like string.
+ */
+function serializeDomElement(
+  el: DomLikeElement,
+  config: Required<SerializeConfig>,
+  indentation: string,
+  depth: number,
+  refs: Set<unknown>,
+): string {
+  const attrs = el.attributes ?? [];
+  const attrStr = attrs.map((a) => `${a.name}="${a.value}"`).join(' ');
+  const tag = attrStr ? `${el.tagName} ${attrStr}` : el.tagName;
+
+  const children = el.children ?? [];
+  if (children.length === 0) {
+    return `<${tag} />`;
+  }
+
+  const indentStr = ' '.repeat(config.indent);
+  const nextIndentation = indentation + indentStr;
+  const childParts = children.map((child) => {
+    if (isDomLike(child)) {
+      return (
+        nextIndentation +
+        serializeDomElement(
+          child as DomLikeElement,
+          config,
+          nextIndentation,
+          depth + 1,
+          refs,
+        )
+      );
+    }
+    // Text node
+    const textNode = child as { nodeType: number; textContent?: string };
+    return nextIndentation + (textNode.textContent ?? '');
+  });
+
+  return `<${tag}>\n${childParts.join('\n')}\n${indentation}</${el.tagName}>`;
+}
+
+/**
  * Internal recursive printer.
  */
 function printValue(
@@ -115,13 +197,28 @@ function printValue(
   if (typeof value === 'string') return `"${value}"`;
   if (typeof value === 'number' || typeof value === 'boolean')
     return String(value);
+  if (typeof value === 'symbol') {
+    const desc = value.description;
+    return desc ? `Symbol(${desc})` : 'Symbol()';
+  }
   if (typeof value === 'function') {
     const name = value.name || 'anonymous';
     return `[Function ${name}]`;
   }
   if (value instanceof RegExp) return String(value);
   if (value instanceof Date) return `Date(${value.toISOString()})`;
-  if (value instanceof Error) return `Error(${value.message})`;
+  if (value instanceof Error) return `[Error: ${value.message}]`;
+
+  // DOM-like element detection (#135)
+  if (isDomLike(value)) {
+    return serializeDomElement(
+      value as DomLikeElement,
+      config,
+      indentation,
+      depth,
+      refs,
+    );
+  }
 
   // Circular reference detection
   if (refs.has(value)) return '[Circular]';
@@ -236,6 +333,33 @@ export function serialize(value: unknown, config?: SerializeConfig): string {
 }
 
 /**
+ * Generate a unified-style diff between two strings with +/- markers.
+ */
+function generateDiff(expected: string, received: string): string {
+  const expectedLines = expected.split('\n');
+  const receivedLines = received.split('\n');
+  const lines: string[] = [];
+  const maxLen = Math.max(expectedLines.length, receivedLines.length);
+
+  for (let i = 0; i < maxLen; i++) {
+    const expLine = i < expectedLines.length ? expectedLines[i]! : undefined;
+    const recLine = i < receivedLines.length ? receivedLines[i]! : undefined;
+
+    if (expLine === recLine) {
+      lines.push(`  ${expLine}`);
+    } else {
+      if (expLine !== undefined) {
+        lines.push(`- ${expLine}`);
+      }
+      if (recLine !== undefined) {
+        lines.push(`+ ${recLine}`);
+      }
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
  * Escape backticks and backslashes for snapshot file template literals.
  */
 function escapeForTemplate(str: string): string {
@@ -278,7 +402,7 @@ function writeSnapshotFile(
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  const lines: string[] = [];
+  const lines: string[] = [SNAPSHOT_HEADER];
   for (const [name, value] of snapshots) {
     lines.push(`exports['${name}'] = \`${escapeForTemplate(value)}\`;`);
   }
@@ -377,22 +501,96 @@ export function resetSnapshotCounter(): void {
 
 /**
  * Get the next auto-generated snapshot name for the current test.
+ * When a hint is provided, the key format is "test name: hint N".
  */
-function nextSnapshotName(): string {
+function nextSnapshotName(hint?: string): string {
   snapshotCounter++;
+  if (hint) {
+    return `${currentTestName}: ${hint} ${snapshotCounter}`;
+  }
   return `${currentTestName} ${snapshotCounter}`;
+}
+
+/** Interface for asymmetric matchers used in property matching. */
+interface AsymmetricMatcher {
+  asymmetricMatch(actual: unknown): boolean;
+}
+
+function isAsymmetricMatcher(val: unknown): val is AsymmetricMatcher {
+  return (
+    val !== null &&
+    typeof val === 'object' &&
+    'asymmetricMatch' in val &&
+    typeof (val as AsymmetricMatcher).asymmetricMatch === 'function'
+  );
+}
+
+/**
+ * Validate property matchers against actual values and return a copy of
+ * the actual object with matched properties replaced by placeholder values
+ * so the snapshot is stable across runs.
+ */
+function applyPropertyMatchers(
+  actual: unknown,
+  matchers: Record<string, unknown>,
+): unknown {
+  if (actual === null || typeof actual !== 'object') {
+    throw new Error('Property matchers can only be used with object values');
+  }
+  const obj = actual as Record<string, unknown>;
+  const result: Record<string, unknown> = { ...obj };
+
+  for (const key of Object.keys(matchers)) {
+    const matcher = matchers[key];
+    if (isAsymmetricMatcher(matcher)) {
+      if (!matcher.asymmetricMatch(obj[key])) {
+        throw new Error(
+          `Property matcher failed for key "${key}": value ${JSON.stringify(obj[key])} did not match`,
+        );
+      }
+      // Replace matched property with a type-descriptive placeholder
+      result[key] = '[Any]';
+    } else if (
+      matcher !== null &&
+      typeof matcher === 'object' &&
+      !Array.isArray(matcher)
+    ) {
+      // Nested property matchers
+      result[key] = applyPropertyMatchers(
+        obj[key],
+        matcher as Record<string, unknown>,
+      );
+    }
+  }
+  return result;
 }
 
 /**
  * Match a value against a stored snapshot.
  * Creates the snapshot on first run, compares on subsequent runs.
  * When no snapshotName is provided, uses auto-incrementing test name.
+ *
+ * @param actual - The value to snapshot
+ * @param snapshotName - Optional explicit snapshot key name
+ * @param hint - Optional hint that appears in the auto-generated key
+ * @param propertyMatchers - Optional asymmetric matchers to apply before snapshotting
  */
-export function matchSnapshot(actual: unknown, snapshotName?: string): void {
-  const name = snapshotName ?? nextSnapshotName();
+export function matchSnapshot(
+  actual: unknown,
+  snapshotName?: string,
+  hint?: string,
+  propertyMatchers?: Record<string, unknown>,
+): void {
+  const name = snapshotName ?? nextSnapshotName(hint);
   const snapshotFile = getSnapshotFilePath();
   const snapshots = readSnapshotFile(snapshotFile);
-  const serialized = serialize(actual);
+
+  let valueToSerialize = actual;
+  if (propertyMatchers) {
+    valueToSerialize = applyPropertyMatchers(actual, propertyMatchers);
+  }
+
+  const serialized = serialize(valueToSerialize);
   const mode = resolveUpdateMode();
 
   const exists = snapshots.has(name);
@@ -419,11 +617,8 @@ export function matchSnapshot(actual: unknown, snapshotName?: string): void {
   }
 
   // mode === 'new' or 'none': fail on mismatch for existing snapshots
-  throw new Error(
-    `Snapshot mismatch for "${name}":\n` +
-      `Expected:\n${stored}\n` +
-      `Received:\n${serialized}`,
-  );
+  const diff = generateDiff(stored, serialized);
+  throw new Error(`Snapshot mismatch for "${name}":\n\n${diff}`);
 }
 
 /**

@@ -155,7 +155,11 @@ interface Matchers<T> {
   toHaveReturnedTimes(n: number): void;
   toHaveReturnedWith(value: unknown): void;
   toHaveLastReturnedWith(value: unknown): void;
-  toMatchSnapshot(snapshotName?: string): void;
+  toMatchSnapshot(
+    snapshotName?: string,
+    hint?: string,
+    propertyMatchers?: Record<string, unknown>,
+  ): void;
   toMatchInlineSnapshot(inlineSnapshot?: string): void;
   toMatchFileSnapshot(filePath: string): void;
   toBeTypeOf(type: string): void;
@@ -1007,9 +1011,13 @@ export function expect<T>(actual: T): Matchers<T> {
       }
     },
 
-    toMatchSnapshot(snapshotName?: string): void {
+    toMatchSnapshot(
+      snapshotName?: string,
+      hint?: string,
+      propertyMatchers?: Record<string, unknown>,
+    ): void {
       trackAssertion();
-      matchSnapshot(actual, snapshotName);
+      matchSnapshot(actual, snapshotName, hint, propertyMatchers);
     },
 
     toMatchInlineSnapshot(inlineSnapshot?: string): void {

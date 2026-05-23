@@ -4,7 +4,7 @@
  * @module snapshot-client
  */
 
-import { serialize } from './snapshots.js';
+import { serialize, SNAPSHOT_HEADER } from './snapshots.js';
 import type { SnapshotEnvironment } from './snapshot-environment.js';
 
 /**
@@ -31,6 +31,8 @@ export class SnapshotClient {
   private matched: number = 0;
   private environment: SnapshotEnvironment;
   private snapshotFilePath: string = '';
+  private assertedKeys: Set<string> = new Set();
+  private loadedKeys: Set<string> = new Set();
 
   constructor(environment: SnapshotEnvironment) {
     this.environment = environment;
@@ -61,6 +63,7 @@ export class SnapshotClient {
       const value = match[2];
       if (name !== undefined && value !== undefined) {
         this.snapshots.set(name, unescapeFromTemplate(value));
+        this.loadedKeys.add(name);
       }
       match = regex.exec(content);
     }
@@ -75,6 +78,7 @@ export class SnapshotClient {
     this.snapshotCount++;
     const key =
       snapshotName ?? `${this.testName} ${String(this.snapshotCount)}`;
+    this.assertedKeys.add(key);
     const serialized = serialize(received);
     const shouldUpdate = process.env['UPDATE_SNAPSHOTS'] === '1';
 
@@ -127,7 +131,7 @@ export class SnapshotClient {
     if (!this.snapshotFilePath) return;
     if (this.snapshots.size === 0) return;
 
-    const lines: string[] = [];
+    const lines: string[] = [SNAPSHOT_HEADER];
     for (const [name, value] of this.snapshots) {
       lines.push(`exports['${name}'] = \`${escapeForTemplate(value)}\`;`);
     }
@@ -163,6 +167,33 @@ export class SnapshotClient {
     this.added = 0;
     this.updated = 0;
     this.matched = 0;
+  }
+
+  /**
+   * Get snapshot keys that were loaded from the file but never asserted
+   * in the current test run. These are "obsolete" snapshots.
+   */
+  getObsoleteKeys(): string[] {
+    const obsolete: string[] = [];
+    for (const key of this.loadedKeys) {
+      if (!this.assertedKeys.has(key)) {
+        obsolete.push(key);
+      }
+    }
+    return obsolete;
+  }
+
+  /**
+   * Remove obsolete snapshots (loaded but never asserted) from the
+   * internal map. Returns the number of keys removed.
+   */
+  removeObsoleteSnapshots(): number {
+    const obsolete = this.getObsoleteKeys();
+    for (const key of obsolete) {
+      this.snapshots.delete(key);
+      this.loadedKeys.delete(key);
+    }
+    return obsolete.length;
   }
 }
 

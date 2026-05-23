@@ -105,3 +105,19 @@ export class SnapshotManager {
     };
   }
 }
+
+/**
+ * Print a human-readable snapshot summary line.
+ * Format: "Snapshots: X passed, Y added, Z updated, W removed, V obsolete"
+ */
+export function printSnapshotSummary(summary: SnapshotManagerSummary): void {
+  const parts = [
+    `${summary.passed} passed`,
+    `${summary.added} added`,
+    `${summary.updated} updated`,
+    `${summary.removed} removed`,
+    `${summary.unchecked} obsolete`,
+  ];
+  // eslint-disable-next-line no-console
+  console.log(`Snapshots: ${parts.join(', ')}`);
+}

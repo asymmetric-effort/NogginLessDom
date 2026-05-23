@@ -11,6 +11,12 @@ import type {
   FunctionMapping,
   BranchMapping,
 } from './coverage-map.js';
+import {
+  CoverageMap,
+  serializeCoverageMap,
+  deserializeCoverageMap,
+} from './coverage-map.js';
+import type { RawSourceMap } from './source-map.js';
 
 // ---------------------------------------------------------------------------
 // Types for the V8-compatible output
@@ -35,12 +41,30 @@ interface V8ScriptCoverage {
 }
 
 // ---------------------------------------------------------------------------
+// Instrumenter options (Issue #108)
+// ---------------------------------------------------------------------------
+
+/**
+ * Options for the instrumentSource function.
+ */
+export interface InstrumentOptions {
+  /** Treat the source as an ES module (default: false). */
+  esModules?: boolean;
+  /** Produce compact output (default: false). */
+  compact?: boolean;
+  /** Preserve comments in the output (default: true). */
+  preserveComments?: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Source instrumentation
 // ---------------------------------------------------------------------------
 
 interface InstrumentResult {
   code: string;
   coverageData: FileCoverage;
+  /** Source map mapping instrumented code back to original (Issue #107). */
+  sourceMap: RawSourceMap;
 }
 
 /**
@@ -50,11 +74,21 @@ interface InstrumentResult {
  * - statements (non-empty lines)
  * - function declarations and arrow functions
  * - if/else branches
+ * - switch/case branches (Issue #106)
+ * - ternary expressions (Issue #106)
+ * - logical operators &&, ||, ?? (Issue #106)
  */
 export function instrumentSource(
   source: string,
   filePath: string,
+  options?: InstrumentOptions,
 ): InstrumentResult {
+  const opts: Required<InstrumentOptions> = {
+    esModules: options?.esModules ?? false,
+    compact: options?.compact ?? false,
+    preserveComments: options?.preserveComments ?? true,
+  };
+
   if (source.length === 0) {
     return {
       code: '',
@@ -66,6 +100,12 @@ export function instrumentSource(
         s: {},
         f: {},
         b: {},
+      },
+      sourceMap: {
+        version: 3,
+        sources: [filePath],
+        mappings: '',
+        names: [],
       },
     };
   }
@@ -83,10 +123,24 @@ export function instrumentSource(
   let branchIdx = 0;
 
   const outputLines: string[] = [];
+  /** Maps each output line index to the original source line index (0-based). */
+  const outputToSourceLine: number[] = [];
 
-  // First pass: identify functions and branches so we can insert counters
+  /** Tracks case/default lines inside switch statements for counter insertion. */
+  const localCaseCounterMap = new Map<
+    number,
+    { bKey: string; caseIdx: number }
+  >();
+
+  // First pass: identify functions, branches, switch, ternary, logical
   const functionLines = new Set<number>();
   const branchLines = new Map<number, { hasElse: boolean; elseLine: number }>();
+  const switchLines = new Map<
+    number,
+    { cases: { line: number; label: string }[] }
+  >();
+  const ternaryLines = new Set<number>();
+  const logicalLines = new Map<number, { operator: string; column: number }>();
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]!;
@@ -141,11 +195,22 @@ export function instrumentSource(
 
     // Detect if statements
     if (/^if\s*\(/.test(trimmed)) {
-      // Look ahead for else
+      // Look ahead for else, tracking brace depth
       let hasElse = false;
       let elseLine = -1;
+      let braceDepth = 0;
+      // Count braces on the if line itself
+      for (const ch of trimmed) {
+        if (ch === '{') braceDepth++;
+        if (ch === '}') braceDepth--;
+      }
       for (let j = i + 1; j < lines.length; j++) {
         const nextTrimmed = lines[j]!.trim();
+        // Track brace depth
+        for (const ch of nextTrimmed) {
+          if (ch === '{') braceDepth++;
+          if (ch === '}') braceDepth--;
+        }
         if (
           /^}\s*else\s*\{/.test(nextTrimmed) ||
           /^else\s*\{/.test(nextTrimmed)
@@ -154,17 +219,66 @@ export function instrumentSource(
           elseLine = j;
           break;
         }
-        // Stop searching if we encounter another statement-level construct
-        if (
-          /^if\s*\(/.test(nextTrimmed) ||
-          /^(const|let|var|function|class|return|export|import)\s/.test(
-            nextTrimmed,
-          )
-        ) {
+        // Stop searching if braces are balanced (end of if block without else)
+        if (braceDepth <= 0) {
           break;
         }
       }
       branchLines.set(i, { hasElse, elseLine });
+    }
+
+    // Issue #106: Detect switch/case
+    if (/^switch\s*\(/.test(trimmed)) {
+      const cases: { line: number; label: string }[] = [];
+      for (let j = i + 1; j < lines.length; j++) {
+        const caseTrimmed = lines[j]!.trim();
+        const caseMatch = /^case\s+(.+?):/.exec(caseTrimmed);
+        if (caseMatch) {
+          cases.push({ line: j, label: `case ${caseMatch[1]}` });
+        } else if (/^default\s*:/.test(caseTrimmed)) {
+          cases.push({ line: j, label: 'default' });
+        }
+        // Stop at closing brace of switch (same indentation level)
+        if (caseTrimmed === '}' && j > i + 1) {
+          break;
+        }
+      }
+      if (cases.length > 0) {
+        switchLines.set(i, { cases });
+      }
+    }
+
+    // Issue #106: Detect ternary operator (? :)
+    // Match lines containing ternary but not part of type annotations
+    if (
+      /\?\s*[^?:]+\s*:\s*/.test(trimmed) &&
+      !trimmed.startsWith('//') &&
+      !trimmed.startsWith('*') &&
+      !/^\s*(case|default)/.test(trimmed) &&
+      // Exclude optional chaining (?.)
+      !/\?\.\s*/.test(trimmed.replace(/\?[^.]/g, '?X'))
+    ) {
+      // Make sure it contains both ? and : in a ternary pattern
+      const qIdx = trimmed.indexOf('?');
+      const cIdx = trimmed.indexOf(':', qIdx + 1);
+      if (qIdx >= 0 && cIdx > qIdx) {
+        ternaryLines.add(i);
+      }
+    }
+
+    // Issue #106: Detect logical operators (&&, ||, ??)
+    if (
+      /&&|(?<!\|)\|\|(?!\|)|\?\?/.test(trimmed) &&
+      !trimmed.startsWith('//')
+    ) {
+      const andMatch = /&&/.exec(trimmed);
+      const orMatch = /(?<!\|)\|\|(?!\|)/.exec(trimmed);
+      const nullishMatch = /\?\?/.exec(trimmed);
+      const match = andMatch ?? orMatch ?? nullishMatch;
+      if (match) {
+        const operator = match[0];
+        logicalLines.set(i, { operator, column: match.index });
+      }
     }
   }
 
@@ -177,20 +291,33 @@ export function instrumentSource(
     const trimmed = line.trim();
     const lineNum = i + 1; // 1-based line numbers
 
-    // Skip empty lines and pure comment lines
+    // Issue #108: Strip comments when preserveComments is false
+    if (!opts.preserveComments) {
+      if (
+        trimmed.startsWith('//') ||
+        trimmed.startsWith('/*') ||
+        trimmed.startsWith('*')
+      ) {
+        continue;
+      }
+    }
+
+    // Skip empty lines and pure comment lines (for statement counting)
     if (
       trimmed === '' ||
       trimmed.startsWith('//') ||
       trimmed.startsWith('/*') ||
       trimmed.startsWith('*')
     ) {
-      outputLines.push(line);
+      outputLines.push(opts.compact ? '' : line);
+      outputToSourceLine.push(i);
       continue;
     }
 
     // Skip lines that are just closing braces
     if (trimmed === '}' || trimmed === '};' || trimmed === '},') {
       outputLines.push(line);
+      outputToSourceLine.push(i);
       continue;
     }
 
@@ -221,10 +348,13 @@ export function instrumentSource(
       stmtIdx++;
 
       outputLines.push(line);
-      outputLines.push(
-        `globalThis.__coverage__['${escapedPath}'].f['${fnKey}']++;` +
-          ` globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
-      );
+      outputToSourceLine.push(i);
+      const counterLine = opts.compact
+        ? `globalThis.__coverage__['${escapedPath}'].f['${fnKey}']++;globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`
+        : `globalThis.__coverage__['${escapedPath}'].f['${fnKey}']++;` +
+          ` globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`;
+      outputLines.push(counterLine);
+      outputToSourceLine.push(i);
       continue;
     }
 
@@ -268,10 +398,12 @@ export function instrumentSource(
       stmtIdx++;
 
       outputLines.push(line);
+      outputToSourceLine.push(i);
       outputLines.push(
         `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;` +
           ` globalThis.__coverage__['${escapedPath}'].b['${bKey}'][0]++;`,
       );
+      outputToSourceLine.push(i);
       continue;
     }
 
@@ -295,13 +427,156 @@ export function instrumentSource(
         }
         isElseLine = true;
         outputLines.push(line);
+        outputToSourceLine.push(i);
         outputLines.push(
           `globalThis.__coverage__['${escapedPath}'].b['${elseKey}'][1]++;`,
         );
+        outputToSourceLine.push(i);
         break;
       }
     }
     if (isElseLine) continue;
+
+    // Issue #106: Switch statement — insert branch tracking
+    if (switchLines.has(i)) {
+      const switchInfo = switchLines.get(i)!;
+      const bKey = String(branchIdx);
+      const col = line.length - line.trimStart().length;
+
+      const locations: Range[] = [];
+      const counts: number[] = [];
+      for (const caseInfo of switchInfo.cases) {
+        const caseLine = caseInfo.line + 1; // 1-based
+        locations.push({
+          start: { line: caseLine, column: 0 },
+          end: { line: caseLine, column: (lines[caseInfo.line] ?? '').length },
+        });
+        counts.push(0);
+      }
+
+      branchMap[bKey] = { type: 'switch', locations, line: lineNum };
+      b[bKey] = counts;
+      branchIdx++;
+
+      // Statement for the switch line — counter goes BEFORE switch
+      const stmtKey = String(stmtIdx);
+      statementMap[stmtKey] = {
+        start: { line: lineNum, column: col },
+        end: { line: lineNum, column: line.length },
+      };
+      s[stmtKey] = 0;
+      stmtIdx++;
+
+      outputLines.push(
+        `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
+      );
+      outputToSourceLine.push(i);
+      outputLines.push(line);
+      outputToSourceLine.push(i);
+
+      // Insert counters after each case/default line
+      const switchBKey = bKey;
+      for (let ci = 0; ci < switchInfo.cases.length; ci++) {
+        const caseInfo = switchInfo.cases[ci]!;
+        // We'll handle case lines when we encounter them
+        // Store the mapping for the second pass
+        localCaseCounterMap.set(caseInfo.line, {
+          bKey: switchBKey,
+          caseIdx: ci,
+        });
+      }
+      continue;
+    }
+
+    // Check if this is a case/default line inside a switch
+    if (localCaseCounterMap.has(i)) {
+      const caseCounter = localCaseCounterMap.get(i)!;
+      outputLines.push(line);
+      outputToSourceLine.push(i);
+      outputLines.push(
+        `globalThis.__coverage__['${escapedPath}'].b['${caseCounter.bKey}'][${caseCounter.caseIdx}]++;`,
+      );
+      outputToSourceLine.push(i);
+      continue;
+    }
+
+    // Issue #106: Ternary detection — add branch counter
+    if (ternaryLines.has(i) && !logicalLines.has(i)) {
+      const bKey = String(branchIdx);
+      const col = line.length - line.trimStart().length;
+
+      branchMap[bKey] = {
+        type: 'cond-expr',
+        locations: [
+          {
+            start: { line: lineNum, column: col },
+            end: { line: lineNum, column: line.length },
+          },
+          {
+            start: { line: lineNum, column: col },
+            end: { line: lineNum, column: line.length },
+          },
+        ],
+        line: lineNum,
+      };
+      b[bKey] = [0, 0];
+      branchIdx++;
+
+      const stmtKey = String(stmtIdx);
+      statementMap[stmtKey] = {
+        start: { line: lineNum, column: col },
+        end: { line: lineNum, column: line.length },
+      };
+      s[stmtKey] = 0;
+      stmtIdx++;
+
+      outputLines.push(
+        `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
+      );
+      outputToSourceLine.push(i);
+      outputLines.push(line);
+      outputToSourceLine.push(i);
+      continue;
+    }
+
+    // Issue #106: Logical operator detection — add branch counter
+    if (logicalLines.has(i)) {
+      const bKey = String(branchIdx);
+      const col = line.length - line.trimStart().length;
+
+      branchMap[bKey] = {
+        type: 'binary-expr',
+        locations: [
+          {
+            start: { line: lineNum, column: col },
+            end: { line: lineNum, column: line.length },
+          },
+          {
+            start: { line: lineNum, column: col },
+            end: { line: lineNum, column: line.length },
+          },
+        ],
+        line: lineNum,
+      };
+      b[bKey] = [0, 0];
+      branchIdx++;
+
+      const stmtKey = String(stmtIdx);
+      statementMap[stmtKey] = {
+        start: { line: lineNum, column: col },
+        end: { line: lineNum, column: line.length },
+      };
+      s[stmtKey] = 0;
+      stmtIdx++;
+
+      outputLines.push(
+        `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
+      );
+      outputToSourceLine.push(i);
+      outputLines.push(line);
+      outputToSourceLine.push(i);
+      continue;
+    }
 
     // Regular statement
     const stmtKey = String(stmtIdx);
@@ -316,7 +591,9 @@ export function instrumentSource(
     outputLines.push(
       `globalThis.__coverage__['${escapedPath}'].s['${stmtKey}']++;`,
     );
+    outputToSourceLine.push(i);
     outputLines.push(line);
+    outputToSourceLine.push(i);
   }
 
   const coverageData: FileCoverage = {
@@ -329,9 +606,18 @@ export function instrumentSource(
     b,
   };
 
+  // Issue #107: Produce a source map
+  const sourceMap = generateSourceMap(filePath, outputToSourceLine);
+
+  // Issue #108: Compact output — remove empty lines
+  const finalCode = opts.compact
+    ? outputLines.filter((l) => l.length > 0).join('\n')
+    : outputLines.join('\n');
+
   return {
-    code: outputLines.join('\n'),
+    code: finalCode,
     coverageData,
+    sourceMap,
   };
 }
 
@@ -380,6 +666,91 @@ function extractFunctionName(line: string): string {
 }
 
 // ---------------------------------------------------------------------------
+// Source Map Generation (Issue #107)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a source map mapping instrumented output lines back to original
+ * source lines.
+ */
+function generateSourceMap(
+  filePath: string,
+  outputToSourceLine: number[],
+): RawSourceMap {
+  // Build VLQ-encoded mappings
+  // Each output line maps to the original source line
+  const mappingSegments: string[] = [];
+  let prevSourceLine = 0;
+
+  for (let i = 0; i < outputToSourceLine.length; i++) {
+    const sourceLine = outputToSourceLine[i]!;
+    // Each segment: [generatedColumn, sourceIndex, sourceLine, sourceColumn]
+    // All relative to previous values
+    const genCol = 0; // always column 0
+    const srcIdx = 0; // always source index 0
+    const srcLine = sourceLine - prevSourceLine;
+    const srcCol = 0;
+    prevSourceLine = sourceLine;
+
+    mappingSegments.push(encodeVLQ([genCol, srcIdx, srcLine, srcCol]));
+  }
+
+  return {
+    version: 3,
+    sources: [filePath],
+    mappings: mappingSegments.join(';'),
+    names: [],
+  };
+}
+
+/**
+ * Encode an array of integers into a VLQ string.
+ */
+function encodeVLQ(values: number[]): string {
+  const BASE64_CHARS =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  for (const value of values) {
+    let v = value < 0 ? (-value << 1) | 1 : value << 1;
+    do {
+      let digit = v & 0x1f;
+      v >>>= 5;
+      if (v > 0) {
+        digit |= 0x20; // continuation bit
+      }
+      result += BASE64_CHARS[digit];
+    } while (v > 0);
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Issue #101: Accurate locationToOffset using source scanning
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert a line/column Location to a byte offset using actual source content.
+ * Falls back to a heuristic if source is not available.
+ */
+function locationToOffset(
+  loc: { line: number; column: number },
+  source?: string,
+): number {
+  if (source === undefined) {
+    // Fallback heuristic when source is not available
+    return (loc.line - 1) * 80 + loc.column;
+  }
+
+  const lines = source.split('\n');
+  let offset = 0;
+  for (let i = 0; i < loc.line - 1 && i < lines.length; i++) {
+    offset += lines[i]!.length + 1; // +1 for the newline character
+  }
+  offset += loc.column;
+  return offset;
+}
+
+// ---------------------------------------------------------------------------
 // Istanbul Coverage Provider
 // ---------------------------------------------------------------------------
 
@@ -423,6 +794,7 @@ export class IstanbulCoverageProvider {
 
 /**
  * Convert Istanbul FileCoverage records to V8ScriptCoverage format.
+ * Issue #101: Uses actual source scanning for accurate offsets.
  */
 function convertToV8Format(
   coverageObj: Record<string, FileCoverage>,
@@ -433,6 +805,18 @@ function convertToV8Format(
   for (const [filePath, fc] of Object.entries(coverageObj)) {
     const functions: V8FunctionCoverage[] = [];
 
+    // Try to read source for accurate offset computation
+    let source: string | undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const nodeFs = require('node:fs') as {
+        readFileSync(p: string, e: string): string;
+      };
+      source = nodeFs.readFileSync(filePath, 'utf-8');
+    } catch {
+      // Source not available — use heuristic fallback
+    }
+
     // Convert function mappings to V8 function coverage
     for (const fnKey of Object.keys(fc.fnMap)) {
       const fnMapping = fc.fnMap[fnKey];
@@ -442,8 +826,8 @@ function convertToV8Format(
           functionName: fnMapping.name,
           ranges: [
             {
-              startOffset: locationToOffset(fnMapping.loc.start),
-              endOffset: locationToOffset(fnMapping.loc.end),
+              startOffset: locationToOffset(fnMapping.loc.start, source),
+              endOffset: locationToOffset(fnMapping.loc.end, source),
               count,
             },
           ],
@@ -459,8 +843,8 @@ function convertToV8Format(
       const count = fc.s[sKey] ?? 0;
       if (range) {
         stmtRanges.push({
-          startOffset: locationToOffset(range.start),
-          endOffset: locationToOffset(range.end),
+          startOffset: locationToOffset(range.start, source),
+          endOffset: locationToOffset(range.end, source),
           count,
         });
       }
@@ -483,8 +867,8 @@ function convertToV8Format(
         for (let i = 0; i < branchMapping.locations.length; i++) {
           const loc = branchMapping.locations[i]!;
           branchRanges.push({
-            startOffset: locationToOffset(loc.start),
-            endOffset: locationToOffset(loc.end),
+            startOffset: locationToOffset(loc.start, source),
+            endOffset: locationToOffset(loc.end, source),
             count: counts[i] ?? 0,
           });
         }
@@ -507,10 +891,56 @@ function convertToV8Format(
   return scripts;
 }
 
+// ---------------------------------------------------------------------------
+// Issue #100: Multi-process coverage IPC integration
+// ---------------------------------------------------------------------------
+
 /**
- * Simple heuristic to convert a line/column Location to a byte offset.
- * Uses a rough approximation: line * 80 + column.
+ * Coverage IPC message type.
  */
-function locationToOffset(loc: { line: number; column: number }): number {
-  return (loc.line - 1) * 80 + loc.column;
+interface CoverageIPCMessage {
+  type: 'coverage';
+  coverage: string;
+}
+
+/**
+ * Send coverage data to the parent process via process.send().
+ * No-op if process.send is not available (i.e., not in a worker).
+ */
+export function sendCoverageToParent(coverageMap: CoverageMap): void {
+  if (typeof process.send !== 'function') {
+    return;
+  }
+  const serialized = serializeCoverageMap(coverageMap);
+  const message: CoverageIPCMessage = {
+    type: 'coverage',
+    coverage: serialized,
+  };
+  process.send(message);
+}
+
+/**
+ * Set up a handler to receive coverage data from a worker process.
+ * Returns the handler function for direct invocation (useful for testing).
+ *
+ * @param onCoverage - Callback invoked with each received FileCoverage.
+ * @returns The message handler function.
+ */
+export function receiveCoverageFromWorker(
+  onCoverage: (fc: FileCoverage) => void,
+): (message: Record<string, unknown>) => void {
+  const handler = (message: Record<string, unknown>): void => {
+    if (message['type'] !== 'coverage') {
+      return;
+    }
+    const coverageStr = message['coverage'];
+    if (typeof coverageStr !== 'string') {
+      return;
+    }
+    const map = deserializeCoverageMap(coverageStr);
+    for (const filePath of map.files()) {
+      onCoverage(map.fileCoverageFor(filePath));
+    }
+  };
+  return handler;
 }
