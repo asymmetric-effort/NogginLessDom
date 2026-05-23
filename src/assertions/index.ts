@@ -324,25 +324,61 @@ function createAsyncMatchers<T>(
       if (typeof val === 'function') {
         const fn = val as () => void;
         if (negated) {
-          assert.doesNotThrow(fn);
+          if (typeof expected === 'string') {
+            try {
+              fn();
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              assert.ok(
+                !msg.includes(expected as string),
+                `Expected error message not to contain "${expected as string}" but got "${msg}"`,
+              );
+            }
+          } else {
+            assert.doesNotThrow(fn);
+          }
         } else if (expected) {
-          if (typeof expected === 'string')
-            assert.throws(fn, { message: expected });
-          else if (expected instanceof RegExp) assert.throws(fn, expected);
-          else assert.throws(fn, { message: (expected as Error).message });
+          if (typeof expected === 'string') {
+            try {
+              fn();
+              assert.fail('Expected function to throw');
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              assert.ok(
+                msg.includes(expected as string),
+                `Expected error message to contain "${expected as string}" but got "${msg}"`,
+              );
+            }
+          } else if (expected instanceof RegExp) {
+            assert.throws(fn, expected);
+          } else {
+            assert.throws(fn, { message: (expected as Error).message });
+          }
         } else {
           assert.throws(fn);
         }
       } else {
         // val is the rejected value; check it like an error
         if (negated) {
-          assert.ok(
-            !(val instanceof Error),
-            `Expected value not to be an Error`,
-          );
+          if (typeof expected === 'string') {
+            const msg = val instanceof Error ? val.message : String(val);
+            assert.ok(
+              !msg.includes(expected as string),
+              `Expected error message not to contain "${expected as string}" but got "${msg}"`,
+            );
+          } else {
+            assert.ok(
+              !(val instanceof Error),
+              `Expected value not to be an Error`,
+            );
+          }
         } else if (expected) {
           if (typeof expected === 'string') {
-            assert.ok(val instanceof Error && val.message === expected);
+            const msg = val instanceof Error ? val.message : String(val);
+            assert.ok(
+              msg.includes(expected as string),
+              `Expected error message to contain "${expected as string}" but got "${msg}"`,
+            );
           } else if (expected instanceof RegExp) {
             assert.ok(val instanceof Error && expected.test(val.message));
           } else {
@@ -670,10 +706,31 @@ export function expect<T>(actual: T): Matchers<T> {
       trackAssertion();
       const fn = actual as unknown as () => void;
       if (negated) {
-        assert.doesNotThrow(fn);
+        if (typeof expected === 'string') {
+          try {
+            fn();
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            assert.ok(
+              !msg.includes(expected),
+              `Expected error message not to contain "${expected}" but got "${msg}"`,
+            );
+          }
+        } else {
+          assert.doesNotThrow(fn);
+        }
       } else if (expected) {
         if (typeof expected === 'string') {
-          assert.throws(fn, { message: expected });
+          try {
+            fn();
+            assert.fail('Expected function to throw');
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            assert.ok(
+              msg.includes(expected),
+              `Expected error message to contain "${expected}" but got "${msg}"`,
+            );
+          }
         } else if (expected instanceof RegExp) {
           assert.throws(fn, expected);
         } else {
