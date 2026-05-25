@@ -36,7 +36,11 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of testRunnerExports) {
     it(`exports "${name}" as a function`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a function`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a function`,
+      );
     });
   }
 
@@ -61,7 +65,11 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of domConstructors) {
     it(`exports "${name}" as a constructor`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a constructor`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a constructor`,
+      );
     });
   }
 
@@ -78,7 +86,11 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of htmlElements) {
     it(`exports "${name}" as a constructor`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a constructor`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a constructor`,
+      );
     });
   }
 
@@ -92,7 +104,11 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of collections) {
     it(`exports "${name}" as a constructor`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a constructor`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a constructor`,
+      );
     });
   }
 
@@ -106,14 +122,18 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of mockingFunctions) {
     it(`exports "${name}" as a function`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a function`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a function`,
+      );
     });
   }
 
   it('exports "mock" as a function or object', () => {
     assert.ok(
       typeof mod.mock === 'function' || typeof mod.mock === 'object',
-      'mock should be a function or object'
+      'mock should be a function or object',
     );
     assert.notEqual(mod.mock, null, 'mock should not be null');
   });
@@ -134,7 +154,11 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of coverageFunctions) {
     it(`exports "${name}" as a function`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a function`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a function`,
+      );
     });
   }
 
@@ -143,11 +167,20 @@ describe('dist: public exports exist and have correct types', () => {
     assert.equal(typeof mod.createWindow, 'function');
   });
 
-  const windowConstructors = ['Window', 'Storage', 'Location', 'History'] as const;
+  const windowConstructors = [
+    'Window',
+    'Storage',
+    'Location',
+    'History',
+  ] as const;
 
   for (const name of windowConstructors) {
     it(`exports "${name}" as a constructor`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a constructor`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a constructor`,
+      );
     });
   }
 
@@ -166,7 +199,11 @@ describe('dist: public exports exist and have correct types', () => {
 
   for (const name of webApiConstructors) {
     it(`exports "${name}" as a constructor`, () => {
-      assert.equal(typeof mod[name], 'function', `${name} should be a constructor`);
+      assert.equal(
+        typeof mod[name],
+        'function',
+        `${name} should be a constructor`,
+      );
     });
   }
 
