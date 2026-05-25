@@ -434,25 +434,25 @@ onTestFinished(({ name, passed }) => {
 
 ## Mapping to node:test
 
-| NogginLessDom       | node:test        | Notes                                     |
-| ------------------- | ---------------- | ----------------------------------------- |
-| `describe`          | `describe`       | Direct delegation                         |
-| `describe.skip`     | `describe`       | With `{ skip: true }` option              |
-| `describe.only`     | `describe`       | With `{ only: true }` option              |
-| `describe.todo`     | `describe`       | With `{ todo: true }` option              |
-| `describe.concurrent` | `describe`     | With `{ concurrency: true }` option       |
-| `it`                | `it`             | Options object mapped                     |
-| `test`              | `it`             | Alias for `it`                            |
-| `it.skip`           | `it`             | With `{ skip: true }` option              |
-| `it.only`           | `it`             | With `{ only: true }` option              |
-| `it.todo`           | `it`             | With `{ todo: true }` option              |
-| `it.concurrent`     | `it`             | With `{ concurrency: true }` option       |
-| `it.fails`          | `it`             | Wrapped to invert pass/fail               |
-| `it.retry`          | `it`             | Wrapped with retry loop                   |
-| `beforeEach`        | `beforeEach`     | Direct delegation                         |
-| `afterEach`         | `afterEach`      | Direct delegation                         |
-| `beforeAll`         | `before`         | Conventional naming                       |
-| `afterAll`          | `after`          | Conventional naming                       |
+| NogginLessDom          | node:test    | Notes                                |
+| ---------------------- | ------------ | ------------------------------------ |
+| `describe`             | `describe`   | Direct delegation                    |
+| `describe.skip`        | `describe`   | With `{ skip: true }` option         |
+| `describe.only`        | `describe`   | With `{ only: true }` option         |
+| `describe.todo`        | `describe`   | With `{ todo: true }` option         |
+| `describe.concurrent`  | `describe`   | With `{ concurrency: true }` option  |
+| `it`                   | `it`         | Options object mapped                |
+| `test`                 | `it`         | Alias for `it`                       |
+| `it.skip`              | `it`         | With `{ skip: true }` option         |
+| `it.only`              | `it`         | With `{ only: true }` option         |
+| `it.todo`              | `it`         | With `{ todo: true }` option         |
+| `it.concurrent`        | `it`         | With `{ concurrency: true }` option  |
+| `it.fails`             | `it`         | Wrapped to invert pass/fail          |
+| `it.retry`             | `it`         | Wrapped with retry loop              |
+| `beforeEach`           | `beforeEach` | Direct delegation                    |
+| `afterEach`            | `afterEach`  | Direct delegation                    |
+| `beforeAll`            | `before`     | Conventional naming                  |
+| `afterAll`             | `after`      | Conventional naming                  |
 
 ## Type Definitions
 

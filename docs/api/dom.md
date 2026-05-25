@@ -3,24 +3,32 @@
 The DOM module provides a complete DOM environment for testing, built entirely
 from scratch with zero third-party dependencies. It implements the core DOM
 interfaces needed for testing web application UI logic: document creation,
-element manipulation, tree traversal, CSS selector queries, and event handling.
+element manipulation, tree traversal, CSS selector queries, event handling,
+Shadow DOM, Custom Elements, observers, and much more.
 
 ```typescript
 import {
   Document,
+  DocumentFragment,
   Element,
   Node,
   TextNode,
+  Comment,
   Event,
+  CustomEvent,
+  Window,
+  createWindow,
 } from '@asymmetric-effort/nogginlessdom';
 ```
 
-## Document
+## Core Classes
+
+### Document
 
 `Document` is the root of a DOM tree. It serves as the factory for creating
 elements and text nodes, and provides tree-wide query methods.
 
-### Constructor
+#### Constructor
 
 ```typescript
 const doc = new Document();
@@ -28,393 +36,481 @@ const doc = new Document();
 
 Creates a new, empty document.
 
-### Methods
+#### Methods
 
-#### `createElement(tagName: string): Element`
-
-Create a new element with the given tag name. The tag name is stored in
-uppercase, matching browser behavior.
+- `createElement(tagName: string): Element` -- Create a new element. Returns
+  the appropriate typed HTML element class (e.g., `HTMLInputElement` for
+  `'input'`). Tag names are stored in uppercase.
+- `createTextNode(text: string): TextNode` -- Create a new text node.
+- `createComment(text: string): Comment` -- Create a new comment node.
+- `createDocumentFragment(): DocumentFragment` -- Create a document fragment.
+- `getElementById(id: string): Element | null` -- Find an element by its `id`.
+- `querySelector(selector: string): Element | null` -- Find the first matching
+  element using a CSS selector.
+- `querySelectorAll(selector: string): Element[]` -- Find all matching elements
+  using a CSS selector.
+- `getElementsByTagName(tagName: string): Element[]` -- Find elements by tag
+  name.
+- `getElementsByClassName(className: string): Element[]` -- Find elements by
+  CSS class name.
+- `appendChild(child: Node): Node` -- Append a child node.
 
 ```typescript
+const doc = new Document();
 const div = doc.createElement('div');
-const span = doc.createElement('span');
-const input = doc.createElement('input');
+div.id = 'app';
+doc.appendChild(div);
 
-console.log(div.tagName); // 'DIV'
+const found = doc.getElementById('app');
+expect(found?.tagName).toBe('DIV');
 ```
 
-#### `createTextNode(text: string): TextNode`
-
-Create a new text node with the given content.
-
-```typescript
-const textNode = doc.createTextNode('Hello, world!');
-div.appendChild(textNode);
-```
-
-#### `getElementById(id: string): Element | null`
-
-Find an element by its `id` attribute. Searches the entire document tree.
-Returns the first matching element or `null`.
-
-```typescript
-const header = doc.createElement('h1');
-header.id = 'main-title';
-doc.appendChild(header);
-
-const found = doc.getElementById('main-title');
-expect(found?.tagName).toBe('H1');
-```
-
-#### `querySelector(selector: string): Element | null`
-
-Find the first element matching the given CSS selector. Supports tag selectors,
-class selectors (`.class`), ID selectors (`#id`), attribute selectors
-(`[attr=value]`), and descendant combinators.
-
-```typescript
-const el = doc.querySelector('.container > .item');
-const btn = doc.querySelector('button[type="submit"]');
-const first = doc.querySelector('ul li:first-child');
-```
-
-#### `querySelectorAll(selector: string): Element[]`
-
-Find all elements matching the given CSS selector. Returns an array of matching
-elements in document order.
-
-```typescript
-const items = doc.querySelectorAll('.item');
-expect(items).toHaveLength(3);
-```
-
-#### `appendChild(child: Node): Node`
-
-Append a child node to the document. Returns the appended child.
-
-```typescript
-const body = doc.createElement('body');
-doc.appendChild(body);
-```
-
-## Element
+### Element
 
 `Element` represents an HTML element in the DOM tree. It extends `Node` with
 attribute handling, event management, class list manipulation, and element-level
 query methods.
 
-### Properties
+#### Properties
 
-#### `tagName: string`
+- `tagName: string` -- Uppercase tag name (e.g., `'DIV'`, `'SPAN'`).
+- `id: string` -- Get/set the element's `id` attribute.
+- `className: string` -- Get/set the `class` attribute.
+- `classList: DOMTokenList` -- Token list for class manipulation.
+- `innerHTML: string` -- Get/set HTML content (parses on set).
+- `outerHTML: string` -- Serialized HTML including the element itself.
+- `textContent: string` -- Get/set text content.
+- `style: CSSStyleDeclaration` -- Inline style object.
+- `dataset: Record<string, string>` -- Data attribute access.
+- `children: Element[]` -- Child elements (excludes text/comment nodes).
+- `parentElement: Element | null` -- Parent element.
+- `nextSibling / previousSibling` -- Adjacent sibling nodes.
+- `nextElementSibling / previousElementSibling` -- Adjacent sibling elements.
+- `firstChild / lastChild` -- First/last child nodes.
+- `firstElementChild / lastElementChild` -- First/last child elements.
 
-The element's tag name in uppercase (e.g., `'DIV'`, `'SPAN'`, `'P'`).
+#### Attribute Methods
 
-#### `id: string`
+- `getAttribute(name: string): string | null`
+- `setAttribute(name: string, value: string): void`
+- `removeAttribute(name: string): void`
+- `hasAttribute(name: string): boolean`
+- `getAttributeNames(): string[]`
+- `toggleAttribute(name: string, force?: boolean): boolean`
 
-Get or set the element's `id` attribute.
+#### Event Methods
+
+- `addEventListener(type: string, listener: EventListener, options?): void`
+- `removeEventListener(type: string, listener: EventListener): void`
+- `dispatchEvent(event: Event): boolean` -- Supports bubbling and capture
+  phase propagation.
+
+#### Query Methods
+
+- `querySelector(selector: string): Element | null`
+- `querySelectorAll(selector: string): Element[]`
+- `getElementsByTagName(tagName: string): Element[]`
+- `getElementsByClassName(className: string): Element[]`
+- `closest(selector: string): Element | null`
+- `matches(selector: string): boolean`
+
+#### Tree Manipulation
+
+- `appendChild(child: Node): Node`
+- `removeChild(child: Node): Node`
+- `insertBefore(newChild: Node, refChild: Node | null): Node`
+- `replaceChild(newChild: Node, oldChild: Node): Node`
+- `cloneNode(deep?: boolean): Node`
+- `remove(): void`
+- `append(...nodes: (Node | string)[]): void`
+- `prepend(...nodes: (Node | string)[]): void`
+- `before(...nodes: (Node | string)[]): void`
+- `after(...nodes: (Node | string)[]): void`
+- `replaceWith(...nodes: (Node | string)[]): void`
+- `replaceChildren(...nodes: (Node | string)[]): void`
+
+#### Shadow DOM
+
+- `attachShadow(init: { mode: 'open' | 'closed' }): ShadowRoot`
+- `shadowRoot: ShadowRoot | null`
 
 ```typescript
 const div = doc.createElement('div');
-div.id = 'app';
-expect(div.id).toBe('app');
+div.id = 'host';
+const shadow = div.attachShadow({ mode: 'open' });
+shadow.innerHTML = '<slot></slot>';
 ```
 
-#### `className: string`
+### Node
 
-Get or set the element's `class` attribute as a space-separated string.
+`Node` is the base class for all DOM nodes (`Element`, `TextNode`, `Comment`,
+`Document`, `DocumentFragment`).
+
+#### Properties
+
+- `nodeType: number` -- `1` for elements, `3` for text, `8` for comments, `9`
+  for documents, `11` for document fragments.
+- `nodeName: string` -- Tag name, `'#text'`, `'#comment'`, `'#document'`, or
+  `'#document-fragment'`.
+- `parentNode: Node | null`
+- `childNodes: Node[]`
+- `textContent: string`
+- `ownerDocument: Document | null`
+- `isConnected: boolean`
+
+#### Methods
+
+- `appendChild(child: Node): Node`
+- `removeChild(child: Node): Node`
+- `insertBefore(newChild: Node, refChild: Node | null): Node`
+- `replaceChild(newChild: Node, oldChild: Node): Node`
+- `cloneNode(deep?: boolean): Node`
+- `contains(other: Node | null): boolean`
+- `hasChildNodes(): boolean`
+- `normalize(): void`
+- `getRootNode(): Node`
+- `compareDocumentPosition(other: Node): number`
+- `isSameNode(other: Node | null): boolean`
+- `isEqualNode(other: Node | null): boolean`
+
+### TextNode
+
+Represents a text node (`nodeType === 3`, `nodeName === '#text'`).
+
+### Comment
+
+Represents a comment node (`nodeType === 8`, `nodeName === '#comment'`).
+
+### DocumentFragment
+
+A lightweight container for a group of nodes. Useful for building DOM
+structures off-document before inserting them.
+
+## Typed HTML Elements (24 classes)
+
+When `document.createElement()` is called, the appropriate typed element class
+is returned based on the tag name:
+
+| Class                    | Tag Name    | Notable Properties / Methods                                                       |
+| ------------------------ | ----------- | ---------------------------------------------------------------------------------- |
+| `HTMLAnchorElement`      | `a`         | `href`, `target`, `rel`, `download`, `protocol`, `hostname`                        |
+| `HTMLButtonElement`      | `button`    | `type`, `disabled`, `form`, `name`, `value`                                        |
+| `HTMLInputElement`       | `input`     | `type`, `value`, `checked`, `disabled`, `placeholder`, `name`, `validity`, `files` |
+| `HTMLSelectElement`      | `select`    | `value`, `selectedIndex`, `options`, `multiple`, `disabled`                        |
+| `HTMLOptionElement`      | `option`    | `value`, `text`, `selected`, `disabled`, `label`                                   |
+| `HTMLTextAreaElement`    | `textarea`  | `value`, `rows`, `cols`, `disabled`, `placeholder`                                 |
+| `HTMLFormElement`        | `form`      | `action`, `method`, `elements`, `submit()`, `reset()`                              |
+| `HTMLImageElement`       | `img`       | `src`, `alt`, `width`, `height`, `naturalWidth`, `complete`                        |
+| `HTMLLabelElement`       | `label`     | `htmlFor`, `control`, `form`                                                       |
+| `HTMLDialogElement`      | `dialog`    | `open`, `returnValue`, `show()`, `showModal()`, `close()`                          |
+| `HTMLCanvasElement`      | `canvas`    | `width`, `height`, `getContext()`, `toDataURL()`                                   |
+| `HTMLTemplateElement`    | `template`  | `content` (DocumentFragment)                                                       |
+| `HTMLIFrameElement`      | `iframe`    | `src`, `srcdoc`, `width`, `height`, `contentDocument`                              |
+| `HTMLVideoElement`       | `video`     | `src`, `width`, `height`, `poster`, `duration`, `currentTime`, `play()`, `pause()` |
+| `HTMLAudioElement`       | `audio`     | `src`, `duration`, `currentTime`, `volume`, `play()`, `pause()`                    |
+| `HTMLProgressElement`    | `progress`  | `value`, `max`, `position`                                                         |
+| `HTMLMeterElement`       | `meter`     | `value`, `min`, `max`, `low`, `high`, `optimum`                                    |
+| `HTMLDetailsElement`     | `details`   | `open`                                                                             |
+| `HTMLTableElement`       | `table`     | `rows`, `insertRow()`, `deleteRow()`, `caption`, `tHead`                           |
+| `HTMLTableRowElement`    | `tr`        | `cells`, `insertCell()`, `deleteCell()`, `rowIndex`                                |
+| `HTMLTableCellElement`   | `td` / `th` | `colSpan`, `rowSpan`, `cellIndex`                                                  |
+| `HTMLFieldSetElement`    | `fieldset`  | `disabled`, `elements`, `name`                                                     |
+| `HTMLScriptElement`      | `script`    | `src`, `type`, `async`, `defer`, `text`                                            |
+| `HTMLSlotElement`        | `slot`      | `name`, `assignedNodes()`, `assignedElements()`                                    |
+
+Additionally, `ValidityState` is provided for form validation.
+
+## Events (20 classes)
+
+Full event system with bubbling, capture phase, `stopPropagation()`,
+`stopImmediatePropagation()`, and `preventDefault()`.
+
+### Base Event
 
 ```typescript
-div.className = 'container fluid';
-expect(div.className).toBe('container fluid');
+new Event(type: string, options?: { bubbles?: boolean; cancelable?: boolean; composed?: boolean });
 ```
 
-#### `classList: ClassList`
+### Specialized Event Classes
 
-A `ClassList` object providing `add()`, `remove()`, `toggle()`, `contains()`,
-and `replace()` methods for manipulating CSS classes.
+| Class                | Key Properties                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------- |
+| `CustomEvent`        | `detail`                                                                              |
+| `MouseEvent`         | `clientX`, `clientY`, `button`, `buttons`, `altKey`, `ctrlKey`, `metaKey`, `shiftKey` |
+| `KeyboardEvent`      | `key`, `code`, `altKey`, `ctrlKey`, `metaKey`, `shiftKey`, `repeat`                   |
+| `FocusEvent`         | `relatedTarget`                                                                       |
+| `InputEvent`         | `data`, `inputType`, `isComposing`                                                    |
+| `WheelEvent`         | `deltaX`, `deltaY`, `deltaZ`, `deltaMode`                                             |
+| `PointerEvent`       | `pointerId`, `width`, `height`, `pressure`, `pointerType`                             |
+| `TouchEvent`         | `touches`, `targetTouches`, `changedTouches`                                          |
+| `DragEvent`          | `dataTransfer`                                                                        |
+| `ClipboardEvent`     | `clipboardData`                                                                       |
+| `TransitionEvent`    | `propertyName`, `elapsedTime`, `pseudoElement`                                        |
+| `AnimationEvent`     | `animationName`, `elapsedTime`, `pseudoElement`                                       |
+| `ErrorEvent`         | `message`, `filename`, `lineno`, `colno`, `error`                                     |
+| `MessageEvent`       | `data`, `origin`, `source`                                                            |
+| `StorageEvent`       | `key`, `oldValue`, `newValue`, `storageArea`, `url`                                   |
+| `PopStateEvent`      | `state`                                                                               |
+| `ProgressEvent`      | `lengthComputable`, `loaded`, `total`                                                 |
+| `HashChangeEvent`    | `oldURL`, `newURL`                                                                    |
+| `BeforeUnloadEvent`  | `returnValue`                                                                         |
+
+## Collections
+
+### NodeList
+
+Array-like collection of nodes with `length`, `item()`, `forEach()`,
+`entries()`, `keys()`, `values()`, and indexed access.
+
+### HTMLCollection
+
+Live collection of elements with `length`, `item()`, `namedItem()`, and
+indexed access.
+
+### DOMTokenList
+
+Token list for class manipulation: `add()`, `remove()`, `toggle()`,
+`contains()`, `replace()`, `item()`, `forEach()`, `entries()`, `keys()`,
+`values()`, `length`, and `value`.
+
+### CSSStyleDeclaration
+
+Inline style management supporting `getPropertyValue()`,
+`setProperty()`, `removeProperty()`, `cssText`, `length`, and
+camelCase property access.
+
+## Shadow DOM and Custom Elements
+
+### ShadowRoot
+
+Created via `element.attachShadow({ mode: 'open' | 'closed' })`. Extends
+`Node` and supports query methods (`querySelector`, `querySelectorAll`).
+
+### CustomElementRegistry
+
+Register custom elements with `define()`, retrieve definitions with `get()`,
+and check existence with `getName()`.
 
 ```typescript
-div.classList.add('active');
-div.classList.remove('hidden');
-expect(div.classList.contains('active')).toBe(true);
-div.classList.toggle('selected');
-div.classList.replace('active', 'inactive');
+import { CustomElementRegistry, Document } from '@asymmetric-effort/nogginlessdom';
+
+const registry = new CustomElementRegistry();
+class MyElement extends Element {}
+registry.define('my-element', MyElement);
 ```
 
-#### `innerHTML: string`
+## Observer APIs
 
-Get or set the HTML content of the element. When set, the existing children
-are replaced with the parsed content. When read, returns the serialized HTML
-of all child nodes.
+### MutationObserver
 
-```typescript
-div.innerHTML = '<p>Hello</p><p>World</p>';
-expect(div.childNodes).toHaveLength(2);
-expect(div.innerHTML).toBe('<p>Hello</p><p>World</p>');
-```
-
-#### `outerHTML: string`
-
-Get the serialized HTML of the element including the element itself.
+Observe changes to the DOM tree: child list mutations, attribute changes, and
+character data changes.
 
 ```typescript
-const p = doc.createElement('p');
-p.textContent = 'Hello';
-expect(p.outerHTML).toBe('<p>Hello</p>');
-```
+import { MutationObserver, Document } from '@asymmetric-effort/nogginlessdom';
 
-### Attribute Methods
+const doc = new Document();
+const div = doc.createElement('div');
 
-#### `getAttribute(name: string): string | null`
-
-Get the value of the named attribute, or `null` if not set.
-
-```typescript
-input.setAttribute('type', 'text');
-expect(input.getAttribute('type')).toBe('text');
-expect(input.getAttribute('missing')).toBeNull();
-```
-
-#### `setAttribute(name: string, value: string): void`
-
-Set the value of the named attribute.
-
-```typescript
-link.setAttribute('href', 'https://example.com');
-link.setAttribute('target', '_blank');
-```
-
-#### `removeAttribute(name: string): void`
-
-Remove the named attribute.
-
-```typescript
-div.removeAttribute('class');
-expect(div.hasAttribute('class')).toBe(false);
-```
-
-#### `hasAttribute(name: string): boolean`
-
-Check whether the named attribute exists.
-
-```typescript
-expect(input.hasAttribute('disabled')).toBe(false);
-input.setAttribute('disabled', '');
-expect(input.hasAttribute('disabled')).toBe(true);
-```
-
-### Event Methods
-
-#### `addEventListener(type: string, listener: EventListener): void`
-
-Register an event listener for the given event type.
-
-```typescript
-button.addEventListener('click', (event) => {
-  console.log('Button clicked!', event.type);
+const observer = new MutationObserver((records) => {
+  console.log('Mutations:', records.length);
 });
+
+observer.observe(div, { childList: true, attributes: true });
+div.appendChild(doc.createElement('span'));
+// Observer callback fires with a MutationRecord
 ```
 
-#### `removeEventListener(type: string, listener: EventListener): void`
+Includes `MutationRecord` with `type`, `target`, `addedNodes`, `removedNodes`,
+`attributeName`, `oldValue`, and other standard properties.
 
-Remove a previously registered event listener. The listener must be the same
-function reference that was passed to `addEventListener`.
+### IntersectionObserver
 
-```typescript
-const handler = () => { /* ... */ };
-button.addEventListener('click', handler);
-button.removeEventListener('click', handler);
-```
+Simulate intersection observation with `observe()`, `unobserve()`,
+`disconnect()`, and the `triggerIntersection()` helper for testing.
 
-#### `dispatchEvent(event: Event): boolean`
+### ResizeObserver
 
-Dispatch an event to this element, triggering all registered listeners for that
-event type. Returns `true` if the event was not cancelled via
-`preventDefault()`.
+Simulate resize observation with `observe()`, `unobserve()`, `disconnect()`,
+and the `triggerResize()` helper for testing.
 
-```typescript
-const event = new Event('click', { bubbles: true });
-const wasCancelled = !button.dispatchEvent(event);
-```
+## Traversal
 
-### Query Methods
+### TreeWalker
 
-#### `querySelector(selector: string): Element | null`
+Walk a DOM tree with configurable filters. Created via
+`new TreeWalker(root, whatToShow, filter)`.
 
-Find the first descendant element matching the CSS selector.
+Methods: `firstChild()`, `lastChild()`, `nextNode()`, `previousNode()`,
+`parentNode()`, `nextSibling()`, `previousSibling()`.
 
-```typescript
-const container = doc.querySelector('#app');
-const firstButton = container?.querySelector('button');
-```
+### NodeIterator
 
-#### `querySelectorAll(selector: string): Element[]`
+Iterate through a DOM tree in document order. Created via
+`new NodeIterator(root, whatToShow, filter)`.
 
-Find all descendant elements matching the CSS selector.
+Methods: `nextNode()`, `previousNode()`, `detach()`.
 
-```typescript
-const listItems = ul.querySelectorAll('li.active');
-```
+### NodeFilter
 
-#### `getElementsByTagName(tagName: string): Element[]`
+Constants for `whatToShow` bitmask: `SHOW_ALL`, `SHOW_ELEMENT`,
+`SHOW_TEXT`, `SHOW_COMMENT`, `SHOW_DOCUMENT`, `SHOW_DOCUMENT_FRAGMENT`.
 
-Find all descendant elements with the given tag name (case-insensitive).
+Filter return values: `FILTER_ACCEPT`, `FILTER_REJECT`, `FILTER_SKIP`.
 
-```typescript
-const paragraphs = div.getElementsByTagName('p');
-```
+### Range
 
-#### `getElementsByClassName(className: string): Element[]`
+Represents a range of content in the DOM. Methods include `setStart()`,
+`setEnd()`, `setStartBefore()`, `setStartAfter()`, `setEndBefore()`,
+`setEndAfter()`, `selectNode()`, `selectNodeContents()`, `collapse()`,
+`cloneContents()`, `extractContents()`, `deleteContents()`,
+`insertNode()`, `surroundContents()`, `compareBoundaryPoints()`,
+`cloneRange()`, `detach()`, `toString()`.
 
-Find all descendant elements that have the given CSS class.
+### Selection
 
-```typescript
-const highlighted = div.getElementsByClassName('highlight');
-```
+Represents the user's selection. Methods include `getRangeAt()`,
+`addRange()`, `removeRange()`, `removeAllRanges()`, `collapse()`,
+`collapseToStart()`, `collapseToEnd()`, `extend()`, `selectAllChildren()`,
+`containsNode()`, `toString()`.
 
-## Node
+## Parsing and Serialization
 
-`Node` is the base class for all DOM nodes (`Element`, `TextNode`, `Document`).
-It provides tree structure operations and basic node information.
+### DOMParser
 
-### Properties
+Parse HTML strings into documents with
+`parseFromString(str, 'text/html')`.
 
-#### `nodeType: number`
+### XMLSerializer
 
-Numeric type identifier. `1` for elements, `3` for text nodes, `9` for
-documents.
+Serialize DOM trees back to string with `serializeToString(node)`.
 
-#### `nodeName: string`
+### HTML Parser
 
-The node name. For elements, this is the uppercase tag name. For text nodes,
-it is `'#text'`. For documents, it is `'#document'`.
+Internal `parseHTML()` function handles HTML string parsing for `innerHTML`
+assignments.
 
-#### `parentNode: Node | null`
+### HTML Serializer
 
-Reference to the parent node, or `null` for the root.
+Internal `serializeNode()` and `serializeChildren()` functions for generating
+HTML output.
 
-#### `childNodes: Node[]`
+### CSS Selector Engine
 
-Array of child nodes.
+Full selector engine supporting:
 
-#### `textContent: string`
+- Tag selectors (`div`, `span`)
+- Class selectors (`.class`)
+- ID selectors (`#id`)
+- Attribute selectors (`[attr]`, `[attr=value]`, `[attr^=value]`,
+  `[attr$=value]`, `[attr*=value]`, `[attr~=value]`, `[attr|=value]`)
+- Combinators (descendant, child `>`, adjacent sibling `+`, general sibling `~`)
+- Pseudo-classes (`:first-child`, `:last-child`, `:nth-child()`, etc.)
+- Universal selector (`*`)
 
-Get or set the text content. When read on an element, returns the concatenated
-text content of all descendant text nodes. When set on an element, replaces all
-children with a single text node.
+## Data APIs
 
-```typescript
-div.innerHTML = '<p>Hello</p><p>World</p>';
-expect(div.textContent).toBe('HelloWorld');
+### FormData
 
-div.textContent = 'New content';
-expect(div.childNodes).toHaveLength(1);
-```
+Standard `FormData` implementation with `append()`, `delete()`, `get()`,
+`getAll()`, `has()`, `set()`, `entries()`, `keys()`, `values()`, `forEach()`.
 
-### Methods
+### Headers
 
-#### `appendChild(child: Node): Node`
+HTTP headers collection with `append()`, `delete()`, `get()`, `has()`,
+`set()`, `entries()`, `keys()`, `values()`, `forEach()`.
 
-Append a child node. If the child already has a parent, it is removed from its
-current parent first. Returns the appended child.
+### DataTransfer / DataTransferItemList
 
-```typescript
-const li = doc.createElement('li');
-li.textContent = 'Item';
-ul.appendChild(li);
-```
+Drag-and-drop data transfer support with `setData()`, `getData()`,
+`clearData()`, `items`, `types`, `files`, `dropEffect`, `effectAllowed`.
 
-#### `removeChild(child: Node): Node`
+### CookieJar
 
-Remove a child node. Throws if the node is not a child of this node. Returns
-the removed child.
+Cookie management with `setCookie()`, `getCookie()`, `getAllCookies()`,
+`deleteCookie()`, `clearAll()`, with support for path, domain, expiry,
+secure, and httpOnly flags.
 
-```typescript
-ul.removeChild(li);
-expect(li.parentNode).toBeNull();
-```
+## Abort API
 
-#### `cloneNode(deep?: boolean): Node`
+### AbortController / AbortSignal
 
-Create a copy of this node. If `deep` is `true`, all descendants are cloned
-recursively. If `false` or omitted, only the node itself is cloned (without
-children).
+Standard abort controller for cancelling operations.
 
 ```typescript
-const shallow = div.cloneNode();       // no children
-const deep = div.cloneNode(true);      // with all descendants
-```
+import { AbortController } from '@asymmetric-effort/nogginlessdom';
 
-## TextNode
+const controller = new AbortController();
+const signal = controller.signal;
 
-`TextNode` represents a text node in the DOM tree. It extends `Node`.
-
-### Properties
-
-- `nodeType` -- Always `3`.
-- `nodeName` -- Always `'#text'`.
-- `textContent` -- The text content of the node.
-
-```typescript
-const text = doc.createTextNode('Hello');
-expect(text.nodeType).toBe(3);
-expect(text.textContent).toBe('Hello');
-```
-
-## Event
-
-`Event` represents a DOM event that can be dispatched to elements.
-
-### Constructor
-
-```typescript
-new Event(type: string, options?: EventInit);
-```
-
-**EventInit:**
-
-| Option       | Type      | Default | Description                        |
-| ------------ | --------- | ------- | ---------------------------------- |
-| `bubbles`    | `boolean` | `false` | Whether the event bubbles up       |
-| `cancelable` | `boolean` | `false` | Whether the event can be cancelled |
-
-### Properties
-
-#### `type: string`
-
-The event type string (e.g., `'click'`, `'input'`, `'submit'`).
-
-#### `bubbles: boolean`
-
-Whether this event bubbles up through the DOM tree.
-
-#### `cancelable: boolean`
-
-Whether this event can be cancelled via `preventDefault()`.
-
-### Methods
-
-#### `preventDefault(): void`
-
-Cancel the event's default action (if the event is cancelable).
-
-```typescript
-const event = new Event('submit', { cancelable: true });
-form.addEventListener('submit', (e) => {
-  e.preventDefault();
+signal.addEventListener('abort', () => {
+  console.log('Aborted!');
 });
-form.dispatchEvent(event);
+
+controller.abort();
+expect(signal.aborted).toBe(true);
 ```
 
-#### `stopPropagation(): void`
+## Window Environment
 
-Stop the event from propagating further up or down the DOM tree.
+### Window
 
-```typescript
-inner.addEventListener('click', (e) => {
-  e.stopPropagation(); // outer's click handler will not fire
-});
-```
+Full window environment with:
+
+- `document` -- A `Document` instance.
+- `localStorage` / `sessionStorage` -- `Storage` instances.
+- `location` -- `Location` instance.
+- `history` -- `History` instance.
+- `navigator` -- `Navigator` instance.
+- `matchMedia()` -- Returns `MediaQueryList` instances.
+- `getComputedStyle()` -- Returns a `CSSStyleDeclaration`.
+- `fetch()` -- Simulated fetch API.
+- `requestAnimationFrame()` / `cancelAnimationFrame()`
+- `addEventListener()` / `removeEventListener()` / `dispatchEvent()`
+- `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval`
+
+### `createWindow(options?)`
+
+Factory function that creates an isolated `Window` instance.
+
+### Storage
+
+`localStorage` / `sessionStorage` simulation with `getItem()`, `setItem()`,
+`removeItem()`, `clear()`, `key()`, and `length`.
+
+### Location
+
+URL properties: `href`, `protocol`, `host`, `hostname`, `port`, `pathname`,
+`search`, `hash`, `origin`. Methods: `assign()`, `replace()`, `reload()`.
+
+### History
+
+Navigation history with `pushState()`, `replaceState()`, `go()`, `back()`,
+`forward()`, `length`, and `state`.
+
+### Navigator
+
+Browser identification: `userAgent`, `language`, `languages`, `platform`,
+`onLine`, `cookieEnabled`.
+
+### MediaQueryList
+
+Media query matching with `matches`, `media`, `addEventListener()`,
+`removeEventListener()`.
+
+### Request / Response
+
+HTTP request and response simulation for the fetch API.
+
+## Web API Utilities
+
+- `atob(data)` -- Decode a base64 string.
+- `btoa(data)` -- Encode a string to base64.
+- `TextEncoder` / `TextDecoder` -- Text encoding utilities.
+- `Blob` -- Binary large object.
+- `structuredClone` -- Deep clone.
+- `queueMicrotask` -- Microtask scheduling.
+- `crypto` -- Web Crypto API.
 
 ## Complete Example
 
@@ -425,16 +521,19 @@ import {
   expect,
   Document,
   Event,
+  CustomEvent,
+  MutationObserver,
+  Window,
+  createWindow,
 } from '@asymmetric-effort/nogginlessdom';
 
-describe('Todo List', () => {
+describe('Todo App', () => {
   it('should add and remove items', () => {
     const doc = new Document();
     const ul = doc.createElement('ul');
     ul.id = 'todo-list';
     doc.appendChild(ul);
 
-    // Add items
     for (const text of ['Buy groceries', 'Walk the dog', 'Write tests']) {
       const li = doc.createElement('li');
       li.className = 'todo-item';
@@ -445,28 +544,33 @@ describe('Todo List', () => {
     expect(doc.querySelectorAll('.todo-item')).toHaveLength(3);
     expect(doc.querySelector('li')?.textContent).toBe('Buy groceries');
 
-    // Remove the first item
     const firstItem = ul.childNodes[0];
     ul.removeChild(firstItem);
     expect(doc.querySelectorAll('.todo-item')).toHaveLength(2);
   });
 
-  it('should handle click events on items', () => {
+  it('should handle events with bubbling', () => {
     const doc = new Document();
+    const div = doc.createElement('div');
     const button = doc.createElement('button');
-    button.id = 'add-btn';
-    button.textContent = 'Add';
-    doc.appendChild(button);
+    div.appendChild(button);
+    doc.appendChild(div);
 
     const clicks: string[] = [];
-    button.addEventListener('click', () => {
-      clicks.push('clicked');
-    });
+    div.addEventListener('click', () => clicks.push('div'));
+    button.addEventListener('click', () => clicks.push('button'));
 
-    button.dispatchEvent(new Event('click'));
-    button.dispatchEvent(new Event('click'));
+    button.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(clicks).toEqual(['button', 'div']);
+  });
 
-    expect(clicks).toHaveLength(2);
+  it('should use a window environment', () => {
+    const win = createWindow();
+    win.localStorage.setItem('key', 'value');
+    expect(win.localStorage.getItem('key')).toBe('value');
+
+    win.location.href = 'https://example.com/page?q=test';
+    expect(win.location.hostname).toBe('example.com');
   });
 });
 ```
