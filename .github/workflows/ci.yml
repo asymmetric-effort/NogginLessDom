@@ -82,11 +82,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test tests/e2e
 
-  # --- Site deploy + PDV (main push and tag push) ---
+  # --- Site deploy + PDV (main push only) ---
+  # Runs on every main push. Tag pushes skip this since the
+  # corresponding main push already validated the site.
 
   build-site:
     name: Build Site
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: [e2e, dist-validation]
     runs-on: ubuntu-latest
     steps:
@@ -109,7 +111,7 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build-site
     runs-on: ubuntu-latest
     environment:
@@ -122,7 +124,7 @@ jobs:
 
   verify-deployment:
     name: Post-Deployment Verification (Playwright)
-    if: github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: deploy
     runs-on: ubuntu-latest
     steps:
@@ -151,12 +153,14 @@ jobs:
         env:
           SITE_URL: https://nogginlessdom.asymmetric-effort.com
 
-  # --- npm publish (on version tags, AFTER PDV passes) ---
+  # --- npm publish (on version tags, after all validation) ---
+  # PDV already ran on the main push before tagging.
+  # Tag push validates: lint, test, build, dist, e2e — then publishes.
 
   publish:
     name: Publish to npm
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: verify-deployment
+    needs: [e2e, dist-validation]
     runs-on: ubuntu-latest
     environment: npm
     permissions:
