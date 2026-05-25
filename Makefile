@@ -1,4 +1,4 @@
-.PHONY: setup clean lint test build release release/minor release/major
+.PHONY: setup clean lint test test-dist build release release/minor release/major
 
 PROJECT_NAME := nogginlessdom
 SRC_DIR := src
@@ -47,6 +47,11 @@ test:
 	@echo "Running e2e tests..."
 	bun test $(TEST_DIR)/e2e
 	@echo "All tests passed."
+
+test-dist: build
+	@echo "Running dist validation tests..."
+	bun test tests/dist
+	@echo "Dist validation complete."
 
 build: clean
 	@echo "Building $(PROJECT_NAME) v$(VERSION)..."
