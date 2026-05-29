@@ -61,6 +61,14 @@ build: clean
 
 SHELL := /bin/bash
 
+# GHSA-482x-9gr3-8prm: Validate VERSION matches semver pattern
+validate-version:
+	@if ! echo "$(VERSION)" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+		echo "ERROR: VERSION file contains invalid version: $(VERSION)"; \
+		echo "VERSION must match ^[0-9]+.[0-9]+.[0-9]+$$"; \
+		exit 1; \
+	fi
+
 define bump_version
 	@CURRENT=$$(cat $(VERSION_FILE)); \
 	IFS='.' read -r MAJOR MINOR PATCH <<< "$$CURRENT"; \
@@ -74,11 +82,11 @@ define bump_version
 	echo "Released v$$NEW"
 endef
 
-release:
+release: validate-version
 	$(call bump_version,PATCH=$$((PATCH + 1)))
 
-release/minor:
+release/minor: validate-version
 	$(call bump_version,MINOR=$$((MINOR + 1)); PATCH=0)
 
-release/major:
+release/major: validate-version
 	$(call bump_version,MAJOR=$$((MAJOR + 1)); MINOR=0; PATCH=0)
