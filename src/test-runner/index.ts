@@ -240,6 +240,7 @@ interface DescribeFn {
   todo: (name: string, fn?: SuiteFn) => void;
   each: ReturnType<typeof makeDescribeEach>;
   concurrent: (name: string, fn: SuiteFn) => void;
+  serial: (name: string, fn: SuiteFn) => void;
   skipIf: (condition: unknown) => (name: string, fn: SuiteFn) => void;
   runIf: (condition: unknown) => (name: string, fn: SuiteFn) => void;
   shuffle: (name: string, fn: SuiteFn) => void;
@@ -269,9 +270,29 @@ function wrapSuiteFn(name: string, fn: SuiteFn): SuiteFn {
   };
 }
 
+let serialMode = false;
+
+/**
+ * Enable or disable global serial mode.
+ */
+export function setSerialMode(serial: boolean): void {
+  serialMode = serial;
+}
+
+/**
+ * Get the current serial mode setting.
+ */
+export function getSerialMode(): boolean {
+  return serialMode;
+}
+
 const describe: DescribeFn = Object.assign(
   function describe(name: string, fn: SuiteFn): void {
-    nodeDescribe(name, wrapSuiteFn(name, fn));
+    if (serialMode) {
+      nodeDescribe(name, { concurrency: 1 }, wrapSuiteFn(name, fn));
+    } else {
+      nodeDescribe(name, wrapSuiteFn(name, fn));
+    }
   },
   {
     skip(name: string, fn: SuiteFn): void {
@@ -286,6 +307,9 @@ const describe: DescribeFn = Object.assign(
     each: makeDescribeEach(),
     concurrent(name: string, fn: SuiteFn): void {
       nodeDescribe(name, { concurrency: true }, wrapSuiteFn(name, fn));
+    },
+    serial(name: string, fn: SuiteFn): void {
+      nodeDescribe(name, { concurrency: 1 }, wrapSuiteFn(name, fn));
     },
     skipIf(condition: unknown): (name: string, fn: SuiteFn) => void {
       return (name: string, fn: SuiteFn): void => {
