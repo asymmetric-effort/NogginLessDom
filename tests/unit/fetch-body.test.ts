@@ -92,7 +92,10 @@ describe('Blob', () => {
 });
 describe('Response body methods', () => {
   it('should return blob with correct size and type', async () => {
-    const res = new Response('hello', { status: 200, headers: { 'content-type': 'text/plain' } });
+    const res = new Response('hello', {
+      status: 200,
+      headers: { 'content-type': 'text/plain' },
+    });
     const blob = await res.blob();
     assert.strictEqual(blob.size, 5);
     assert.strictEqual(blob.type, 'text/plain');
@@ -194,12 +197,17 @@ describe('Request body methods', () => {
     assert.strictEqual(req.bodyUsed, true);
   });
   it('should return json from body', async () => {
-    const req = new Request('https://example.com', { body: JSON.stringify({ a: 1 }) });
+    const req = new Request('https://example.com', {
+      body: JSON.stringify({ a: 1 }),
+    });
     const data = (await req.json()) as { a: number };
     assert.strictEqual(data.a, 1);
   });
   it('should return blob from body', async () => {
-    const req = new Request('https://example.com', { body: 'data', headers: { 'content-type': 'text/plain' } });
+    const req = new Request('https://example.com', {
+      body: 'data',
+      headers: { 'content-type': 'text/plain' },
+    });
     const blob = await req.blob();
     assert.strictEqual(blob.size, 4);
     assert.strictEqual(blob.type, 'text/plain');
@@ -227,7 +235,11 @@ describe('Request body methods', () => {
     assert.strictEqual(text, '');
   });
   it('should clone request and allow re-consumption', async () => {
-    const req = new Request('https://example.com', { method: 'POST', body: 'data', headers: { 'X-Custom': 'val' } });
+    const req = new Request('https://example.com', {
+      method: 'POST',
+      body: 'data',
+      headers: { 'X-Custom': 'val' },
+    });
     const cloned = req.clone();
     const t1 = await req.text();
     const t2 = await cloned.text();
