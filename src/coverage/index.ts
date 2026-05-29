@@ -63,6 +63,14 @@ export {
   diffCoverage,
 } from './coverage-map.js';
 export { getChangedFiles } from './changed.js';
+export {
+  saveBaseline,
+  loadBaseline,
+  diffBaseline,
+  saveBaselineHistory,
+  loadBaselineHistory,
+} from './baseline.js';
+export type { CoverageBaseline, BaselineDiff } from './baseline.js';
 export { loadNycConfig } from './nyc-config.js';
 export { shouldIncludeFile, matchesPattern } from './filter.js';
 export {
@@ -685,6 +693,87 @@ export function processV8CoverageBatched(
   }
 
   return files;
+}
+
+/**
+ * Issue #170: Process V8 coverage data with true async parallelism.
+ * Uses Promise.all to process batches concurrently.
+ * Exported for testability.
+ */
+export async function processV8CoverageBatchedAsync(
+  scripts: V8ScriptCoverage[],
+  config: ResolvedCoverageConfig,
+): Promise<Map<string, FileCoverage>> {
+  const files = new Map<string, FileCoverage>();
+  const concurrency = config.processingConcurrency ?? 1;
+
+  // Filter to valid file:// scripts first
+  const validScripts = scripts.filter(
+    (script) => script.url && script.url.startsWith('file://'),
+  );
+
+  // Process in batches of `concurrency` size using Promise.all
+  for (
+    let batchStart = 0;
+    batchStart < validScripts.length;
+    batchStart += concurrency
+  ) {
+    const batchEnd = Math.min(batchStart + concurrency, validScripts.length);
+    const batch = validScripts.slice(batchStart, batchEnd);
+
+    const results = await Promise.all(
+      batch.map(async (script) => {
+        return processOneScript(script, config);
+      }),
+    );
+
+    for (const result of results) {
+      if (result) {
+        files.set(result.path, result);
+      }
+    }
+  }
+
+  return files;
+}
+
+/**
+ * Process a single V8 script coverage entry. Used by both sync and async paths.
+ */
+function processOneScript(
+  script: V8ScriptCoverage,
+  config: ResolvedCoverageConfig,
+): FileCoverage | null {
+  const filePath = script.url.replace('file://', '');
+  const relativePath = filePath.replace(process.cwd() + '/', '');
+
+  if (!shouldIncludeFile(relativePath, config)) return null;
+
+  // Try to read source content for proper line mapping and ignore ranges
+  let sourceContent: string | undefined;
+  try {
+    sourceContent = fs.readFileSync(filePath, 'utf-8');
+  } catch {
+    // If we can't read the file, proceed without source content
+  }
+
+  // Convert V8 coverage to FileCoverage format with proper line mapping
+  let fc = v8ToFileCoverage(filePath, script, sourceContent);
+
+  // Apply ignore ranges if we have source content
+  if (sourceContent !== undefined) {
+    const ignoreRanges = findIgnoreRanges(sourceContent);
+    if (ignoreRanges.length > 0) {
+      fc = applyIgnoreRanges(fc, ignoreRanges);
+    }
+  }
+
+  // Filter out ignored class methods from function coverage
+  if (config.ignoreClassMethods.length > 0) {
+    fc = filterIgnoredClassMethods(fc, config.ignoreClassMethods);
+  }
+
+  return fc;
 }
 
 /**
