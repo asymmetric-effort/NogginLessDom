@@ -154,6 +154,28 @@ describe('HTMLInputElement validation', () => {
       input.value = '';
       assert.strictEqual(input.validity.patternMismatch, false);
     });
+
+    it('should handle excessively long patterns safely', () => {
+      const input = new HTMLInputElement();
+      input.pattern = 'a'.repeat(2000);
+      input.value = 'test';
+      // Should not hang; pattern exceeding limit is treated as no-match
+      assert.strictEqual(input.validity.patternMismatch, false);
+    });
+
+    it('should not hang on catastrophic backtracking patterns', () => {
+      const input = new HTMLInputElement();
+      input.pattern = '(a+)+$';
+      input.value = 'a'.repeat(30) + 'b';
+      // Should complete quickly without hanging; treated as invalid regex
+      const start = Date.now();
+      input.checkValidity();
+      const elapsed = Date.now() - start;
+      assert.ok(
+        elapsed < 5000,
+        `Pattern validation took too long: ${elapsed}ms`,
+      );
+    });
   });
 
   describe('typeMismatch', () => {

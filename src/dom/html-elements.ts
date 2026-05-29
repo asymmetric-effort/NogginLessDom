@@ -5,6 +5,16 @@
 
 import { Element, Event, Node } from './index.js';
 
+/**
+ * Detect nested quantifiers that can cause catastrophic backtracking.
+ * Matches patterns like (a+)+, (a*)+, (a+)*, etc.
+ */
+function hasNestedQuantifiers(pattern: string): boolean {
+  return (
+    /([+*])\s*[)]\s*[+*{]/.test(pattern) || /([+*])\s*\}\s*[+*{]/.test(pattern)
+  );
+}
+
 // Helper to collect descendants by tag
 function collectDescendants(root: Node, tagName: string): Element[] {
   const results: Element[] = [];
@@ -281,12 +291,20 @@ export class HTMLInputElement extends Element {
     }
 
     let patternMismatch = false;
+    const MAX_PATTERN_LENGTH = 1024;
     if (this.pattern !== '' && this.value !== '') {
-      try {
-        const re = new RegExp(`^(?:${this.pattern})$`);
-        patternMismatch = !re.test(this.value);
-      } catch {
+      if (
+        this.pattern.length > MAX_PATTERN_LENGTH ||
+        hasNestedQuantifiers(this.pattern)
+      ) {
         patternMismatch = false;
+      } else {
+        try {
+          const re = new RegExp(`^(?:${this.pattern})$`);
+          patternMismatch = !re.test(this.value);
+        } catch {
+          patternMismatch = false;
+        }
       }
     }
 
