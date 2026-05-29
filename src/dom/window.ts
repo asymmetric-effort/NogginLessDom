@@ -5,9 +5,11 @@
 
 import { URL, URLSearchParams } from 'node:url';
 import { Document, Element, Event } from './index.js';
+import { StorageEvent } from './events.js';
 import { CSSStyleDeclaration } from './style.js';
 import { FormData } from './form-data.js';
 import { Headers as NogginHeaders } from './headers.js';
+import { Blob as NogginLessBlob } from './blob.js';
 import {
   NogginTextEncoder,
   NogginTextDecoder,
@@ -26,14 +28,35 @@ import {
   XMLSerializer as NogginXMLSerializer,
 } from './dom-parser.js';
 
+/** Default storage quota: 5 MB (UTF-16, so 2 bytes per character). */
+const DEFAULT_STORAGE_QUOTA = 5 * 1024 * 1024;
+
 /**
  * In-memory Storage implementation (localStorage / sessionStorage).
  */
 export class Storage {
   private store: Map<string, string> = new Map();
+  /** @internal */ _window: Window | null = null;
+  /** @internal */ _name: string = '';
+  /** @internal */ _maxQuota: number;
+
+  constructor(maxQuota: number = DEFAULT_STORAGE_QUOTA) {
+    this._maxQuota = maxQuota;
+  }
 
   get length(): number {
     return this.store.size;
+  }
+
+  /**
+   * Calculate total byte size of all stored entries (UTF-16: 2 bytes per char).
+   */
+  private _byteSize(): number {
+    let size = 0;
+    for (const [k, v] of this.store) {
+      size += (k.length + v.length) * 2;
+    }
+    return size;
   }
 
   getItem(key: string): string | null {
@@ -41,20 +64,63 @@ export class Storage {
   }
 
   setItem(key: string, value: string): void {
-    this.store.set(key, String(value));
+    const strValue = String(value);
+    const oldValue = this.store.get(key) ?? null;
+
+    // Quota check: compute projected size
+    const currentSize = this._byteSize();
+    const oldEntrySize =
+      oldValue !== null ? (key.length + oldValue.length) * 2 : 0;
+    const newEntrySize = (key.length + strValue.length) * 2;
+    if (currentSize - oldEntrySize + newEntrySize > this._maxQuota) {
+      const err = new Error(
+        "Failed to execute 'setItem' on 'Storage': Setting the value exceeded the quota.",
+      );
+      err.name = 'QuotaExceededError';
+      throw err;
+    }
+
+    this.store.set(key, strValue);
+
+    // Only dispatch event if value actually changed
+    if (oldValue !== strValue) {
+      this._dispatchStorageEvent(key, oldValue, strValue);
+    }
   }
 
   removeItem(key: string): void {
+    const oldValue = this.store.get(key) ?? null;
+    if (oldValue === null) return;
     this.store.delete(key);
+    this._dispatchStorageEvent(key, oldValue, null);
   }
 
   clear(): void {
+    if (this.store.size === 0) return;
     this.store.clear();
+    this._dispatchStorageEvent(null, null, null);
   }
 
   key(index: number): string | null {
     const keys = [...this.store.keys()];
     return keys[index] ?? null;
+  }
+
+  private _dispatchStorageEvent(
+    key: string | null,
+    oldValue: string | null,
+    newValue: string | null,
+  ): void {
+    const win = this._window;
+    if (!win) return;
+    const event = new StorageEvent('storage', {
+      key,
+      oldValue,
+      newValue,
+      url: win.location.href,
+      storageArea: this,
+    });
+    win.dispatchEvent(event);
   }
 }
 
@@ -198,6 +264,7 @@ export class Response {
   public readonly ok: boolean;
   public readonly statusText: string;
   public readonly headers: Map<string, string>;
+  public bodyUsed: boolean = false;
   private readonly _body: string;
 
   constructor(
@@ -220,12 +287,47 @@ export class Response {
     }
   }
 
+  private _consumeBody(): void {
+    if (this.bodyUsed) {
+      throw new TypeError('Body has already been consumed');
+    }
+    this.bodyUsed = true;
+  }
+
   async json(): Promise<unknown> {
+    this._consumeBody();
     return JSON.parse(this._body) as unknown;
   }
 
   async text(): Promise<string> {
+    this._consumeBody();
     return this._body;
+  }
+
+  async blob(): Promise<NogginLessBlob> {
+    this._consumeBody();
+    const contentType = this.headers.get('content-type') ?? '';
+    return new NogginLessBlob([this._body], { type: contentType });
+  }
+
+  async arrayBuffer(): Promise<ArrayBuffer> {
+    this._consumeBody();
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(this._body);
+    return encoded.buffer.slice(
+      encoded.byteOffset,
+      encoded.byteOffset + encoded.byteLength,
+    );
+  }
+
+  async formData(): Promise<FormData> {
+    this._consumeBody();
+    const fd = new FormData();
+    const params = new URLSearchParams(this._body);
+    for (const [key, value] of params) {
+      fd.append(key, value);
+    }
+    return fd;
   }
 
   clone(): Response {
@@ -249,6 +351,7 @@ export class Request {
   public readonly method: string;
   public readonly headers: Map<string, string>;
   public readonly body: string | null;
+  public bodyUsed: boolean = false;
 
   constructor(
     url: string,
@@ -263,6 +366,61 @@ export class Request {
         this.headers.set(key, value);
       }
     }
+  }
+
+  private _consumeBody(): void {
+    if (this.bodyUsed) {
+      throw new TypeError('Body has already been consumed');
+    }
+    this.bodyUsed = true;
+  }
+
+  async json(): Promise<unknown> {
+    this._consumeBody();
+    return JSON.parse(this.body ?? '') as unknown;
+  }
+
+  async text(): Promise<string> {
+    this._consumeBody();
+    return this.body ?? '';
+  }
+
+  async blob(): Promise<NogginLessBlob> {
+    this._consumeBody();
+    const contentType = this.headers.get('content-type') ?? '';
+    return new NogginLessBlob([this.body ?? ''], { type: contentType });
+  }
+
+  async arrayBuffer(): Promise<ArrayBuffer> {
+    this._consumeBody();
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(this.body ?? '');
+    return encoded.buffer.slice(
+      encoded.byteOffset,
+      encoded.byteOffset + encoded.byteLength,
+    );
+  }
+
+  async formData(): Promise<FormData> {
+    this._consumeBody();
+    const fd = new FormData();
+    const params = new URLSearchParams(this.body ?? '');
+    for (const [key, value] of params) {
+      fd.append(key, value);
+    }
+    return fd;
+  }
+
+  clone(): Request {
+    const headersObj: Record<string, string> = {};
+    for (const [key, value] of this.headers) {
+      headersObj[key] = value;
+    }
+    return new Request(this.url, {
+      method: this.method,
+      headers: headersObj,
+      body: this.body ?? undefined,
+    });
   }
 }
 
@@ -615,7 +773,11 @@ export class Window {
     this.history = new History();
     this.navigator = new Navigator();
     this.localStorage = new Storage();
+    this.localStorage._window = this;
+    this.localStorage._name = 'localStorage';
     this.sessionStorage = new Storage();
+    this.sessionStorage._window = this;
+    this.sessionStorage._name = 'sessionStorage';
     this.innerWidth = options?.innerWidth ?? 1024;
     this.innerHeight = options?.innerHeight ?? 768;
     this._matchMediaMatches = options?.matchMediaMatches ?? false;
@@ -659,6 +821,12 @@ export class Window {
   }
 
   getComputedStyle(el: Element): CSSStyleDeclaration {
+    const {
+      parseStyleSheet: parseSS,
+      collectApplicableStyles: collectStyles,
+      INHERITED_PROPERTIES: INHERITED,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+    } = require('./css-cascade.js') as typeof import('./css-cascade.js');
     const computed = new CSSStyleDeclaration();
 
     // Apply default display value based on tag name
@@ -667,13 +835,53 @@ export class Window {
       computed.setProperty('display', defaultDisplay);
     }
 
-    // Overlay inline styles (they take precedence)
+    // Collect <style> elements and parse them into CSS rules
+    const allRules: Array<{
+      selector: string;
+      properties: Map<string, string>;
+      specificity: [number, number, number];
+    }> = [];
+    const styleElements = this.document.querySelectorAll('style');
+    for (let s = 0; s < styleElements.length; s++) {
+      const styleEl = styleElements[s]!;
+      const cssText = (styleEl as Element).textContent ?? '';
+      const rules = parseSS(cssText);
+      allRules.push(...rules);
+    }
+
+    // Collect applicable stylesheet styles sorted by specificity + source order
+    const stylesheetStyles = collectStyles(el, allRules);
+    for (const [prop, val] of stylesheetStyles) {
+      computed.setProperty(prop, val);
+    }
+
+    // Overlay inline styles (they take precedence over stylesheet rules)
     const inlineStyle = el.style;
     for (let i = 0; i < inlineStyle.length; i++) {
       const prop = inlineStyle.item(i);
       const val = inlineStyle.getPropertyValue(prop);
       if (val) {
         computed.setProperty(prop, val);
+      }
+    }
+
+    // Inherit inheritable properties from parent chain
+    for (const prop of INHERITED) {
+      if (!computed.getPropertyValue(prop)) {
+        let ancestor = el.parentNode as Element | null;
+        while (ancestor) {
+          if (ancestor.nodeType === 1) {
+            const ancestorStyles = collectStyles(ancestor, allRules);
+            const fromStylesheet = ancestorStyles.get(prop);
+            const fromInline = ancestor.style?.getPropertyValue(prop);
+            const ancestorVal = fromInline || fromStylesheet;
+            if (ancestorVal) {
+              computed.setProperty(prop, ancestorVal);
+              break;
+            }
+          }
+          ancestor = ancestor.parentNode as Element | null;
+        }
       }
     }
 

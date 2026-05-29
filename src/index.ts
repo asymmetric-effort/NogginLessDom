@@ -99,6 +99,7 @@ export { Range } from './dom/range.js';
 export { Selection } from './dom/selection.js';
 
 export { FormData } from './dom/form-data.js';
+export { Blob } from './dom/blob.js';
 export { Headers } from './dom/headers.js';
 export { atob, btoa } from './dom/web-apis.js';
 
@@ -108,6 +109,13 @@ export { AbortController, AbortSignal } from './dom/abort.js';
 
 export { DataTransfer, DataTransferItemList } from './dom/data-transfer.js';
 export type { DataTransferItem } from './dom/data-transfer.js';
+
+export {
+  parseStyleSheet,
+  computeSpecificity,
+  INHERITED_PROPERTIES,
+} from './dom/css-cascade.js';
+export type { CSSRule } from './dom/css-cascade.js';
 
 export {
   CustomEvent,
