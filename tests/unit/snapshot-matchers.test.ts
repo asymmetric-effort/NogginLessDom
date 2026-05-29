@@ -35,7 +35,7 @@ describe('toMatchFileSnapshot', () => {
     const value = { name: 'test', count: 42 };
     fs.writeFileSync(filePath, serialize(value), 'utf-8');
     try {
-      matchFileSnapshot(value, filePath);
+      matchFileSnapshot(value, filePath, tmpDir);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -47,7 +47,7 @@ describe('toMatchFileSnapshot', () => {
     fs.writeFileSync(filePath, '"old value"', 'utf-8');
     try {
       assert.throws(() => {
-        matchFileSnapshot('new value', filePath);
+        matchFileSnapshot('new value', filePath, tmpDir);
       }, /File snapshot mismatch/);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -59,7 +59,7 @@ describe('toMatchFileSnapshot', () => {
     const filePath = path.join(tmpDir, 'subdir', 'new.snap');
     setUpdateMode('all');
     try {
-      matchFileSnapshot({ hello: 'world' }, filePath);
+      matchFileSnapshot({ hello: 'world' }, filePath, tmpDir);
       assert.ok(fs.existsSync(filePath), 'file should be created');
       const content = fs.readFileSync(filePath, 'utf-8');
       assert.strictEqual(content, serialize({ hello: 'world' }));
@@ -74,7 +74,7 @@ describe('toMatchFileSnapshot', () => {
     fs.writeFileSync(filePath, '"old"', 'utf-8');
     setUpdateMode('all');
     try {
-      matchFileSnapshot('new', filePath);
+      matchFileSnapshot('new', filePath, tmpDir);
       const content = fs.readFileSync(filePath, 'utf-8');
       assert.strictEqual(content, '"new"');
     } finally {
@@ -87,8 +87,39 @@ describe('toMatchFileSnapshot', () => {
     const filePath = path.join(tmpDir, 'nonexistent.snap');
     try {
       assert.throws(() => {
-        matchFileSnapshot('value', filePath);
+        matchFileSnapshot('value', filePath, tmpDir);
       }, /File snapshot not found/);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should reject absolute paths outside the project root', () => {
+    setUpdateMode('all');
+    assert.throws(() => {
+      matchFileSnapshot('payload', '/tmp/outside-project.snap');
+    }, /File snapshot path must be within the project directory/);
+  });
+
+  it('should reject relative paths that traverse above project root', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'snap-'));
+    try {
+      setUpdateMode('all');
+      assert.throws(() => {
+        matchFileSnapshot('payload', '../../../tmp/evil.snap', tmpDir);
+      }, /File snapshot path must be within the project directory/);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should allow paths within the project directory', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'snap-'));
+    const filePath = path.join(tmpDir, 'safe.snap');
+    setUpdateMode('all');
+    try {
+      matchFileSnapshot('safe value', filePath, tmpDir);
+      assert.ok(fs.existsSync(filePath), 'file should be created');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
