@@ -158,3 +158,45 @@ describe('toMatchInlineSnapshot', () => {
     expect('hello').toMatchInlineSnapshot('"hello"');
   });
 });
+
+// GHSA-8vr6-f2q3-3pc5: Prototype pollution in applyPropertyMatchers
+describe('applyPropertyMatchers prototype pollution protection', () => {
+  it('should skip __proto__ key in property matchers', () => {
+    const before = Object.prototype.hasOwnProperty.call(
+      Object.prototype,
+      'polluted',
+    );
+    assert.strictEqual(before, false);
+
+    const matchers = Object.create(null) as Record<string, unknown>;
+    matchers.__proto__ = { polluted: true };
+    matchers.name = expect.any(String as unknown as new () => unknown);
+
+    // Should not throw and should not pollute Object.prototype
+    expect({ name: 'test', value: 1 }).toMatchSnapshot(
+      'proto-pollution-test',
+      undefined,
+      matchers,
+    );
+
+    const after = Object.prototype.hasOwnProperty.call(
+      Object.prototype,
+      'polluted',
+    );
+    assert.strictEqual(after, false);
+  });
+
+  it('should skip constructor and prototype keys in property matchers', () => {
+    const matchers = Object.create(null) as Record<string, unknown>;
+    matchers.constructor = { polluted: true };
+    matchers.prototype = { polluted: true };
+    matchers.name = expect.any(String as unknown as new () => unknown);
+
+    // Should not throw — dangerous keys are silently skipped
+    expect({ name: 'test' }).toMatchSnapshot(
+      'proto-keys-test',
+      undefined,
+      matchers,
+    );
+  });
+});

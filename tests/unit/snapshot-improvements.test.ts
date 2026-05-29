@@ -345,11 +345,11 @@ describe('#137: Snapshot path resolution with snapshotDir', () => {
     assert.strictEqual(result, '/some/path/__snaps__/mytest.test.snap');
   });
 
-  it('resolveSnapshotPath with absolute snapshotDir', () => {
+  it('resolveSnapshotPath rejects absolute snapshotDir', () => {
     const customDir = path.join(tmpDir, 'custom-snaps');
-    const env = new NodeSnapshotEnvironment('1', customDir);
-    const result = env.resolveSnapshotPath('/some/path/mytest.test.ts');
-    assert.strictEqual(result, path.join(customDir, 'mytest.test.snap'));
+    assert.throws(() => {
+      new NodeSnapshotEnvironment('1', customDir);
+    }, /snapshotDir must be a relative path/);
   });
 });
 

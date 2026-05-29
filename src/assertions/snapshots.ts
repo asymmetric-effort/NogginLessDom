@@ -432,6 +432,26 @@ function writeSnapshotFile(
     fs.mkdirSync(dir, { recursive: true });
   }
 
+  // GHSA-vxqq-6phm-8778: Reject symlinks to prevent TOCTOU attacks
+  try {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink()) {
+      throw new Error(
+        `Refusing to write snapshot to symlink target: ${filePath}`,
+      );
+    }
+  } catch (err) {
+    if (
+      err instanceof Error &&
+      'code' in err &&
+      (err as NodeJS.ErrnoException).code === 'ENOENT'
+    ) {
+      // File doesn't exist yet — that's fine
+    } else {
+      throw err;
+    }
+  }
+
   const lines: string[] = [SNAPSHOT_HEADER];
   const sortedKeys = Array.from(snapshots.keys()).sort();
   for (const name of sortedKeys) {
@@ -570,10 +590,13 @@ function applyPropertyMatchers(
   if (actual === null || typeof actual !== 'object') {
     throw new Error('Property matchers can only be used with object values');
   }
+  // GHSA-8vr6-f2q3-3pc5: Skip dangerous prototype-polluting keys
+  const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
   const obj = actual as Record<string, unknown>;
   const result: Record<string, unknown> = { ...obj };
 
   for (const key of Object.keys(matchers)) {
+    if (DANGEROUS_KEYS.has(key)) continue;
     const matcher = matchers[key];
     if (isAsymmetricMatcher(matcher)) {
       if (!matcher.asymmetricMatch(obj[key])) {
