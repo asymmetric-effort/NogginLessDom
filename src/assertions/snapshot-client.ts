@@ -4,7 +4,7 @@
  * @module snapshot-client
  */
 
-import { serialize, SNAPSHOT_HEADER } from './snapshots.js';
+import { serialize, SNAPSHOT_HEADER, escapeSnapshotName } from './snapshots.js';
 import type { SnapshotEnvironment } from './snapshot-environment.js';
 
 /**
@@ -133,7 +133,9 @@ export class SnapshotClient {
 
     const lines: string[] = [SNAPSHOT_HEADER];
     for (const [name, value] of this.snapshots) {
-      lines.push(`exports['${name}'] = \`${escapeForTemplate(value)}\`;`);
+      lines.push(
+        `exports['${escapeSnapshotName(name)}'] = \`${escapeForTemplate(value)}\`;`,
+      );
     }
     await this.environment.saveSnapshotFile(
       this.snapshotFilePath,

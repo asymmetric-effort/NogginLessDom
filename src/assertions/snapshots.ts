@@ -390,6 +390,13 @@ function escapeForTemplate(str: string): string {
 }
 
 /**
+ * Escape snapshot name for safe interpolation into exports['name'] format.
+ */
+export function escapeSnapshotName(name: string): string {
+  return name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/**
  * Unescape template literal content from snapshot file.
  */
 function unescapeFromTemplate(str: string): string {
@@ -429,7 +436,7 @@ function writeSnapshotFile(
   const sortedKeys = Array.from(snapshots.keys()).sort();
   for (const name of sortedKeys) {
     lines.push(
-      `exports['${name}'] = \`${escapeForTemplate(snapshots.get(name)!)}\`;`,
+      `exports['${escapeSnapshotName(name)}'] = \`${escapeForTemplate(snapshots.get(name)!)}\`;`,
     );
   }
   fs.writeFileSync(filePath, lines.join('\n\n') + '\n', 'utf-8');

@@ -8,6 +8,7 @@ import {
   setCurrentTestName,
   resetSnapshotCounter,
   matchFileSnapshot,
+  escapeSnapshotName,
 } from '../../src/assertions/snapshots.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -233,5 +234,26 @@ describe('update mode', () => {
     delete process.env.UPDATE_SNAPSHOTS;
     // Verify it was updated
     expect({ a: 2 }).toMatchSnapshot('env test');
+  });
+});
+
+describe('escapeSnapshotName', () => {
+  it('should escape single quotes', () => {
+    assert.strictEqual(escapeSnapshotName("test'name"), "test\\'name");
+  });
+
+  it('should escape backslashes', () => {
+    assert.strictEqual(escapeSnapshotName('test\\name'), 'test\\\\name');
+  });
+
+  it('should prevent code injection via snapshot names', () => {
+    const malicious =
+      "test']; require('child_process').execSync('id'); exports['x";
+    const escaped = escapeSnapshotName(malicious);
+    // All single quotes should be preceded by a backslash
+    const unescaped = escaped.replace(/\\'/g, '');
+    assert.ok(!unescaped.includes("'"), 'unescaped quotes remain');
+    // Escaped quotes should be present
+    assert.ok(escaped.includes("\\'"));
   });
 });
