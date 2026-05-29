@@ -4,6 +4,7 @@
  */
 
 import { Element, Event, Node } from './index.js';
+import { CanvasRenderingContext2D } from './canvas.js';
 
 /**
  * Detect nested quantifiers that can cause catastrophic backtracking.
@@ -769,12 +770,19 @@ export class HTMLDialogElement extends Element {
 export class HTMLCanvasElement extends Element {
   public width = 300;
   public height = 150;
+  private _context2d: CanvasRenderingContext2D | null = null;
 
   constructor() {
     super('canvas');
   }
 
-  getContext(_type: string): null {
+  getContext(type: string): CanvasRenderingContext2D | null {
+    if (type === '2d') {
+      if (!this._context2d) {
+        this._context2d = new CanvasRenderingContext2D(this);
+      }
+      return this._context2d;
+    }
     return null;
   }
 

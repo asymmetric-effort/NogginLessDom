@@ -86,9 +86,10 @@ describe('Additional HTML Element Classes', () => {
       assert.strictEqual(el.height, 150);
     });
 
-    it('getContext() should return null', () => {
+    it('getContext("2d") should return CanvasRenderingContext2D', () => {
       const el = new HTMLCanvasElement();
-      assert.strictEqual(el.getContext('2d'), null);
+      const ctx = el.getContext('2d');
+      assert.ok(ctx !== null);
       assert.strictEqual(el.getContext('webgl'), null);
     });
 

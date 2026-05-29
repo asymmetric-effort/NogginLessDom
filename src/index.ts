@@ -50,6 +50,7 @@ export {
   NodeFilter,
   TreeWalker,
   NodeIterator,
+  getImplicitRole,
 } from './dom/index.js';
 
 export type { NodeFilterCallback } from './dom/index.js';
@@ -114,6 +115,8 @@ export { atob, btoa } from './dom/web-apis.js';
 export { DOMParser, XMLSerializer } from './dom/dom-parser.js';
 
 export { AbortController, AbortSignal } from './dom/abort.js';
+
+export { CanvasRenderingContext2D, ImageData } from './dom/canvas.js';
 
 export { XMLHttpRequest } from './dom/xhr.js';
 export type { XHRHandler } from './dom/xhr.js';
