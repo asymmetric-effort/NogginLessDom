@@ -1880,9 +1880,10 @@ export class Element extends Node {
 export class Document extends Node {
   private _customElements: CustomElementRegistry | null = null;
   private _cookieJar: CookieJar = new CookieJar();
+  private _docListeners: Map<string, Array<(event: Event) => void>> = new Map();
+  private _visibilityState: string = 'visible';
 
   public readyState: string = 'complete';
-  public visibilityState: string = 'visible';
   public activeElement: Element | null = null;
   public contentType: string = 'text/html';
   public characterSet: string = 'UTF-8';
@@ -1896,8 +1897,49 @@ export class Document extends Node {
     this.ownerDocument = null;
   }
 
+  get visibilityState(): string {
+    return this._visibilityState;
+  }
+
+  set visibilityState(state: string) {
+    this._visibilityState = state;
+  }
+
   get hidden(): boolean {
-    return this.visibilityState === 'hidden';
+    return this._visibilityState === 'hidden';
+  }
+
+  /**
+   * Test helper: change the visibility state and fire visibilitychange event.
+   */
+  setVisibility(state: 'visible' | 'hidden'): void {
+    if (this._visibilityState !== state) {
+      this._visibilityState = state;
+      this.dispatchEvent(new Event('visibilitychange'));
+    }
+  }
+
+  addEventListener(type: string, listener: (event: Event) => void): void {
+    if (!this._docListeners.has(type)) {
+      this._docListeners.set(type, []);
+    }
+    this._docListeners.get(type)!.push(listener);
+  }
+
+  removeEventListener(type: string, listener: (event: Event) => void): void {
+    const list = this._docListeners.get(type);
+    if (list) {
+      const idx = list.indexOf(listener);
+      if (idx !== -1) list.splice(idx, 1);
+    }
+  }
+
+  dispatchEvent(event: Event): boolean {
+    const listeners = this._docListeners.get(event.type) ?? [];
+    for (const listener of listeners) {
+      listener(event);
+    }
+    return !event.defaultPrevented;
   }
 
   get charset(): string {
