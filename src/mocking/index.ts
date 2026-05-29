@@ -17,6 +17,64 @@ import {
 /** Internal registry of all created mock functions for bulk operations. */
 const allMocks: Set<MockInstance> = new Set();
 
+/**
+ * Return the internal allMocks set. Exposed for test-runner isolation cleanup.
+ */
+export function getAllMocks(): Set<MockInstance> {
+  return allMocks;
+}
+
+// ---------------------------------------------------------------------------
+// Mock auto-restore configuration (Feature #173)
+// ---------------------------------------------------------------------------
+
+export interface MockConfig {
+  clearMocks?: boolean;
+  resetMocks?: boolean;
+  restoreMocks?: boolean;
+  unstubGlobals?: boolean;
+  fakeTimers?: { autoRestore?: boolean };
+}
+
+let currentMockConfig: MockConfig = {};
+
+export function configureMockBehavior(config: MockConfig): void {
+  currentMockConfig = { ...config };
+}
+
+export function getMockConfig(): MockConfig {
+  return { ...currentMockConfig };
+}
+
+/**
+ * Run automatic mock cleanup based on the current MockConfig.
+ * Called by the test runner after each test completes.
+ */
+export function runAutoMockCleanup(): void {
+  if (currentMockConfig.restoreMocks) {
+    for (const m of allMocks) {
+      m.mockRestore();
+    }
+    // Remove restored mocks from the set to prevent memory leak
+    allMocks.clear();
+    unstubAllGlobals();
+  } else if (currentMockConfig.resetMocks) {
+    for (const m of allMocks) {
+      m.mockReset();
+    }
+  } else if (currentMockConfig.clearMocks) {
+    for (const m of allMocks) {
+      m.mockClear();
+    }
+  }
+  if (currentMockConfig.unstubGlobals && !currentMockConfig.restoreMocks) {
+    unstubAllGlobals();
+  }
+  if (currentMockConfig.fakeTimers?.autoRestore) {
+    useRealTimers();
+  }
+}
+
 /** Internal registry of stubbed globals for restoration. */
 const stubbedGlobals: Array<{
   name: string;
@@ -359,6 +417,8 @@ interface FakeTimerState {
     }
   >;
   nextId: number;
+  rafCallbacks: Map<number, (timestamp: number) => void>;
+  nextRafId: number;
 }
 
 let fakeTimerState: FakeTimerState | null = null;
@@ -375,6 +435,18 @@ const originalSetImmediate =
 const originalClearImmediate =
   typeof globalThis.clearImmediate !== 'undefined'
     ? globalThis.clearImmediate
+    : undefined;
+const originalRAF =
+  typeof globalThis.requestAnimationFrame !== 'undefined'
+    ? globalThis.requestAnimationFrame
+    : undefined;
+const originalCAF =
+  typeof globalThis.cancelAnimationFrame !== 'undefined'
+    ? globalThis.cancelAnimationFrame
+    : undefined;
+const originalPerformance =
+  typeof globalThis.performance !== 'undefined'
+    ? globalThis.performance
     : undefined;
 
 interface FakeTimerOptions {
@@ -421,7 +493,13 @@ export function useFakeTimers(
     // shouldAdvanceTime and toFake are accepted but stubbed
   }
 
-  fakeTimerState = { now: initialNow, timers: new Map(), nextId: 1 };
+  fakeTimerState = {
+    now: initialNow,
+    timers: new Map(),
+    nextId: 1,
+    rafCallbacks: new Map(),
+    nextRafId: 1,
+  };
   const state = fakeTimerState;
 
   // Determine which APIs to fake
@@ -545,6 +623,76 @@ export function useFakeTimers(
     });
 
     globalThis.Date = FakeDate;
+  }
+
+  // requestAnimationFrame / cancelAnimationFrame faking (Feature #172)
+  if (shouldFake('requestAnimationFrame')) {
+    (globalThis as Record<string, unknown>).requestAnimationFrame = ((
+      cb: (timestamp: number) => void,
+    ): number => {
+      const id = state.nextRafId++;
+      // rAF callbacks fire with ~16ms virtual delay
+      const timerId = state.nextId++;
+      state.rafCallbacks.set(id, cb);
+      state.timers.set(timerId, {
+        callback: () => {
+          const callback = state.rafCallbacks.get(id);
+          if (callback) {
+            state.rafCallbacks.delete(id);
+            callback(state.now);
+          }
+        },
+        delay: 16,
+        repeat: false,
+        scheduledAt: state.now,
+      });
+      return id;
+    }) as unknown as typeof requestAnimationFrame;
+  }
+
+  if (shouldFake('cancelAnimationFrame')) {
+    (globalThis as Record<string, unknown>).cancelAnimationFrame = ((
+      id: number,
+    ): void => {
+      state.rafCallbacks.delete(id);
+      // Also remove the associated timer
+      for (const [timerId, timer] of state.timers) {
+        // Check if this timer's callback references the rAF id
+        // We need to just remove timers whose callback would fire this rAF
+        // Since we can't inspect closures, remove the rAF callback and let the timer be a no-op
+        void timer;
+        void timerId;
+      }
+    }) as unknown as typeof cancelAnimationFrame;
+  }
+
+  // performance.now() faking (Feature #172)
+  if (shouldFake('performance')) {
+    const fakePerformance = {
+      now: (): number => state.now,
+    };
+    // Preserve other performance properties if they exist
+    if (typeof globalThis.performance !== 'undefined') {
+      const original = globalThis.performance;
+      (globalThis as Record<string, unknown>).performance = new Proxy(
+        original,
+        {
+          get(target: Performance, prop: string | symbol): unknown {
+            if (prop === 'now') return fakePerformance.now;
+            const val = (target as unknown as Record<string | symbol, unknown>)[
+              prop
+            ];
+            if (typeof val === 'function') {
+              return (val as (...args: unknown[]) => unknown).bind(target);
+            }
+            return val;
+          },
+        },
+      );
+    } else {
+      (globalThis as Record<string, unknown>).performance =
+        fakePerformance as unknown as Performance;
+    }
   }
 
   const controller: FakeTimerController = {
@@ -735,6 +883,15 @@ export function useRealTimers(): void {
   }
   if (originalClearImmediate !== undefined) {
     globalThis.clearImmediate = originalClearImmediate;
+  }
+  if (originalRAF !== undefined) {
+    globalThis.requestAnimationFrame = originalRAF;
+  }
+  if (originalCAF !== undefined) {
+    globalThis.cancelAnimationFrame = originalCAF;
+  }
+  if (originalPerformance !== undefined) {
+    (globalThis as Record<string, unknown>).performance = originalPerformance;
   }
   fakeTimerState = null;
 }
@@ -994,6 +1151,8 @@ export const vi = {
   waitFor,
   waitUntil,
   mocked,
+  configureMockBehavior,
+  getMockConfig,
   ...mock,
   /**
    * Register a mock for a module path.
