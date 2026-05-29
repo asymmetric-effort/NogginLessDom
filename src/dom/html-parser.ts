@@ -43,9 +43,15 @@ function decodeEntities(text: string): string {
  * Parse an HTML string into an array of DOM nodes.
  */
 export function parseHTML(html: string): Node[] {
+  const MAX_PARSE_DEPTH = 5000;
   let pos = 0;
 
-  function parseNodes(_parent: Node | null): Node[] {
+  function parseNodes(_parent: Node | null, depth: number): Node[] {
+    if (depth > MAX_PARSE_DEPTH) {
+      throw new Error(
+        `HTML parsing exceeded maximum nesting depth of ${MAX_PARSE_DEPTH}`,
+      );
+    }
     const result: Node[] = [];
 
     while (pos < html.length) {
@@ -61,7 +67,7 @@ export function parseHTML(html: string): Node[] {
         if (tag) {
           if (!tag.selfClosing && !VOID_ELEMENTS.has(tag.element.tagName)) {
             // Parse children
-            const children = parseNodes(tag.element);
+            const children = parseNodes(tag.element, depth + 1);
             for (const child of children) {
               tag.element.appendChild(child);
             }
@@ -196,5 +202,5 @@ export function parseHTML(html: string): Node[] {
     }
   }
 
-  return parseNodes(null);
+  return parseNodes(null, 0);
 }

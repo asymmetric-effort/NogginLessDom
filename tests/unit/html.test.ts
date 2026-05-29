@@ -421,3 +421,13 @@ describe('Element outerHTML', () => {
     assert.strictEqual(serializeNode(doc), '<div>content</div>');
   });
 });
+
+describe('HTML parser depth limit', () => {
+  it('should throw on excessively nested HTML', () => {
+    const depth = 6000;
+    const html = '<div>'.repeat(depth) + '</div>'.repeat(depth);
+    assert.throws(() => {
+      parseHTML(html);
+    }, /HTML parsing exceeded maximum nesting depth/);
+  });
+});
