@@ -11,6 +11,7 @@ import {
   addSerializer,
 } from './snapshots.js';
 import type { SnapshotSerializer } from './snapshots.js';
+import { formatExpectedReceived, objectDiff } from './diff.js';
 
 /** An object with an asymmetricMatch method used for flexible matching. */
 interface AsymmetricMatcher {
@@ -557,15 +558,22 @@ export function expect<T>(actual: T): Matchers<T> {
         if (negated) {
           assert.ok(!matches, `Expected values not to match`);
         } else {
+          const diff = formatExpectedReceived(expected, actual);
           assert.ok(
             matches,
-            `Expected ${JSON.stringify(actual)} to match ${JSON.stringify(expected)}`,
+            `Expected ${JSON.stringify(actual)} to match ${JSON.stringify(expected)}\n\n${diff}`,
           );
         }
       } else if (negated) {
         assert.notDeepStrictEqual(actual, expected);
       } else {
-        assert.deepStrictEqual(actual, expected);
+        try {
+          assert.deepStrictEqual(actual, expected);
+        } catch (err) {
+          const diff = formatExpectedReceived(expected, actual);
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(`${msg}\n\n${diff}`);
+        }
       }
     },
 
@@ -574,7 +582,13 @@ export function expect<T>(actual: T): Matchers<T> {
       if (negated) {
         assert.notDeepStrictEqual(actual, expected);
       } else {
-        assert.deepStrictEqual(actual, expected);
+        try {
+          assert.deepStrictEqual(actual, expected);
+        } catch (err) {
+          const diff = formatExpectedReceived(expected, actual);
+          const msg = err instanceof Error ? err.message : String(err);
+          throw new Error(`${msg}\n\n${diff}`);
+        }
       }
     },
 
@@ -659,9 +673,10 @@ export function expect<T>(actual: T): Matchers<T> {
           `Expected array not to contain ${String(expected)}`,
         );
       } else {
+        const diff = formatExpectedReceived([...arr, expected], arr);
         assert.ok(
           arr.includes(expected),
-          `Expected array to contain ${String(expected)}`,
+          `Expected array to contain ${String(expected)}\n\n${diff}`,
         );
       }
     },
@@ -865,9 +880,12 @@ export function expect<T>(actual: T): Matchers<T> {
           `Expected mock not to have been called with ${JSON.stringify(args)}`,
         );
       } else {
+        const closestCall =
+          mock.calls.length > 0 ? mock.calls[mock.calls.length - 1] : [];
+        const diff = formatExpectedReceived(args, closestCall);
         assert.ok(
           found,
-          `Expected mock to have been called with ${JSON.stringify(args)}`,
+          `Expected mock to have been called with ${JSON.stringify(args)}\n\n${diff}`,
         );
       }
     },
@@ -991,9 +1009,10 @@ export function expect<T>(actual: T): Matchers<T> {
           `Expected ${JSON.stringify(actual)} not to match object ${JSON.stringify(expected)}`,
         );
       } else {
+        const diff = objectDiff(expected, actual);
         assert.ok(
           matches,
-          `Expected ${JSON.stringify(actual)} to match object ${JSON.stringify(expected)}`,
+          `Expected ${JSON.stringify(actual)} to match object ${JSON.stringify(expected)}${diff ? '\n\n' + diff : ''}`,
         );
       }
     },
