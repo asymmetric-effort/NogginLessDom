@@ -1713,6 +1713,144 @@ export class Element extends Node {
     this._setEventHandler('resize', handler);
   }
 
+  // ---- ARIA property accessors ----
+
+  get ariaLabel(): string | null {
+    return this.getAttribute('aria-label');
+  }
+  set ariaLabel(value: string | null) {
+    if (value === null) this.removeAttribute('aria-label');
+    else this.setAttribute('aria-label', value);
+  }
+
+  get ariaHidden(): string | null {
+    return this.getAttribute('aria-hidden');
+  }
+  set ariaHidden(value: string | null) {
+    if (value === null) this.removeAttribute('aria-hidden');
+    else this.setAttribute('aria-hidden', value);
+  }
+
+  get ariaDisabled(): string | null {
+    return this.getAttribute('aria-disabled');
+  }
+  set ariaDisabled(value: string | null) {
+    if (value === null) this.removeAttribute('aria-disabled');
+    else this.setAttribute('aria-disabled', value);
+  }
+
+  get ariaExpanded(): string | null {
+    return this.getAttribute('aria-expanded');
+  }
+  set ariaExpanded(value: string | null) {
+    if (value === null) this.removeAttribute('aria-expanded');
+    else this.setAttribute('aria-expanded', value);
+  }
+
+  get ariaSelected(): string | null {
+    return this.getAttribute('aria-selected');
+  }
+  set ariaSelected(value: string | null) {
+    if (value === null) this.removeAttribute('aria-selected');
+    else this.setAttribute('aria-selected', value);
+  }
+
+  get ariaChecked(): string | null {
+    return this.getAttribute('aria-checked');
+  }
+  set ariaChecked(value: string | null) {
+    if (value === null) this.removeAttribute('aria-checked');
+    else this.setAttribute('aria-checked', value);
+  }
+
+  get ariaRequired(): string | null {
+    return this.getAttribute('aria-required');
+  }
+  set ariaRequired(value: string | null) {
+    if (value === null) this.removeAttribute('aria-required');
+    else this.setAttribute('aria-required', value);
+  }
+
+  get ariaPressed(): string | null {
+    return this.getAttribute('aria-pressed');
+  }
+  set ariaPressed(value: string | null) {
+    if (value === null) this.removeAttribute('aria-pressed');
+    else this.setAttribute('aria-pressed', value);
+  }
+
+  get ariaLive(): string | null {
+    return this.getAttribute('aria-live');
+  }
+  set ariaLive(value: string | null) {
+    if (value === null) this.removeAttribute('aria-live');
+    else this.setAttribute('aria-live', value);
+  }
+
+  get ariaDescribedBy(): string | null {
+    return this.getAttribute('aria-describedby');
+  }
+  set ariaDescribedBy(value: string | null) {
+    if (value === null) this.removeAttribute('aria-describedby');
+    else this.setAttribute('aria-describedby', value);
+  }
+
+  get ariaLabelledBy(): string | null {
+    return this.getAttribute('aria-labelledby');
+  }
+  set ariaLabelledBy(value: string | null) {
+    if (value === null) this.removeAttribute('aria-labelledby');
+    else this.setAttribute('aria-labelledby', value);
+  }
+
+  get ariaControls(): string | null {
+    return this.getAttribute('aria-controls');
+  }
+  set ariaControls(value: string | null) {
+    if (value === null) this.removeAttribute('aria-controls');
+    else this.setAttribute('aria-controls', value);
+  }
+
+  get ariaValueNow(): string | null {
+    return this.getAttribute('aria-valuenow');
+  }
+  set ariaValueNow(value: string | null) {
+    if (value === null) this.removeAttribute('aria-valuenow');
+    else this.setAttribute('aria-valuenow', value);
+  }
+
+  get ariaValueMin(): string | null {
+    return this.getAttribute('aria-valuemin');
+  }
+  set ariaValueMin(value: string | null) {
+    if (value === null) this.removeAttribute('aria-valuemin');
+    else this.setAttribute('aria-valuemin', value);
+  }
+
+  get ariaValueMax(): string | null {
+    return this.getAttribute('aria-valuemax');
+  }
+  set ariaValueMax(value: string | null) {
+    if (value === null) this.removeAttribute('aria-valuemax');
+    else this.setAttribute('aria-valuemax', value);
+  }
+
+  get ariaValueText(): string | null {
+    return this.getAttribute('aria-valuetext');
+  }
+  set ariaValueText(value: string | null) {
+    if (value === null) this.removeAttribute('aria-valuetext');
+    else this.setAttribute('aria-valuetext', value);
+  }
+
+  get role(): string | null {
+    return this.getAttribute('role');
+  }
+  set role(value: string | null) {
+    if (value === null) this.removeAttribute('role');
+    else this.setAttribute('role', value);
+  }
+
   // ---- tabIndex ----
 
   private _tabIndex: number | null = null;
@@ -2021,6 +2159,39 @@ export class Document extends Node {
     };
     collect(this);
     return new HTMLCollection(results);
+  }
+}
+
+/**
+ * Return the implicit ARIA role for a given element, or null if none applies.
+ * An explicit `role` attribute always takes precedence.
+ */
+export function getImplicitRole(element: Element): string | null {
+  const explicit = element.getAttribute('role');
+  if (explicit !== null) return explicit;
+
+  const tag = element.tagName;
+  switch (tag) {
+    case 'BUTTON':
+      return 'button';
+    case 'A':
+      return element.hasAttribute('href') ? 'link' : null;
+    case 'INPUT': {
+      const type = element.getAttribute('type') ?? 'text';
+      if (type === 'checkbox') return 'checkbox';
+      if (type === 'radio') return 'radio';
+      return null;
+    }
+    case 'NAV':
+      return 'navigation';
+    case 'MAIN':
+      return 'main';
+    case 'HEADER':
+      return 'banner';
+    case 'FOOTER':
+      return 'contentinfo';
+    default:
+      return null;
   }
 }
 
