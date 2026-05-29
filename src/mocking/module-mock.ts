@@ -22,10 +22,13 @@ export function autoMock<T extends Record<string, unknown>>(
   moduleExports: T,
   seen?: Set<object>,
 ): T {
+  // GHSA-2hqp-2m9v-36p4: Filter out dangerous prototype-polluting keys
+  const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
   const visited = seen ?? new Set<object>();
   visited.add(moduleExports);
-  const result: Record<string, unknown> = {};
+  const result: Record<string, unknown> = Object.create(null);
   for (const key of Object.keys(moduleExports)) {
+    if (DANGEROUS_KEYS.has(key)) continue;
     const value = moduleExports[key];
     if (typeof value === 'function') {
       result[key] = fn();

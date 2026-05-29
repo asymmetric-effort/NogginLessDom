@@ -2,6 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { fn, spyOn } from '../../src/mocking/index.js';
 import { mock } from '../../src/mocking/index.js';
+import { autoMock } from '../../src/mocking/module-mock.js';
 
 describe('mock object', () => {
   describe('mock.module()', () => {
@@ -233,5 +234,56 @@ describe('mock object', () => {
         undefined,
       );
     });
+  });
+});
+
+// GHSA-2hqp-2m9v-36p4: Prototype pollution in autoMock
+describe('autoMock prototype pollution protection', () => {
+  it('should skip __proto__ key', () => {
+    const malicious = Object.create(null) as Record<string, unknown>;
+    malicious.__proto__ = { polluted: true };
+    malicious.safe = () => 'ok';
+
+    const mocked = autoMock(malicious);
+    assert.strictEqual('__proto__' in mocked, false);
+    assert.ok('safe' in mocked);
+  });
+
+  it('should skip constructor key', () => {
+    const malicious = Object.create(null) as Record<string, unknown>;
+    malicious.constructor = () => 'evil';
+    malicious.normal = () => 'ok';
+
+    const mocked = autoMock(malicious);
+    assert.strictEqual('constructor' in mocked, false);
+    assert.ok('normal' in mocked);
+  });
+
+  it('should skip prototype key', () => {
+    const malicious = Object.create(null) as Record<string, unknown>;
+    malicious.prototype = { polluted: true };
+    malicious.valid = 42;
+
+    const mocked = autoMock(malicious);
+    assert.strictEqual('prototype' in mocked, false);
+    assert.ok('valid' in mocked);
+  });
+
+  it('should not pollute Object.prototype via autoMock', () => {
+    const before = Object.prototype.hasOwnProperty.call(
+      Object.prototype,
+      'polluted',
+    );
+    assert.strictEqual(before, false);
+
+    const malicious = Object.create(null) as Record<string, unknown>;
+    malicious.__proto__ = { polluted: true };
+    autoMock(malicious);
+
+    const after = Object.prototype.hasOwnProperty.call(
+      Object.prototype,
+      'polluted',
+    );
+    assert.strictEqual(after, false);
   });
 });
