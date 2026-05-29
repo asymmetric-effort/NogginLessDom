@@ -152,3 +152,22 @@ export {
 } from './test-runner/watch.js';
 
 export type { WatchOptions, WatchController } from './test-runner/watch.js';
+
+export {
+  ReporterManager,
+  configureReporters,
+  getReporterManager,
+  resetReporterManager,
+  DefaultReporter,
+  VerboseReporter,
+  DotReporter,
+  JsonReporter,
+  SilentReporter,
+} from './test-runner/reporter.js';
+
+export type {
+  TestEvent,
+  RunSummary,
+  TestReporter,
+  ReporterOptions,
+} from './test-runner/reporter.js';
