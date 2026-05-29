@@ -143,3 +143,12 @@ export {
   reportCoverage,
   checkCoverageThresholds,
 } from './coverage/index.js';
+
+export {
+  buildImportGraph,
+  matchGlob,
+  filterPaths,
+  watchTests,
+} from './test-runner/watch.js';
+
+export type { WatchOptions, WatchController } from './test-runner/watch.js';
