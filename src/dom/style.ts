@@ -22,6 +22,7 @@ type StyleChangeCallback = (cssText: string) => void;
  */
 export class CSSStyleDeclaration {
   private _properties: Map<string, string> = new Map();
+  private _priorities: Map<string, string> = new Map();
   private _onchange: StyleChangeCallback | null = null;
 
   /** Set a callback that fires whenever a style property changes. */
@@ -90,11 +91,21 @@ export class CSSStyleDeclaration {
     return this._properties.get(prop) ?? '';
   }
 
-  setProperty(prop: string, value: string, _priority?: string): void {
+  getPropertyPriority(prop: string): string {
+    return this._priorities.get(prop) ?? '';
+  }
+
+  setProperty(prop: string, value: string, priority?: string): void {
     if (value === '' || value === null || value === undefined) {
       this._properties.delete(prop);
+      this._priorities.delete(prop);
     } else {
       this._properties.set(prop, value);
+      if (priority) {
+        this._priorities.set(prop, priority);
+      } else {
+        this._priorities.delete(prop);
+      }
     }
     this._notifyChange();
   }
@@ -102,6 +113,7 @@ export class CSSStyleDeclaration {
   removeProperty(prop: string): string {
     const old = this._properties.get(prop) ?? '';
     this._properties.delete(prop);
+    this._priorities.delete(prop);
     this._notifyChange();
     return old;
   }

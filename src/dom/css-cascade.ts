@@ -13,6 +13,7 @@ export interface CSSRule {
   selector: string;
   properties: Map<string, string>;
   specificity: [number, number, number]; // [id, class, element]
+  importantProperties?: Set<string>;
 }
 
 /**
@@ -150,6 +151,7 @@ export function parseStyleSheet(css: string): CSSRule[] {
     const declarationBlock = cleaned.slice(braceStart + 1, braceEnd).trim();
 
     const properties = new Map<string, string>();
+    const importantProperties = new Set<string>();
     if (declarationBlock) {
       const declarations = declarationBlock
         .split(';')
@@ -159,9 +161,26 @@ export function parseStyleSheet(css: string): CSSRule[] {
         const colonIdx = decl.indexOf(':');
         if (colonIdx === -1) continue;
         const prop = decl.slice(0, colonIdx).trim();
-        const val = decl.slice(colonIdx + 1).trim();
+        let val = decl.slice(colonIdx + 1).trim();
+        let isImportant = false;
+        if (val.endsWith('!important')) {
+          val = val.slice(0, -10).trim();
+          isImportant = true;
+        }
         if (prop && val) {
-          properties.set(prop, val);
+          const expanded = expandShorthand(prop, val);
+          if (expanded.size > 0) {
+            // Keep original shorthand for getPropertyValue compatibility
+            properties.set(prop, val);
+            if (isImportant) importantProperties.add(prop);
+            for (const [lhProp, lhVal] of expanded) {
+              properties.set(lhProp, lhVal);
+              if (isImportant) importantProperties.add(lhProp);
+            }
+          } else {
+            properties.set(prop, val);
+            if (isImportant) importantProperties.add(prop);
+          }
         }
       }
     }
@@ -174,6 +193,10 @@ export function parseStyleSheet(css: string): CSSRule[] {
           selector: trimmedSel,
           properties: new Map(properties),
           specificity: computeSpecificity(trimmedSel),
+          importantProperties:
+            importantProperties.size > 0
+              ? new Set(importantProperties)
+              : undefined,
         });
       }
     }
@@ -205,6 +228,99 @@ function splitSelectors(selectorText: string): string[] {
   }
   parts.push(current);
   return parts.map((s) => s.trim()).filter((s) => s.length > 0);
+}
+
+/**
+ * Expand a CSS shorthand property into its longhand equivalents.
+ */
+export function expandShorthand(
+  property: string,
+  value: string,
+): Map<string, string> {
+  const result = new Map<string, string>();
+  const prop = property.toLowerCase();
+
+  if (prop === 'margin' || prop === 'padding') {
+    const parts = value.trim().split(/\s+/);
+    let top: string, right: string, bottom: string, left: string;
+    if (parts.length === 1) {
+      top = right = bottom = left = parts[0]!;
+    } else if (parts.length === 2) {
+      top = bottom = parts[0]!;
+      right = left = parts[1]!;
+    } else if (parts.length === 3) {
+      top = parts[0]!;
+      right = left = parts[1]!;
+      bottom = parts[2]!;
+    } else {
+      top = parts[0]!;
+      right = parts[1]!;
+      bottom = parts[2]!;
+      left = parts[3]!;
+    }
+    result.set(`${prop}-top`, top);
+    result.set(`${prop}-right`, right);
+    result.set(`${prop}-bottom`, bottom);
+    result.set(`${prop}-left`, left);
+    return result;
+  }
+
+  if (prop === 'border') {
+    const parts = value.trim().split(/\s+/);
+    for (const part of parts) {
+      if (
+        /^(none|hidden|dotted|dashed|solid|double|groove|ridge|inset|outset)$/.test(
+          part,
+        )
+      ) {
+        result.set('border-style', part);
+      } else if (
+        /^[0-9]/.test(part) ||
+        part === 'thin' ||
+        part === 'medium' ||
+        part === 'thick'
+      ) {
+        result.set('border-width', part);
+      } else {
+        result.set('border-color', part);
+      }
+    }
+    return result;
+  }
+
+  if (prop === 'background') {
+    result.set('background-color', value.trim());
+    return result;
+  }
+
+  if (prop === 'font') {
+    const parts = value.trim().split(/\s+/);
+    let idx = 0;
+    if (
+      parts.length > 2 &&
+      /^(bold|bolder|lighter|normal|[1-9]00)$/.test(parts[0]!)
+    ) {
+      result.set('font-weight', parts[0]!);
+      idx = 1;
+    }
+    if (idx < parts.length) {
+      const sizeToken = parts[idx]!;
+      if (sizeToken.includes('/')) {
+        const [size, lineHeight] = sizeToken.split('/');
+        result.set('font-size', size!);
+        result.set('line-height', lineHeight!);
+      } else {
+        result.set('font-size', sizeToken);
+      }
+      idx++;
+    }
+    if (idx < parts.length) {
+      result.set('font-family', parts.slice(idx).join(' '));
+    }
+    return result;
+  }
+
+  return result;
 }
 
 function compareSpecificity(
@@ -239,11 +355,61 @@ export function collectApplicableStyles(
   });
 
   const result = new Map<string, string>();
+  const resultImportant = new Set<string>();
   for (const { rule } of matching) {
     for (const [prop, val] of rule.properties) {
+      const isImportant = rule.importantProperties?.has(prop) ?? false;
+      const alreadyImportant = resultImportant.has(prop);
+      if (alreadyImportant && !isImportant) {
+        continue;
+      }
       result.set(prop, val);
+      if (isImportant) {
+        resultImportant.add(prop);
+      }
     }
   }
 
   return result;
+}
+
+/**
+ * Collect applicable styles and return both values and importance flags.
+ */
+export function collectApplicableStylesWithImportance(
+  element: Node,
+  stylesheets: CSSRule[],
+): { styles: Map<string, string>; important: Set<string> } {
+  const matching: Array<{ rule: CSSRule; index: number }> = [];
+
+  for (let idx = 0; idx < stylesheets.length; idx++) {
+    const rule = stylesheets[idx]!;
+    if (matchesSelector(element, rule.selector)) {
+      matching.push({ rule, index: idx });
+    }
+  }
+
+  matching.sort((a, b) => {
+    const specCmp = compareSpecificity(a.rule.specificity, b.rule.specificity);
+    if (specCmp !== 0) return specCmp;
+    return a.index - b.index;
+  });
+
+  const result = new Map<string, string>();
+  const resultImportant = new Set<string>();
+  for (const { rule } of matching) {
+    for (const [prop, val] of rule.properties) {
+      const isImportant = rule.importantProperties?.has(prop) ?? false;
+      const alreadyImportant = resultImportant.has(prop);
+      if (alreadyImportant && !isImportant) {
+        continue;
+      }
+      result.set(prop, val);
+      if (isImportant) {
+        resultImportant.add(prop);
+      }
+    }
+  }
+
+  return { styles: result, important: resultImportant };
 }
