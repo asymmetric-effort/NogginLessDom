@@ -684,47 +684,99 @@ export function matchSnapshot(
 export const pendingInlineSnapshots = new Map<string, string>();
 
 /**
+ * Parse a stack trace to find the call site outside of snapshots/assertions.
+ */
+export function getCallSite(): { file: string; line: number } | null {
+  const err = new Error();
+  const stack = err.stack ?? '';
+  const stackLines = stack.split('\n');
+  for (const line of stackLines) {
+    const match = /(?:at\s+.*?\s+\(|at\s+)(\/[^:)]+\.(?:ts|js)):(\d+)/.exec(
+      line,
+    );
+    if (match) {
+      const filePath = match[1]!;
+      if (
+        filePath.includes('snapshots.ts') ||
+        filePath.includes('snapshots.js')
+      )
+        continue;
+      if (filePath.includes('assertions/index')) continue;
+      return { file: filePath, line: parseInt(match[2]!, 10) };
+    }
+  }
+  return null;
+}
+
+/**
+ * Update an inline snapshot in a source file at the given call site.
+ */
+export function updateInlineSnapshot(
+  callSite: { file: string; line: number },
+  serialized: string,
+): void {
+  if (!fs.existsSync(callSite.file)) return;
+  const source = fs.readFileSync(callSite.file, 'utf-8');
+  const lines = source.split('\n');
+  const lineIdx = callSite.line - 1;
+  if (lineIdx < 0 || lineIdx >= lines.length) return;
+
+  for (let i = lineIdx; i < Math.min(lineIdx + 5, lines.length); i++) {
+    const lineText = lines[i]!;
+    const inlineIdx = lineText.indexOf('toMatchInlineSnapshot(');
+    if (inlineIdx === -1) continue;
+
+    const callStart = inlineIdx + 'toMatchInlineSnapshot('.length;
+    let endIdx = lineText.indexOf(')', callStart);
+    if (endIdx === -1) {
+      let found = false;
+      for (let j = i + 1; j < Math.min(i + 20, lines.length); j++) {
+        const nextEndIdx = lines[j]!.indexOf(')');
+        if (nextEndIdx !== -1) {
+          const escapedValue = JSON.stringify(serialized);
+          const prefix = lineText.slice(0, callStart);
+          const suffix = lines[j]!.slice(nextEndIdx + 1);
+          lines[i] = prefix + escapedValue + ')' + suffix;
+          lines.splice(i + 1, j - i);
+          found = true;
+          break;
+        }
+      }
+      if (!found) return;
+    } else {
+      const escapedValue = JSON.stringify(serialized);
+      lines[i] =
+        lineText.slice(0, callStart) + escapedValue + lineText.slice(endIdx);
+    }
+
+    fs.writeFileSync(callSite.file, lines.join('\n'), 'utf-8');
+    return;
+  }
+}
+
+/**
  * Match a value against an inline snapshot string.
- * If no inline snapshot provided and update mode is set, stores for retrieval.
+ * If no inline snapshot provided and update mode is set, auto-updates source.
  */
 export function matchInlineSnapshot(
   actual: unknown,
   inlineSnapshot?: string,
 ): void {
   const serialized = serialize(actual);
+  const mode = resolveUpdateMode();
 
   if (inlineSnapshot === undefined) {
-    const mode = resolveUpdateMode();
     if (mode === 'all' || mode === 'new') {
-      // Store the inline snapshot value for retrieval
-      const err = new Error();
-      const stack = err.stack ?? '';
-      const stackLines = stack.split('\n');
-      let callSite = '';
-      for (const line of stackLines) {
-        const match = /(?:at\s+.*?\s+\(|at\s+)(\/[^:)]+\.(?:ts|js)):(\d+)/.exec(
-          line,
+      const callSite = getCallSite();
+      if (callSite) {
+        updateInlineSnapshot(callSite, serialized);
+        pendingInlineSnapshots.set(
+          `${callSite.file}:${callSite.line}`,
+          serialized,
         );
-        if (match) {
-          const filePath = match[1]!;
-          if (
-            filePath.includes('snapshots.ts') ||
-            filePath.includes('snapshots.js')
-          )
-            continue;
-          if (filePath.includes('assertions/index')) continue;
-          callSite = `${filePath}:${match[2]!}`;
-          break;
-        }
       }
-      pendingInlineSnapshots.set(callSite, serialized);
-      // eslint-disable-next-line no-console
-      console.log(
-        `[Snapshot] Inline snapshot stored for update at ${callSite}. Value:\n${serialized}`,
-      );
       return;
     }
-    // Default: just log
     // eslint-disable-next-line no-console
     console.log(
       `[Snapshot] Inline snapshot needs to be added manually. Serialized value:\n${serialized}`,
@@ -733,12 +785,11 @@ export function matchInlineSnapshot(
   }
 
   if (serialized !== inlineSnapshot) {
-    if (resolveUpdateMode() === 'all') {
-      // In update-all mode, just pass (the caller would update the source)
-      // eslint-disable-next-line no-console
-      console.log(
-        `[Snapshot] Inline snapshot mismatch (update mode). New value:\n${serialized}`,
-      );
+    if (mode === 'all') {
+      const callSite = getCallSite();
+      if (callSite) {
+        updateInlineSnapshot(callSite, serialized);
+      }
       return;
     }
     throw new Error(
