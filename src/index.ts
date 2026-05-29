@@ -23,7 +23,10 @@ export {
   setTestFilePattern,
   clearTestFilePattern,
   getTestFilePattern,
+  configureIsolation,
+  installAutoMockCleanup,
 } from './test-runner/index.js';
+export type { IsolationConfig } from './test-runner/index.js';
 
 export { expect } from './assertions/index.js';
 
@@ -169,7 +172,10 @@ export {
   useRealTimers,
   mock,
   vi,
+  configureMockBehavior,
+  getMockConfig,
 } from './mocking/index.js';
+export type { MockConfig } from './mocking/index.js';
 
 export {
   startCoverage,

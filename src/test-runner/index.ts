@@ -17,6 +17,72 @@ import {
   buildFullName,
   shouldSkipTest,
 } from './filter.js';
+import {
+  runAutoMockCleanup,
+  useRealTimers,
+  getAllMocks,
+  mock as mockUtils,
+} from '../mocking/index.js';
+
+// ---------------------------------------------------------------------------
+// Test-level isolation for concurrent tests (Feature #169)
+// ---------------------------------------------------------------------------
+
+export interface IsolationConfig {
+  isolate?: boolean; // default: true for concurrent, false for sequential
+  isolation?: 'full' | 'mocks' | 'none'; // default: 'full'
+}
+
+let isolationConfig: IsolationConfig = {};
+
+export function configureIsolation(config: IsolationConfig): void {
+  isolationConfig = { ...config };
+}
+
+export function getIsolationConfig(): IsolationConfig {
+  return { ...isolationConfig };
+}
+
+/**
+ * Perform cleanup based on isolation mode.
+ * 'full': restoreAllMocks + useRealTimers + unstubAllGlobals
+ * 'mocks': restoreAllMocks only
+ * 'none': no cleanup
+ */
+function performIsolationCleanup(mode: 'full' | 'mocks' | 'none'): void {
+  if (mode === 'none') return;
+  // Import dynamically to avoid circular issues at module level
+  const mockSet = getAllMocks();
+  for (const m of mockSet) {
+    m.mockRestore();
+  }
+  mockSet.clear();
+  if (mode === 'full') {
+    useRealTimers();
+    mockUtils.unstubAllGlobals();
+  }
+}
+
+/**
+ * Wrap a test function for concurrent isolation.
+ */
+function wrapWithIsolation(testFn: TestFn, isConcurrent: boolean): TestFn {
+  const shouldIsolate =
+    isolationConfig.isolate !== undefined
+      ? isolationConfig.isolate
+      : isConcurrent;
+  if (!shouldIsolate) return testFn;
+  const mode = isolationConfig.isolation ?? 'full';
+  if (mode === 'none') return testFn;
+
+  return async (...args: unknown[]): Promise<void> => {
+    try {
+      await testFn(...args);
+    } finally {
+      performIsolationCleanup(mode);
+    }
+  };
+}
 
 type TestFn = (...args: unknown[]) => void | Promise<void>;
 type SuiteFn = (...args: unknown[]) => void | Promise<void>;
@@ -389,7 +455,7 @@ const it: ItFn = Object.assign(
           todo: options?.todo,
           timeout: options?.timeout,
         },
-        fn,
+        wrapWithIsolation(fn, true),
       );
     },
     skipIf(condition: unknown): (name: string, fn: TestFn) => void {
@@ -453,6 +519,16 @@ export function beforeEach(fn: TestFn): void {
  */
 export function afterEach(fn: TestFn): void {
   nodeAE(fn);
+}
+
+/**
+ * Install automatic mock cleanup as an afterEach hook.
+ * Should be called once at the top of a test suite where auto-restore is desired.
+ */
+export function installAutoMockCleanup(): void {
+  nodeAE(() => {
+    runAutoMockCleanup();
+  });
 }
 
 /**
