@@ -1,5 +1,5 @@
 /**
- * ResizeObserver stub implementation for full DOM simulation test environment.
+ * ResizeObserver implementation for full DOM simulation test environment.
  * @module dom/resize-observer
  */
 
@@ -46,8 +46,22 @@ type ResizeObserverCallback = (
   observer: ResizeObserver,
 ) => void;
 
+/** Default DOMRectLike with all zeroes. */
+function defaultRect(): DOMRectLike {
+  return {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  };
+}
+
 /**
- * ResizeObserver stub — tracks targets but does not detect real resizes.
+ * ResizeObserver — tracks targets and allows simulated resize events.
  * Use triggerResize() to simulate resize events in tests.
  */
 export class ResizeObserver {
@@ -74,32 +88,86 @@ export class ResizeObserver {
 }
 
 /**
+ * Partial input for triggerResize helper when using the array form.
+ * All fields except `target` are optional and will be auto-filled with defaults.
+ */
+export interface ResizeEntryInit {
+  target: Element;
+  contentRect?: Partial<DOMRectLike>;
+  borderBoxSize?: ResizeObserverSize[];
+  contentBoxSize?: ResizeObserverSize[];
+}
+
+/**
  * Test helper: simulate a resize event on a target observed by the given observer.
  * Only fires if the target is currently observed.
+ *
+ * Overload 1: single target with explicit contentRect (legacy API).
+ * Overload 2: array of partial entries with auto-filled defaults.
  */
 export function triggerResize(
   observer: ResizeObserver,
   target: Element,
   contentRect: DOMRectLike,
+): void;
+export function triggerResize(
+  observer: ResizeObserver,
+  entries: ResizeEntryInit[],
+): void;
+export function triggerResize(
+  observer: ResizeObserver,
+  targetOrEntries: Element | ResizeEntryInit[],
+  contentRect?: DOMRectLike,
 ): void {
-  if (!observer._targets.has(target)) return;
+  if (Array.isArray(targetOrEntries)) {
+    // Array form: accept partial entries
+    const filtered: ResizeObserverEntry[] = targetOrEntries
+      .filter((e) => observer._targets.has(e.target))
+      .map((e) => {
+        const rect: DOMRectLike = { ...defaultRect(), ...e.contentRect };
+        return {
+          target: e.target,
+          contentRect: rect,
+          borderBoxSize: e.borderBoxSize ?? [
+            {
+              blockSize: rect.height,
+              inlineSize: rect.width,
+            },
+          ],
+          contentBoxSize: e.contentBoxSize ?? [
+            {
+              blockSize: rect.height,
+              inlineSize: rect.width,
+            },
+          ],
+        };
+      });
 
-  const entry: ResizeObserverEntry = {
-    target,
-    contentRect,
-    borderBoxSize: [
-      {
-        blockSize: contentRect.height,
-        inlineSize: contentRect.width,
-      },
-    ],
-    contentBoxSize: [
-      {
-        blockSize: contentRect.height,
-        inlineSize: contentRect.width,
-      },
-    ],
-  };
+    if (filtered.length > 0) {
+      observer._callback(filtered, observer);
+    }
+  } else {
+    // Legacy single-target form
+    const target = targetOrEntries;
+    if (!observer._targets.has(target)) return;
 
-  observer._callback([entry], observer);
+    const entry: ResizeObserverEntry = {
+      target,
+      contentRect: contentRect!,
+      borderBoxSize: [
+        {
+          blockSize: contentRect!.height,
+          inlineSize: contentRect!.width,
+        },
+      ],
+      contentBoxSize: [
+        {
+          blockSize: contentRect!.height,
+          inlineSize: contentRect!.width,
+        },
+      ],
+    };
+
+    observer._callback([entry], observer);
+  }
 }

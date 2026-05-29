@@ -1,5 +1,5 @@
 /**
- * IntersectionObserver stub implementation for full DOM simulation test environment.
+ * IntersectionObserver implementation for full DOM simulation test environment.
  * @module dom/intersection-observer
  */
 
@@ -29,6 +29,7 @@ export interface IntersectionObserverEntry {
   boundingClientRect: DOMRectLike;
   intersectionRect: DOMRectLike;
   rootBounds: DOMRectLike | null;
+  time: number;
 }
 
 /**
@@ -45,8 +46,22 @@ type IntersectionObserverCallback = (
   observer: IntersectionObserver,
 ) => void;
 
+/** Default DOMRectLike with all zeroes. */
+function defaultRect(): DOMRectLike {
+  return {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  };
+}
+
 /**
- * IntersectionObserver stub — tracks targets but does not detect real intersections.
+ * IntersectionObserver — tracks targets and allows simulated intersection events.
  * Use triggerIntersection() to simulate intersection events in tests.
  */
 export class IntersectionObserver {
@@ -54,6 +69,8 @@ export class IntersectionObserver {
   _callback: IntersectionObserverCallback;
   /** @internal */
   _targets: Set<Element> = new Set();
+  /** @internal */
+  _pendingEntries: IntersectionObserverEntry[] = [];
 
   public readonly root: Element | null;
   public readonly rootMargin: string;
@@ -88,23 +105,32 @@ export class IntersectionObserver {
   disconnect(): void {
     this._targets.clear();
   }
+
+  takeRecords(): IntersectionObserverEntry[] {
+    const records = this._pendingEntries.slice();
+    this._pendingEntries = [];
+    return records;
+  }
 }
 
 /**
- * Input for triggerIntersection helper.
+ * Partial input for triggerIntersection helper.
+ * All fields except `target` are optional and will be auto-filled with defaults.
  */
 export interface IntersectionEntryInit {
   target: Element;
-  isIntersecting: boolean;
-  intersectionRatio: number;
-  boundingClientRect: DOMRectLike;
-  intersectionRect: DOMRectLike;
-  rootBounds?: DOMRectLike | null;
+  isIntersecting?: boolean;
+  intersectionRatio?: number;
+  boundingClientRect?: Partial<DOMRectLike>;
+  intersectionRect?: Partial<DOMRectLike>;
+  rootBounds?: Partial<DOMRectLike> | null;
+  time?: number;
 }
 
 /**
  * Test helper: simulate intersection events.
  * Only fires entries whose targets are currently observed.
+ * Accepts partial entry data; missing fields are auto-filled with defaults.
  */
 export function triggerIntersection(
   observer: IntersectionObserver,
@@ -114,12 +140,21 @@ export function triggerIntersection(
     .filter((e) => observer._targets.has(e.target))
     .map((e) => ({
       target: e.target,
-      isIntersecting: e.isIntersecting,
-      intersectionRatio: e.intersectionRatio,
-      boundingClientRect: e.boundingClientRect,
-      intersectionRect: e.intersectionRect,
-      rootBounds: e.rootBounds ?? null,
+      isIntersecting: e.isIntersecting ?? false,
+      intersectionRatio: e.intersectionRatio ?? 0,
+      boundingClientRect: { ...defaultRect(), ...e.boundingClientRect },
+      intersectionRect: { ...defaultRect(), ...e.intersectionRect },
+      rootBounds:
+        e.rootBounds === null
+          ? null
+          : e.rootBounds === undefined
+            ? null
+            : { ...defaultRect(), ...e.rootBounds },
+      time: e.time ?? Date.now(),
     }));
+
+  // Store as pending entries
+  observer._pendingEntries.push(...filtered);
 
   if (filtered.length > 0) {
     observer._callback(filtered, observer);
