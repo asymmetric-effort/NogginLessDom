@@ -38,7 +38,9 @@ function generateSpaHtml(
   const coverageJson = JSON.stringify({
     globalSummary,
     files: fileData,
-  });
+  })
+    .replace(/<\//g, '<\\/')
+    .replace(/<!--/g, '<\\!--');
 
   return `<!DOCTYPE html>
 <html lang="en">

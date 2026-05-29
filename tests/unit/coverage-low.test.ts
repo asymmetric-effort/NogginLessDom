@@ -142,6 +142,66 @@ describe('Issue #99: html-spa reporter', () => {
 
     rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('html-spa reporter escapes </script> in file paths', () => {
+    const factory = getReporterFactory('html-spa');
+    const tmpDir = join(tmpdir(), `coverage-spa-xss-${Date.now()}`);
+    mkdirSync(tmpDir, { recursive: true });
+
+    const reporter = factory({ reportsDirectory: tmpDir });
+    const evilPath = '/home/user/</script><script>alert(1)//';
+    const mockMap = {
+      files: () => [evilPath],
+      fileCoverageFor: (fp: string) => ({
+        path: fp,
+        statementMap: {
+          '0': { start: { line: 1, column: 0 }, end: { line: 1, column: 10 } },
+        },
+        fnMap: {},
+        branchMap: {},
+        s: { '0': 1 },
+        f: {},
+        b: {},
+      }),
+      fileSummaryFor: () => ({
+        statements: { total: 1, covered: 1, skipped: 0, pct: 100 },
+        branches: { total: 0, covered: 0, skipped: 0, pct: 100 },
+        functions: { total: 0, covered: 0, skipped: 0, pct: 100 },
+        lines: { total: 1, covered: 1, skipped: 0, pct: 100 },
+      }),
+      toSummary: () => ({
+        statements: { total: 1, covered: 1, skipped: 0, pct: 100 },
+        branches: { total: 0, covered: 0, skipped: 0, pct: 100 },
+        functions: { total: 0, covered: 0, skipped: 0, pct: 100 },
+        lines: { total: 1, covered: 1, skipped: 0, pct: 100 },
+      }),
+      filter: () => {},
+      addFileCoverage: () => {},
+      merge: () => {},
+    };
+    const mockSummary = {
+      statements: { total: 1, covered: 1, skipped: 0, pct: 100 },
+      branches: { total: 0, covered: 0, skipped: 0, pct: 100 },
+      functions: { total: 0, covered: 0, skipped: 0, pct: 100 },
+      lines: { total: 1, covered: 1, skipped: 0, pct: 100 },
+    };
+
+    // @ts-expect-error mock coverage map
+    reporter.onEnd(mockMap, mockSummary);
+
+    const htmlPath = join(tmpDir, 'html-spa', 'index.html');
+    const content = readFileSync(htmlPath, 'utf-8');
+    // The literal </script> should NOT appear in the embedded JSON
+    const scriptStart = content.indexOf('<script>');
+    const scriptEnd = content.indexOf('</script>');
+    const scriptContent = content.slice(scriptStart + 8, scriptEnd);
+    assert.ok(
+      !scriptContent.includes('</script>'),
+      'script content must not contain raw </script>',
+    );
+
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
 });
 
 // ---------------------------------------------------------------------------
