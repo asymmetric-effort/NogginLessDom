@@ -21,7 +21,8 @@ describe('Coverage clean option', () => {
   let tmpDir: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'coverage-clean-test-'));
+    // Use project-local temp dir so path validation passes
+    tmpDir = fs.mkdtempSync(path.join(process.cwd(), '.tmp-coverage-clean-'));
   });
 
   it('should remove the reports directory when clean is true', () => {
@@ -30,18 +31,25 @@ describe('Coverage clean option', () => {
     fs.writeFileSync(path.join(reportsDir, 'report.json'), '{}');
 
     const config = makeConfig({ clean: true, reportsDirectory: reportsDir });
-    cleanReportsDirectory(config);
-
-    assert.equal(fs.existsSync(reportsDir), false);
+    try {
+      cleanReportsDirectory(config);
+      assert.equal(fs.existsSync(reportsDir), false);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('should not throw when reports directory does not exist and clean is true', () => {
     const reportsDir = path.join(tmpDir, 'nonexistent');
     const config = makeConfig({ clean: true, reportsDirectory: reportsDir });
 
-    assert.doesNotThrow(() => {
-      cleanReportsDirectory(config);
-    });
+    try {
+      assert.doesNotThrow(() => {
+        cleanReportsDirectory(config);
+      });
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('should not remove the reports directory when clean is false', () => {
@@ -50,10 +58,13 @@ describe('Coverage clean option', () => {
     fs.writeFileSync(path.join(reportsDir, 'report.json'), '{}');
 
     const config = makeConfig({ clean: false, reportsDirectory: reportsDir });
-    cleanReportsDirectory(config);
-
-    assert.equal(fs.existsSync(reportsDir), true);
-    assert.equal(fs.existsSync(path.join(reportsDir, 'report.json')), true);
+    try {
+      cleanReportsDirectory(config);
+      assert.equal(fs.existsSync(reportsDir), true);
+      assert.equal(fs.existsSync(path.join(reportsDir, 'report.json')), true);
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('should default clean to true', () => {
@@ -258,5 +269,24 @@ describe('Coverage all option', () => {
     // Should have zero functions and branches
     assert.equal(Object.keys(fc.f).length, 0);
     assert.equal(Object.keys(fc.b).length, 0);
+  });
+});
+
+describe('cleanReportsDirectory path validation', () => {
+  it('should reject absolute paths outside project root', () => {
+    const config = mergeConfig({ clean: true, reportsDirectory: '/tmp/evil' });
+    assert.throws(() => {
+      cleanReportsDirectory(config);
+    }, /reportsDirectory must be within the project root/);
+  });
+
+  it('should reject relative traversal paths', () => {
+    const config = mergeConfig({
+      clean: true,
+      reportsDirectory: '../../../tmp/evil',
+    });
+    assert.throws(() => {
+      cleanReportsDirectory(config);
+    }, /reportsDirectory must be within the project root/);
   });
 });

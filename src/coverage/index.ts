@@ -234,6 +234,7 @@ export function cleanReportsDirectoryOnRerun(
 ): void {
   if (!config.cleanOnRerun || !wasActive) return;
   const dir = config.reportsDirectory;
+  validateReportsDirectory(dir);
   fs.rmSync(dir, { recursive: true, force: true });
 }
 
@@ -815,7 +816,22 @@ function v8ToFileCoverage(
 export function cleanReportsDirectory(config: ResolvedCoverageConfig): void {
   if (!config.clean) return;
   const dir = config.reportsDirectory;
+  validateReportsDirectory(dir);
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+/**
+ * Validate that reportsDirectory is within the project root.
+ */
+export function validateReportsDirectory(
+  dir: string,
+  projectRoot?: string,
+): void {
+  const root = projectRoot ?? process.cwd();
+  const resolved = nodePath.resolve(root, dir);
+  if (!resolved.startsWith(root + nodePath.sep) && resolved !== root) {
+    throw new Error(`reportsDirectory must be within the project root: ${dir}`);
+  }
 }
 
 /**
