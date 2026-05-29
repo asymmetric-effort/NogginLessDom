@@ -5,6 +5,7 @@
 
 import {
   mockModule,
+  mockModulePartial,
   importActual,
   unmock,
   resetModules,
@@ -845,6 +846,7 @@ async function importMock(moduleName: string): Promise<unknown> {
  */
 export const mock = {
   module: mockModule,
+  modulePartial: mockModulePartial,
   /** Explicitly non-hoisted module mock (equivalent to module()). */
   doMock: mockModule,
   importActual,

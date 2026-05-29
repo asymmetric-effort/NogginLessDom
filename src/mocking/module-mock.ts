@@ -106,6 +106,35 @@ export function mockRequire(modulePath: string): unknown {
 }
 
 /**
+ * Partially mock a module: import the real module, overlay overrides, and
+ * optionally auto-mock remaining functions.
+ */
+export async function mockModulePartial(
+  moduleName: string,
+  overrides: Record<string, unknown>,
+  options?: { autoMockRest?: boolean },
+): Promise<void> {
+  const realModule = (await import(moduleName)) as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...realModule };
+
+  // Apply overrides
+  for (const key of Object.keys(overrides)) {
+    merged[key] = overrides[key];
+  }
+
+  // Auto-mock non-overridden functions if requested
+  if (options?.autoMockRest) {
+    for (const key of Object.keys(merged)) {
+      if (!(key in overrides) && typeof merged[key] === 'function') {
+        merged[key] = fn();
+      }
+    }
+  }
+
+  moduleRegistry.set(moduleName, merged);
+}
+
+/**
  * Mock-aware async import: if a mock exists for the path, return it.
  * Otherwise, dynamically import the real module and auto-mock its exports.
  */
