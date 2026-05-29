@@ -434,26 +434,26 @@ export class StorageEvent extends Event {
   public readonly oldValue: string | null;
   public readonly newValue: string | null;
   public readonly url: string;
-  public readonly storageArea: unknown;
+  public readonly storageArea: import('./window.js').Storage | null;
 
   constructor(
     type: string,
-    options?: {
+    init?: {
       bubbles?: boolean;
       cancelable?: boolean;
       key?: string | null;
       oldValue?: string | null;
       newValue?: string | null;
       url?: string;
-      storageArea?: unknown;
+      storageArea?: import('./window.js').Storage | null;
     },
   ) {
-    super(type, options);
-    this.key = options?.key ?? null;
-    this.oldValue = options?.oldValue ?? null;
-    this.newValue = options?.newValue ?? null;
-    this.url = options?.url ?? '';
-    this.storageArea = options?.storageArea ?? null;
+    super(type, init);
+    this.key = init?.key ?? null;
+    this.oldValue = init?.oldValue ?? null;
+    this.newValue = init?.newValue ?? null;
+    this.url = init?.url ?? '';
+    this.storageArea = init?.storageArea ?? null;
   }
 }
 
