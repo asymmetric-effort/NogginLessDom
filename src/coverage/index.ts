@@ -307,6 +307,20 @@ export async function startCoverage(
 
   // Issue #67: custom provider module support
   if (activeConfig.customProviderModule) {
+    // GHSA-hvjq-3qmw-6667: Validate customProviderModule path is within the project
+    const projectRoot = process.cwd();
+    const resolvedModulePath = nodePath.resolve(
+      projectRoot,
+      activeConfig.customProviderModule,
+    );
+    if (
+      !resolvedModulePath.startsWith(projectRoot + nodePath.sep) &&
+      resolvedModulePath !== projectRoot
+    ) {
+      throw new Error(
+        `customProviderModule must be within the project directory: ${activeConfig.customProviderModule}`,
+      );
+    }
     const customModule = (await import(activeConfig.customProviderModule)) as {
       createProvider: () => V8CoverageProvider;
     };
@@ -837,7 +851,10 @@ export function validateReportsDirectory(
 /**
  * Walk a directory recursively and collect all file paths.
  */
-function walkDir(dir: string): string[] {
+function walkDir(
+  dir: string,
+  visited: Set<string> = new Set<string>(),
+): string[] {
   const results: string[] = [];
   let entries: fs.Dirent[];
   try {
@@ -845,10 +862,27 @@ function walkDir(dir: string): string[] {
   } catch {
     return results;
   }
+
+  // GHSA-97hj-3rh3-3wjm: Cycle detection with realpath
+  let realDir: string;
+  try {
+    realDir = fs.realpathSync(dir);
+  } catch {
+    return results;
+  }
+  if (visited.has(realDir)) {
+    return results;
+  }
+  visited.add(realDir);
+
   for (const entry of entries) {
+    // GHSA-97hj-3rh3-3wjm: Skip symlinks
+    if (entry.isSymbolicLink()) {
+      continue;
+    }
     const fullPath = nodePath.join(dir, entry.name);
     if (entry.isDirectory()) {
-      results.push(...walkDir(fullPath));
+      results.push(...walkDir(fullPath, visited));
     } else if (entry.isFile()) {
       results.push(fullPath);
     }

@@ -1,12 +1,20 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkCoverageThresholds } from '../../src/coverage/index.js';
-import { getDefaultConfig } from '../../src/coverage/config.js';
+import {
+  checkCoverageThresholds,
+  startCoverage,
+  collectUncoveredFiles,
+} from '../../src/coverage/index.js';
+import { getDefaultConfig, mergeConfig } from '../../src/coverage/config.js';
 import type {
   CoverageSummary,
   CoverageMetric,
 } from '../../src/coverage/reporters/types.js';
 import type { CoverageThresholds } from '../../src/coverage/config.js';
+import { createCoverageMap } from '../../src/coverage/coverage-map.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as os from 'node:os';
 
 function makeMetric(pct: number): CoverageMetric {
   return { total: 100, covered: pct, skipped: 0, pct };
@@ -139,6 +147,65 @@ describe('Coverage API', () => {
     it('should export reportCoverage as a function', async () => {
       const mod = await import('../../src/coverage/index.js');
       assert.equal(typeof mod.reportCoverage, 'function');
+    });
+  });
+
+  // GHSA-hvjq-3qmw-6667: Code execution via customProviderModule
+  describe('customProviderModule path validation', () => {
+    it('should reject customProviderModule outside project directory', async () => {
+      await assert.rejects(
+        () =>
+          startCoverage({
+            enabled: true,
+            customProviderModule: '/etc/evil-module.js',
+          }),
+        /customProviderModule must be within the project directory/,
+      );
+    });
+
+    it('should reject customProviderModule with path traversal', async () => {
+      await assert.rejects(
+        () =>
+          startCoverage({
+            enabled: true,
+            customProviderModule: '../../../etc/evil-module.js',
+          }),
+        /customProviderModule must be within the project directory/,
+      );
+    });
+  });
+
+  // GHSA-97hj-3rh3-3wjm: Symlink following in walkDir
+  describe('walkDir symlink protection', () => {
+    it('should skip symlinks when collecting uncovered files', () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'walkdir-test-'));
+      const realDir = path.join(tmpDir, 'real');
+      const symlinkDir = path.join(tmpDir, 'link');
+      const realFile = path.join(realDir, 'file.ts');
+
+      fs.mkdirSync(realDir, { recursive: true });
+      fs.writeFileSync(realFile, 'export const x = 1;', 'utf-8');
+      fs.symlinkSync(realDir, symlinkDir);
+
+      const config = mergeConfig({
+        all: true,
+        include: ['**/*.ts'],
+        exclude: [],
+      });
+      const map = createCoverageMap();
+
+      try {
+        collectUncoveredFiles(map, config, tmpDir);
+        // The file from the real dir should be found
+        const files = map.files();
+        const hasRealFile = files.some((f) => f.includes('real/file.ts'));
+        assert.ok(hasRealFile, 'should find files in real directories');
+        // The symlinked copy should NOT appear as a separate file
+        const hasSymlinkFile = files.some((f) => f.includes('link/file.ts'));
+        assert.strictEqual(hasSymlinkFile, false, 'should not follow symlinks');
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     });
   });
 });
