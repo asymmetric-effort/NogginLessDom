@@ -65,6 +65,10 @@ export interface LayoutMetrics {
 /** Maximum DOM tree depth to prevent stack overflow from unbounded recursion. */
 const MAX_DOM_DEPTH = 5000;
 
+/** GHSA-4r52-c9x8-qr87: Maximum dispatch depth to prevent re-entrant event loops. */
+const MAX_DISPATCH_DEPTH = 16;
+let dispatchDepth = 0;
+
 /**
  * Convert camelCase to data-kebab-case attribute name.
  */
@@ -899,6 +903,21 @@ export class Element extends Node {
   }
 
   dispatchEvent(event: Event): boolean {
+    // GHSA-4r52-c9x8-qr87: Prevent unbounded re-entrant event dispatch
+    if (dispatchDepth >= MAX_DISPATCH_DEPTH) {
+      throw new Error(
+        `Maximum event dispatch depth (${MAX_DISPATCH_DEPTH}) exceeded — possible infinite re-entrant dispatch`,
+      );
+    }
+    dispatchDepth++;
+    try {
+      return this._dispatchEventImpl(event);
+    } finally {
+      dispatchDepth--;
+    }
+  }
+
+  private _dispatchEventImpl(event: Event): boolean {
     event.target = this;
 
     // Lazy import ShadowRoot to check shadow boundary

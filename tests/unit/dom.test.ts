@@ -233,4 +233,49 @@ describe('DOM', () => {
       assert.strictEqual(doc.getElementById('deep'), inner);
     });
   });
+
+  // GHSA-4r52-c9x8-qr87: Unbounded re-entrant event dispatch
+  describe('re-entrant event dispatch depth limit', () => {
+    it('should throw when dispatch depth exceeds MAX_DISPATCH_DEPTH', () => {
+      const el = new Element('div');
+      // Add a listener that re-dispatches the same event type
+      el.addEventListener('test-recurse', () => {
+        el.dispatchEvent(new Event('test-recurse'));
+      });
+
+      assert.throws(
+        () => el.dispatchEvent(new Event('test-recurse')),
+        /Maximum event dispatch depth.*exceeded/,
+      );
+    });
+
+    it('should allow normal dispatch within depth limit', () => {
+      const el = new Element('div');
+      let count = 0;
+      el.addEventListener('normal', () => {
+        count++;
+      });
+      el.dispatchEvent(new Event('normal'));
+      el.dispatchEvent(new Event('normal'));
+      assert.strictEqual(count, 2);
+    });
+
+    it('should recover dispatch depth after error', () => {
+      const el = new Element('div');
+      el.addEventListener('bad', () => {
+        el.dispatchEvent(new Event('bad'));
+      });
+
+      assert.throws(() => el.dispatchEvent(new Event('bad')));
+
+      // After the error, dispatch depth should be reset, so normal dispatch works
+      let called = false;
+      const el2 = new Element('span');
+      el2.addEventListener('ok', () => {
+        called = true;
+      });
+      el2.dispatchEvent(new Event('ok'));
+      assert.strictEqual(called, true);
+    });
+  });
 });
