@@ -38,10 +38,16 @@ function escapeAttr(value: string): string {
     .replace(/"/g, '&quot;');
 }
 
+const MAX_SERIALIZE_DEPTH = 5000;
+
 /**
  * Serialize a DOM node to an HTML string.
  */
-export function serializeNode(node: Node): string {
+export function serializeNode(node: Node, depth: number = 0): string {
+  if (depth > MAX_SERIALIZE_DEPTH) {
+    throw new Error('Maximum DOM depth exceeded during serialization');
+  }
+
   if (node instanceof TextNode) {
     return escapeText(node.data);
   }
@@ -62,17 +68,19 @@ export function serializeNode(node: Node): string {
       return `<${tag}${attrs}>`;
     }
 
-    const children = node.childNodes.map((c) => serializeNode(c)).join('');
+    const children = node.childNodes
+      .map((c) => serializeNode(c, depth + 1))
+      .join('');
     return `<${tag}${attrs}>${children}</${tag}>`;
   }
 
   // Generic node — serialize children
-  return node.childNodes.map((c) => serializeNode(c)).join('');
+  return node.childNodes.map((c) => serializeNode(c, depth + 1)).join('');
 }
 
 /**
  * Serialize only the children of a node to HTML.
  */
 export function serializeChildren(node: Node): string {
-  return node.childNodes.map((c) => serializeNode(c)).join('');
+  return node.childNodes.map((c) => serializeNode(c, 0)).join('');
 }

@@ -209,4 +209,33 @@ describe('Node advanced', () => {
       assert.ok(result & 1); // DISCONNECTED
     });
   });
+
+  describe('deep nesting protection', () => {
+    it('should throw on excessively deep trees for cloneNode', () => {
+      const root = new Element('div');
+      let current: Element = root;
+      for (let i = 0; i < 6000; i++) {
+        const child = new Element('div');
+        current.appendChild(child);
+        current = child;
+      }
+      assert.throws(() => {
+        root.cloneNode(true);
+      }, /Maximum DOM depth exceeded/);
+    });
+
+    it('should throw on excessively deep trees for textContent', () => {
+      const root = new Element('div');
+      let current: Element = root;
+      for (let i = 0; i < 6000; i++) {
+        const child = new Element('div');
+        current.appendChild(child);
+        current = child;
+      }
+      current.appendChild(new TextNode('deep'));
+      assert.throws(() => {
+        void root.textContent;
+      }, /Maximum DOM depth exceeded/);
+    });
+  });
 });

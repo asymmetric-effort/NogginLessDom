@@ -62,6 +62,9 @@ export interface LayoutMetrics {
   scrollHeight?: number;
 }
 
+/** Maximum DOM tree depth to prevent stack overflow from unbounded recursion. */
+const MAX_DOM_DEPTH = 5000;
+
 /**
  * Convert camelCase to data-kebab-case attribute name.
  */
@@ -87,17 +90,21 @@ function collectDescendantsByTagName(
   upperTag: string,
 ): Element[] {
   const results: Element[] = [];
-  const walk = (node: Node): void => {
-    for (const child of node.childNodes) {
-      if (child instanceof Element) {
-        if (tagName === '*' || child.tagName === upperTag) {
-          results.push(child);
-        }
+  const stack: Node[] = [];
+  for (let i = root.childNodes.length - 1; i >= 0; i--) {
+    stack.push(root.childNodes[i]!);
+  }
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node instanceof Element) {
+      if (tagName === '*' || node.tagName === upperTag) {
+        results.push(node);
       }
-      walk(child);
     }
-  };
-  walk(root);
+    for (let i = node.childNodes.length - 1; i >= 0; i--) {
+      stack.push(node.childNodes[i]!);
+    }
+  }
   return results;
 }
 
@@ -110,18 +117,22 @@ function collectDescendantsByClassName(
   searchClasses: string[],
 ): Element[] {
   const results: Element[] = [];
-  const walk = (node: Node): void => {
-    for (const child of node.childNodes) {
-      if (child instanceof Element) {
-        const elClasses = child.className.split(/\s+/).filter(Boolean);
-        if (searchClasses.every((c) => elClasses.includes(c))) {
-          results.push(child);
-        }
+  const stack: Node[] = [];
+  for (let i = root.childNodes.length - 1; i >= 0; i--) {
+    stack.push(root.childNodes[i]!);
+  }
+  while (stack.length > 0) {
+    const node = stack.pop()!;
+    if (node instanceof Element) {
+      const elClasses = node.className.split(/\s+/).filter(Boolean);
+      if (searchClasses.every((c) => elClasses.includes(c))) {
+        results.push(node);
       }
-      walk(child);
     }
-  };
-  walk(root);
+    for (let i = node.childNodes.length - 1; i >= 0; i--) {
+      stack.push(node.childNodes[i]!);
+    }
+  }
   return results;
 }
 
@@ -240,6 +251,14 @@ export class Node {
   }
 
   isEqualNode(other: Node | null): boolean {
+    return this._isEqualNode(other, 0);
+  }
+
+  /** @internal */
+  _isEqualNode(other: Node | null, depth: number): boolean {
+    if (depth > MAX_DOM_DEPTH) {
+      throw new Error('Maximum DOM depth exceeded');
+    }
     if (other === null) return false;
     if (this.nodeType !== other.nodeType) return false;
     if (this.nodeName !== other.nodeName) return false;
@@ -262,7 +281,8 @@ export class Node {
 
     // Compare children recursively
     for (let i = 0; i < this.childNodes.length; i++) {
-      if (!this.childNodes[i]!.isEqualNode(other.childNodes[i]!)) return false;
+      if (!this.childNodes[i]!._isEqualNode(other.childNodes[i]!, depth + 1))
+        return false;
     }
     return true;
   }
@@ -420,8 +440,13 @@ export class Node {
 
   contains(other: Node): boolean {
     if (this === other) return true;
-    for (const child of this.childNodes) {
-      if (child.contains(other)) return true;
+    const stack: Node[] = [...this.childNodes];
+    while (stack.length > 0) {
+      const node = stack.pop()!;
+      if (node === other) return true;
+      for (let i = node.childNodes.length - 1; i >= 0; i--) {
+        stack.push(node.childNodes[i]!);
+      }
     }
     return false;
   }
@@ -455,7 +480,15 @@ export class Node {
   }
 
   get textContent(): string {
-    return this.childNodes.map((c) => c.textContent).join('');
+    return this._getTextContent(0);
+  }
+
+  /** @internal */
+  _getTextContent(depth: number): string {
+    if (depth > MAX_DOM_DEPTH) {
+      throw new Error('Maximum DOM depth exceeded');
+    }
+    return this.childNodes.map((c) => c._getTextContent(depth + 1)).join('');
   }
 
   set textContent(value: string) {
@@ -466,10 +499,18 @@ export class Node {
   }
 
   cloneNode(deep?: boolean): Node {
+    return this._cloneNode(deep, 0);
+  }
+
+  /** @internal */
+  _cloneNode(deep: boolean | undefined, depth: number): Node {
+    if (depth > MAX_DOM_DEPTH) {
+      throw new Error('Maximum DOM depth exceeded');
+    }
     const clone = new Node(this.nodeType, this.nodeName);
     if (deep) {
       for (const child of this.childNodes) {
-        clone.appendChild(child.cloneNode(true));
+        clone.appendChild(child._cloneNode(true, depth + 1));
       }
     }
     return clone;
@@ -509,11 +550,21 @@ export class TextNode extends Node {
     return this._data;
   }
 
+  /** @internal */
+  override _getTextContent(_depth: number): string {
+    return this._data;
+  }
+
   override set textContent(value: string) {
     this.data = value;
   }
 
   override cloneNode(_deep?: boolean): TextNode {
+    return new TextNode(this._data);
+  }
+
+  /** @internal */
+  override _cloneNode(_deep: boolean | undefined, _depth: number): TextNode {
     return new TextNode(this._data);
   }
 }
@@ -533,11 +584,21 @@ export class Comment extends Node {
     return this.data;
   }
 
+  /** @internal */
+  override _getTextContent(_depth: number): string {
+    return this.data;
+  }
+
   override set textContent(value: string) {
     this.data = value;
   }
 
   override cloneNode(_deep?: boolean): Comment {
+    return new Comment(this.data);
+  }
+
+  /** @internal */
+  override _cloneNode(_deep: boolean | undefined, _depth: number): Comment {
     return new Comment(this.data);
   }
 }
@@ -972,13 +1033,21 @@ export class Element extends Node {
   }
 
   override cloneNode(deep?: boolean): Element {
+    return this._cloneNode(deep, 0);
+  }
+
+  /** @internal */
+  override _cloneNode(deep: boolean | undefined, depth: number): Element {
+    if (depth > MAX_DOM_DEPTH) {
+      throw new Error('Maximum DOM depth exceeded');
+    }
     const clone = new Element(this.tagName, this.namespaceURI);
     for (const [key, value] of this.attributes) {
       clone.setAttribute(key, value);
     }
     if (deep) {
       for (const child of this.childNodes) {
-        clone.appendChild(child.cloneNode(true));
+        clone.appendChild(child._cloneNode(true, depth + 1));
       }
     }
     return clone;

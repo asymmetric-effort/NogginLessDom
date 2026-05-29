@@ -435,15 +435,19 @@ function matchesComplex(node: Node, sel: ComplexSelector): boolean {
 /** Collect all element descendants of a node in document order (not including the node itself). */
 function collectElements(node: Node): Node[] {
   const result: Node[] = [];
-  const walk = (n: Node): void => {
-    for (const child of n.childNodes) {
-      if (isElement(child)) {
-        result.push(child);
-      }
-      walk(child);
+  const stack: Node[] = [];
+  for (let i = node.childNodes.length - 1; i >= 0; i--) {
+    stack.push(node.childNodes[i]!);
+  }
+  while (stack.length > 0) {
+    const n = stack.pop()!;
+    if (isElement(n)) {
+      result.push(n);
     }
-  };
-  walk(node);
+    for (let i = n.childNodes.length - 1; i >= 0; i--) {
+      stack.push(n.childNodes[i]!);
+    }
+  }
   return result;
 }
 
