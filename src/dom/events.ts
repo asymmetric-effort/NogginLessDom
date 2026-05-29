@@ -300,20 +300,21 @@ export class DragEvent extends MouseEvent {
 }
 
 /**
- * ClipboardEvent — extends Event with clipboardData (null stub).
+ * ClipboardEvent — extends Event with clipboardData support.
  */
 export class ClipboardEvent extends Event {
-  public readonly clipboardData: null;
+  public readonly clipboardData: DataTransfer | null;
 
   constructor(
     type: string,
     options?: {
       bubbles?: boolean;
       cancelable?: boolean;
+      clipboardData?: DataTransfer | null;
     },
   ) {
     super(type, options);
-    this.clipboardData = null;
+    this.clipboardData = options?.clipboardData ?? null;
   }
 }
 
