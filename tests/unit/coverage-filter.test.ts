@@ -1,6 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { shouldIncludeFile } from '../../src/coverage/filter.js';
+import {
+  shouldIncludeFile,
+  matchesPattern,
+} from '../../src/coverage/filter.js';
 import type { CoverageConfig } from '../../src/coverage/config.js';
 
 function makeConfig(overrides: Partial<CoverageConfig> = {}): CoverageConfig {
@@ -122,6 +125,54 @@ describe('shouldIncludeFile', () => {
     it('should handle dot files', () => {
       const config = makeConfig({ include: ['**/*.ts'] });
       assert.equal(shouldIncludeFile('.hidden/file.ts', config), true);
+    });
+  });
+
+  // GHSA-f9pv-ghr6-r2qm: ReDoS in glob-to-regex
+  describe('globToRegex metacharacter escaping', () => {
+    it('should escape parentheses in glob patterns', () => {
+      assert.equal(matchesPattern('src/(test).ts', 'src/(test).ts'), true);
+      assert.equal(matchesPattern('src/test.ts', 'src/(test).ts'), false);
+    });
+
+    it('should escape square brackets in glob patterns', () => {
+      assert.equal(matchesPattern('src/[file].ts', 'src/[file].ts'), true);
+    });
+
+    it('should escape curly braces in glob patterns', () => {
+      assert.equal(matchesPattern('src/{file}.ts', 'src/{file}.ts'), true);
+    });
+
+    it('should escape plus sign in glob patterns', () => {
+      assert.equal(matchesPattern('src/a+b.ts', 'src/a+b.ts'), true);
+      assert.equal(matchesPattern('src/aab.ts', 'src/a+b.ts'), false);
+    });
+
+    it('should escape pipe in glob patterns', () => {
+      assert.equal(matchesPattern('src/a|b.ts', 'src/a|b.ts'), true);
+    });
+
+    it('should escape caret in glob patterns', () => {
+      assert.equal(matchesPattern('src/^test.ts', 'src/^test.ts'), true);
+    });
+
+    it('should escape dollar sign in glob patterns', () => {
+      assert.equal(matchesPattern('src/test$.ts', 'src/test$.ts'), true);
+    });
+
+    it('should not cause ReDoS with crafted metacharacter input', () => {
+      const start = Date.now();
+      // This would hang with unescaped metacharacters in the regex
+      matchesPattern(
+        'aaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        '((((((((((((((((((((((((((((',
+      );
+      const elapsed = Date.now() - start;
+      // Should complete in well under 1 second
+      assert.ok(
+        elapsed < 1000,
+        `globToRegex took ${elapsed}ms, possible ReDoS`,
+      );
     });
   });
 });

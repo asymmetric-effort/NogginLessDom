@@ -56,6 +56,10 @@ function globToRegex(pattern: string): RegExp {
     } else if (char === '/' || char === '\\') {
       result += '/';
       i += 1;
+    } else if ('()[]{}+|^$'.includes(char)) {
+      // GHSA-f9pv-ghr6-r2qm: Escape regex metacharacters to prevent ReDoS
+      result += '\\' + char;
+      i += 1;
     } else {
       result += char;
       i += 1;
