@@ -42,6 +42,18 @@ export class NodeSnapshotEnvironment implements SnapshotEnvironment {
   private snapshotDir: string;
 
   constructor(version = '1', snapshotDir = '__snapshots__') {
+    // GHSA-wj89-8mc6-xpwx: Reject absolute paths or paths containing '..'
+    if (path.isAbsolute(snapshotDir)) {
+      throw new Error(
+        `snapshotDir must be a relative path, got absolute: ${snapshotDir}`,
+      );
+    }
+    const normalized = path.normalize(snapshotDir);
+    if (normalized.includes('..')) {
+      throw new Error(
+        `snapshotDir must not contain path traversal (..): ${snapshotDir}`,
+      );
+    }
     this.version = version;
     this.snapshotDir = snapshotDir;
   }
@@ -63,9 +75,37 @@ export class NodeSnapshotEnvironment implements SnapshotEnvironment {
   }
 
   async saveSnapshotFile(filepath: string, content: string): Promise<void> {
-    const dir = path.dirname(filepath);
+    // GHSA-wj89-8mc6-xpwx: Validate filepath does not contain path traversal
+    const normalized = path.normalize(filepath);
+    if (normalized.includes('..')) {
+      throw new Error(
+        `Snapshot file path must not contain path traversal (..): ${filepath}`,
+      );
+    }
+    const resolved = path.resolve(filepath);
+    // GHSA-vxqq-6phm-8778: Reject symlinks to prevent TOCTOU attacks
+    try {
+      const stat = fs.lstatSync(resolved);
+      if (stat.isSymbolicLink()) {
+        throw new Error(
+          `Refusing to write snapshot to symlink target: ${filepath}`,
+        );
+      }
+    } catch (err) {
+      // File doesn't exist yet — that's fine, we'll create it
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        // OK — file will be created
+      } else {
+        throw err;
+      }
+    }
+    const dir = path.dirname(resolved);
     await this.prepareDirectory(dir);
-    fs.writeFileSync(filepath, content, 'utf-8');
+    fs.writeFileSync(resolved, content, 'utf-8');
   }
 
   resolveSnapshotPath(testPath: string): string {

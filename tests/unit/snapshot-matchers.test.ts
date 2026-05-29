@@ -10,6 +10,7 @@ import {
   matchFileSnapshot,
   escapeSnapshotName,
 } from '../../src/assertions/snapshots.js';
+import { NodeSnapshotEnvironment } from '../../src/assertions/snapshot-environment.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
@@ -255,5 +256,72 @@ describe('escapeSnapshotName', () => {
     assert.ok(!unescaped.includes("'"), 'unescaped quotes remain');
     // Escaped quotes should be present
     assert.ok(escaped.includes("\\'"));
+  });
+});
+
+// GHSA-wj89-8mc6-xpwx: Path traversal in NodeSnapshotEnvironment
+describe('NodeSnapshotEnvironment path traversal protection', () => {
+  it('should reject absolute snapshotDir', () => {
+    assert.throws(() => {
+      new NodeSnapshotEnvironment('1', '/etc/passwd');
+    }, /snapshotDir must be a relative path/);
+  });
+
+  it('should reject snapshotDir containing ".."', () => {
+    assert.throws(() => {
+      new NodeSnapshotEnvironment('1', '../../../etc');
+    }, /snapshotDir must not contain path traversal/);
+  });
+
+  it('should reject snapshotDir with embedded ".."', () => {
+    assert.throws(() => {
+      new NodeSnapshotEnvironment('1', 'foo/../../bar');
+    }, /snapshotDir must not contain path traversal/);
+  });
+
+  it('should allow normal relative snapshotDir', () => {
+    const env = new NodeSnapshotEnvironment('1', '__snapshots__');
+    assert.strictEqual(env.getVersion(), '1');
+  });
+
+  it('should validate filepath scope in saveSnapshotFile', async () => {
+    const env = new NodeSnapshotEnvironment();
+    await assert.rejects(
+      () =>
+        env.saveSnapshotFile('foo/../../bar/../../../etc/evil.snap', 'content'),
+      /Snapshot file path must not contain path traversal/,
+    );
+  });
+});
+
+// GHSA-vxqq-6phm-8778: Symlink/TOCTOU in snapshot file ops
+describe('Symlink rejection in snapshot file operations', () => {
+  it('should reject writing to a symlink in NodeSnapshotEnvironment', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'symlink-test-'));
+    const realFile = path.join(tmpDir, 'real.snap');
+    const symlinkFile = path.join(tmpDir, 'link.snap');
+
+    fs.writeFileSync(realFile, 'original', 'utf-8');
+    fs.symlinkSync(realFile, symlinkFile);
+
+    // We need to be within CWD for the path check to pass
+    // so create the symlink inside a subdir of cwd
+    const cwdSubdir = path.join(process.cwd(), '__test_symlink_snap__');
+    fs.mkdirSync(cwdSubdir, { recursive: true });
+    const cwdRealFile = path.join(cwdSubdir, 'real.snap');
+    const cwdSymlink = path.join(cwdSubdir, 'link.snap');
+    fs.writeFileSync(cwdRealFile, 'original', 'utf-8');
+    fs.symlinkSync(cwdRealFile, cwdSymlink);
+
+    const env = new NodeSnapshotEnvironment();
+    try {
+      await assert.rejects(
+        () => env.saveSnapshotFile(cwdSymlink, 'malicious content'),
+        /Refusing to write snapshot to symlink target/,
+      );
+    } finally {
+      fs.rmSync(cwdSubdir, { recursive: true, force: true });
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 });
