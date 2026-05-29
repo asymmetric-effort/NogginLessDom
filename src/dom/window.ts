@@ -4,6 +4,8 @@
  */
 
 import { URL, URLSearchParams } from 'node:url';
+import * as http from 'node:http';
+import * as https from 'node:https';
 import { Document, Element, Event } from './index.js';
 import { StorageEvent } from './events.js';
 import { CSSStyleDeclaration } from './style.js';
@@ -37,6 +39,78 @@ import {
   XMLHttpRequest as NogginXMLHttpRequest,
   type XHRHandler,
 } from './xhr.js';
+import {
+  WebSocket as NogginWebSocket,
+  type WebSocketHandler,
+} from './websocket.js';
+
+/**
+ * Default fetch handler using node:http and node:https.
+ * Makes real HTTP/HTTPS requests and returns a Response object.
+ */
+function defaultFetchHandler(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  return new Promise<Response>((resolve, reject) => {
+    let parsedUrl: globalThis.URL;
+    try {
+      parsedUrl = new globalThis.URL(url);
+    } catch {
+      reject(new TypeError(`Failed to parse URL: ${url}`));
+      return;
+    }
+
+    const isHttps = parsedUrl.protocol === 'https:';
+    const transport = isHttps ? https : http;
+
+    const reqOptions: http.RequestOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: options?.method ?? 'GET',
+      headers: options?.headers ?? {},
+    };
+
+    const req = transport.request(reqOptions, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+      res.on('end', () => {
+        const body = Buffer.concat(chunks).toString('utf-8');
+        const responseHeaders: Record<string, string> = {};
+        for (const [key, value] of Object.entries(res.headers)) {
+          if (typeof value === 'string') {
+            responseHeaders[key] = value;
+          } else if (Array.isArray(value)) {
+            responseHeaders[key] = value.join(', ');
+          }
+        }
+        resolve(
+          new Response(body, {
+            status: res.statusCode ?? 200,
+            statusText: res.statusMessage ?? '',
+            headers: responseHeaders,
+          }),
+        );
+      });
+      res.on('error', (err: Error) => {
+        reject(new TypeError(`Network request failed: ${err.message}`));
+      });
+    });
+
+    req.on('error', (err: Error) => {
+      reject(new TypeError(`Network request failed: ${err.message}`));
+    });
+
+    if (options?.body) {
+      req.write(options.body);
+    }
+
+    req.end();
+  });
+}
 
 /** Default storage quota: 5 MB (UTF-16, so 2 bytes per character). */
 const DEFAULT_STORAGE_QUOTA = 5 * 1024 * 1024;
@@ -216,12 +290,69 @@ export class History {
 /**
  * Basic Navigator stub.
  */
+export class Clipboard {
+  private _text: string = '';
+
+  async readText(): Promise<string> {
+    return this._text;
+  }
+
+  async writeText(text: string): Promise<void> {
+    this._text = text;
+  }
+
+  async read(): Promise<ClipboardItem[]> {
+    return [];
+  }
+
+  async write(_items: ClipboardItem[]): Promise<void> {
+    // no-op stub
+  }
+}
+
+/** Minimal ClipboardItem type for Clipboard.write/read. */
+export interface ClipboardItem {
+  readonly types: string[];
+  getType(type: string): Promise<Blob>;
+}
+
+/**
+ * Permissions stub \u2014 always returns granted.
+ */
+export class Permissions {
+  async query(_desc: { name: string }): Promise<{ state: string }> {
+    return { state: 'granted' };
+  }
+}
+
+/**
+ * Navigator \u2014 provides browser-like navigator properties for testing.
+ */
 export class Navigator {
-  public userAgent = 'NogginLessDom/1.0';
-  public language = 'en-US';
-  public languages: string[] = ['en-US', 'en'];
-  public platform = 'NogginLessDom';
-  public onLine = true;
+  public userAgent: string = 'NogginLessDom/1.0';
+  public language: string = 'en-US';
+  public languages: readonly string[] = ['en-US', 'en'];
+  public onLine: boolean = true;
+  public cookieEnabled: boolean = true;
+  public platform: string = 'Linux';
+  public vendor: string = '';
+  public hardwareConcurrency: number = 4;
+  public maxTouchPoints: number = 0;
+  public clipboard: Clipboard;
+  public permissions: Permissions;
+
+  constructor() {
+    this.clipboard = new Clipboard();
+    this.permissions = new Permissions();
+  }
+
+  sendBeacon(_url: string, _data?: string): boolean {
+    return true;
+  }
+
+  vibrate(_pattern: number | number[]): boolean {
+    return true;
+  }
 }
 
 /** Listener type for MediaQueryList. */
@@ -773,6 +904,8 @@ export class Window {
   // Web API properties
   public FormData: typeof FormData = FormData;
   public Headers: typeof NogginHeaders = NogginHeaders;
+  public Request: typeof Request = Request;
+  public Response: typeof Response = Response;
   public TextEncoder: typeof NogginTextEncoder = NogginTextEncoder;
   public TextDecoder: typeof NogginTextDecoder = NogginTextDecoder;
   public Blob: typeof NogginBlob = NogginBlob;
@@ -791,8 +924,9 @@ export class Window {
   private rafCallbacks: Map<number, (timestamp: number) => void> = new Map();
   private rafIdCounter = 0;
   private _matchMediaMatches: boolean;
-  private _fetchHandler: FetchHandler | null = null;
+  private _fetchHandler: FetchHandler = defaultFetchHandler;
   private _xhrHandler: XHRHandler | undefined = undefined;
+  private _wsHandler: WebSocketHandler | undefined = undefined;
   private _selection: import('./selection.js').Selection | null = null;
   private _eventHandlers: Map<string, (event: Event) => void> = new Map();
   private _colorScheme: 'light' | 'dark';
@@ -892,6 +1026,7 @@ export class Window {
   getComputedStyle(el: Element): CSSStyleDeclaration {
     const {
       parseStyleSheet: parseSS,
+      collectApplicableStylesWithImportance: collectStylesImportance,
       collectApplicableStyles: collectStyles,
       INHERITED_PROPERTIES: INHERITED,
       // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -909,6 +1044,7 @@ export class Window {
       selector: string;
       properties: Map<string, string>;
       specificity: [number, number, number];
+      importantProperties?: Set<string>;
     }> = [];
     const styleElements = this.document.querySelectorAll('style');
     for (let s = 0; s < styleElements.length; s++) {
@@ -919,17 +1055,24 @@ export class Window {
     }
 
     // Collect applicable stylesheet styles sorted by specificity + source order
-    const stylesheetStyles = collectStyles(el, allRules);
+    const { styles: stylesheetStyles, important: sheetImportant } =
+      collectStylesImportance(el, allRules);
     for (const [prop, val] of stylesheetStyles) {
       computed.setProperty(prop, val);
     }
 
-    // Overlay inline styles (they take precedence over stylesheet rules)
+    // Overlay inline styles: inline !important always wins, inline normal
+    // wins over stylesheet normal but loses to stylesheet !important
     const inlineStyle = el.style;
     for (let i = 0; i < inlineStyle.length; i++) {
       const prop = inlineStyle.item(i);
       const val = inlineStyle.getPropertyValue(prop);
       if (val) {
+        const inlinePriority = inlineStyle.getPropertyPriority(prop);
+        const isInlineImportant = inlinePriority === 'important';
+        if (sheetImportant.has(prop) && !isInlineImportant) {
+          continue;
+        }
         computed.setProperty(prop, val);
       }
     }
@@ -969,11 +1112,6 @@ export class Window {
   }
 
   async fetch(url: string, options?: RequestInit): Promise<Response> {
-    if (!this._fetchHandler) {
-      throw new Error(
-        'fetch is not configured. Use window.configureFetch() to set up responses.',
-      );
-    }
     return this._fetchHandler(url, options);
   }
 
@@ -983,6 +1121,23 @@ export class Window {
 
   configureXHR(handler: XHRHandler): void {
     this._xhrHandler = handler;
+  }
+
+  configureWebSocket(handler: WebSocketHandler): void {
+    this._wsHandler = handler;
+  }
+
+  get WebSocket(): typeof NogginWebSocket {
+    const handler = this._wsHandler;
+    if (handler) {
+      return class extends NogginWebSocket {
+        constructor(url: string, protocols?: string | string[]) {
+          super(url, protocols);
+          this._setHandler(handler!);
+        }
+      } as typeof NogginWebSocket;
+    }
+    return NogginWebSocket;
   }
 
   get XMLHttpRequest(): typeof NogginXMLHttpRequest {

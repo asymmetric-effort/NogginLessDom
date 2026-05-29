@@ -4,12 +4,16 @@ import { createWindow, Response, Request } from '../../src/dom/window.js';
 
 describe('Window Web APIs', () => {
   describe('fetch', () => {
-    it('should throw by default when not configured', async () => {
+    it('should use default fetch handler when not configured', async () => {
       const win = createWindow();
-      await assert.rejects(() => win.fetch('https://example.com'), {
-        message:
-          'fetch is not configured. Use window.configureFetch() to set up responses.',
-      });
+      // Default handler makes real HTTP requests; invalid URL throws TypeError
+      await assert.rejects(
+        () => win.fetch('not-a-valid-url'),
+        (err: Error) => {
+          assert.ok(err instanceof TypeError);
+          return true;
+        },
+      );
     });
 
     it('should use configured handler via configureFetch', async () => {

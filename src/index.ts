@@ -25,6 +25,8 @@ export {
   getTestFilePattern,
   configureIsolation,
   installAutoMockCleanup,
+  setSerialMode,
+  getSerialMode,
 } from './test-runner/index.js';
 export type { IsolationConfig } from './test-runner/index.js';
 
@@ -100,8 +102,19 @@ export {
   Location,
   History,
   Navigator,
+  Clipboard,
+  Permissions,
   MediaQueryList,
+  Request,
+  Response,
 } from './dom/window.js';
+
+export {
+  WebSocket,
+  CloseEvent as WSCloseEvent,
+  WSMessageEvent,
+} from './dom/websocket.js';
+export type { WebSocketHandler } from './dom/websocket.js';
 
 export { ShadowRoot } from './dom/shadow.js';
 export { CustomElementRegistry } from './dom/custom-elements.js';
@@ -119,7 +132,12 @@ export { DOMParser, XMLSerializer } from './dom/dom-parser.js';
 
 export { AbortController, AbortSignal } from './dom/abort.js';
 
-export { CanvasRenderingContext2D, ImageData } from './dom/canvas.js';
+export {
+  CanvasRenderingContext2D,
+  CanvasGradient,
+  CanvasPattern,
+  ImageData,
+} from './dom/canvas.js';
 
 export { XMLHttpRequest } from './dom/xhr.js';
 export type { XHRHandler } from './dom/xhr.js';
@@ -138,6 +156,8 @@ export {
   parseStyleSheet,
   computeSpecificity,
   INHERITED_PROPERTIES,
+  expandShorthand,
+  collectApplicableStyles,
 } from './dom/css-cascade.js';
 export type { CSSRule } from './dom/css-cascade.js';
 
