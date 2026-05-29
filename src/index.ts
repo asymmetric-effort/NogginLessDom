@@ -28,6 +28,14 @@ export {
 export { expect } from './assertions/index.js';
 
 export {
+  objectDiff,
+  stringDiff,
+  formatExpectedReceived,
+  configureDiff,
+  stripAnsi,
+} from './assertions/diff.js';
+
+export {
   Document,
   DocumentFragment,
   Element,
@@ -106,6 +114,16 @@ export { atob, btoa } from './dom/web-apis.js';
 export { DOMParser, XMLSerializer } from './dom/dom-parser.js';
 
 export { AbortController, AbortSignal } from './dom/abort.js';
+
+export { XMLHttpRequest } from './dom/xhr.js';
+export type { XHRHandler } from './dom/xhr.js';
+
+export { parseMediaQuery, evaluateMediaQuery } from './dom/media-query.js';
+export type {
+  MediaCondition,
+  ParsedMediaQuery,
+  MediaContext,
+} from './dom/media-query.js';
 
 export { DataTransfer, DataTransferItemList } from './dom/data-transfer.js';
 export type { DataTransferItem } from './dom/data-transfer.js';

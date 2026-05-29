@@ -27,6 +27,16 @@ import {
   DOMParser as NogginDOMParser,
   XMLSerializer as NogginXMLSerializer,
 } from './dom-parser.js';
+import {
+  parseMediaQuery,
+  evaluateMediaQuery,
+  type ParsedMediaQuery,
+  type MediaContext,
+} from './media-query.js';
+import {
+  XMLHttpRequest as NogginXMLHttpRequest,
+  type XHRHandler,
+} from './xhr.js';
 
 /** Default storage quota: 5 MB (UTF-16, so 2 bytes per character). */
 const DEFAULT_STORAGE_QUOTA = 5 * 1024 * 1024;
@@ -218,16 +228,23 @@ export class Navigator {
 type MediaQueryListener = (event: { matches: boolean; media: string }) => void;
 
 /**
- * MediaQueryList stub.
+ * MediaQueryList with dynamic evaluation against Window dimensions and preferences.
  */
 export class MediaQueryList {
   public readonly media: string;
-  public readonly matches: boolean;
   private listeners: Map<string, MediaQueryListener[]> = new Map();
+  /** @internal */ _parsed: ParsedMediaQuery[];
+  /** @internal */ _window: Window | null;
 
-  constructor(query: string, defaultMatches: boolean) {
+  constructor(query: string, window: Window | null) {
     this.media = query;
-    this.matches = defaultMatches;
+    this._parsed = parseMediaQuery(query);
+    this._window = window;
+  }
+
+  get matches(): boolean {
+    if (!this._window) return false;
+    return evaluateMediaQuery(this._parsed, this._window._getMediaContext());
   }
 
   addEventListener(type: string, listener: MediaQueryListener): void {
@@ -253,6 +270,15 @@ export class MediaQueryList {
   /** @deprecated Use removeEventListener('change', ...) */
   removeListener(listener: MediaQueryListener): void {
     this.removeEventListener('change', listener);
+  }
+
+  /** @internal Fire change event to all registered listeners. */
+  _fireChange(): void {
+    const event = { matches: this.matches, media: this.media };
+    const changeListeners = this.listeners.get('change') ?? [];
+    for (const listener of changeListeners) {
+      listener(event);
+    }
   }
 }
 
@@ -716,6 +742,8 @@ export interface WindowOptions {
   screenWidth?: number;
   screenHeight?: number;
   devicePixelRatio?: number;
+  colorScheme?: 'light' | 'dark';
+  reducedMotion?: boolean;
 }
 
 /**
@@ -764,8 +792,12 @@ export class Window {
   private rafIdCounter = 0;
   private _matchMediaMatches: boolean;
   private _fetchHandler: FetchHandler | null = null;
+  private _xhrHandler: XHRHandler | null = null;
   private _selection: import('./selection.js').Selection | null = null;
   private _eventHandlers: Map<string, (event: Event) => void> = new Map();
+  private _colorScheme: 'light' | 'dark';
+  private _reducedMotion: boolean;
+  private _activeMediaQueryLists: Set<MediaQueryList> = new Set();
 
   constructor(options?: WindowOptions) {
     this.document = new Document();
@@ -781,6 +813,8 @@ export class Window {
     this.innerWidth = options?.innerWidth ?? 1024;
     this.innerHeight = options?.innerHeight ?? 768;
     this._matchMediaMatches = options?.matchMediaMatches ?? false;
+    this._colorScheme = options?.colorScheme ?? 'light';
+    this._reducedMotion = options?.reducedMotion ?? false;
     this.URL = URL;
     this.URLSearchParams = URLSearchParams;
     this.performance = {
@@ -817,7 +851,42 @@ export class Window {
   }
 
   matchMedia(query: string): MediaQueryList {
-    return new MediaQueryList(query, this._matchMediaMatches);
+    const mql = new MediaQueryList(query, this);
+    this._activeMediaQueryLists.add(mql);
+    return mql;
+  }
+
+  /** @internal Build a MediaContext from current window state. */
+  _getMediaContext(): MediaContext {
+    return {
+      width: this.innerWidth,
+      height: this.innerHeight,
+      colorScheme: this._colorScheme,
+      reducedMotion: this._reducedMotion,
+      mediaType: 'screen',
+    };
+  }
+
+  /**
+   * Update window dimensions and fire change events on affected MediaQueryLists.
+   */
+  setDimensions(width: number, height: number): void {
+    // Snapshot current matches state for all tracked MQLs
+    const before = new Map<MediaQueryList, boolean>();
+    for (const mql of this._activeMediaQueryLists) {
+      before.set(mql, mql.matches);
+    }
+
+    this.innerWidth = width;
+    this.innerHeight = height;
+
+    // Fire change events where matches state changed
+    for (const mql of this._activeMediaQueryLists) {
+      const oldMatches = before.get(mql)!;
+      if (mql.matches !== oldMatches) {
+        mql._fireChange();
+      }
+    }
   }
 
   getComputedStyle(el: Element): CSSStyleDeclaration {
@@ -910,6 +979,22 @@ export class Window {
 
   configureFetch(handler: FetchHandler): void {
     this._fetchHandler = handler;
+  }
+
+  configureXHR(handler: XHRHandler): void {
+    this._xhrHandler = handler;
+  }
+
+  get XMLHttpRequest(): typeof NogginXMLHttpRequest {
+    const handler = this._xhrHandler;
+    if (handler) {
+      return class extends NogginXMLHttpRequest {
+        constructor() {
+          super(handler);
+        }
+      } as typeof NogginXMLHttpRequest;
+    }
+    return NogginXMLHttpRequest;
   }
 
   addEventListener(type: string, listener: (event: Event) => void): void {
