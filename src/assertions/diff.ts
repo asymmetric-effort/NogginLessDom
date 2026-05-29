@@ -301,14 +301,14 @@ export function stringDiff(
     const maxLen = Math.max(expLines.length, recLines.length);
     for (let i = 0; i < maxLen; i++) {
       if (i >= expLines.length) {
-        lines.push(redC(`+ ${truncate(recLines[i], maxLength)}`, colorize));
+        lines.push(redC(`+ ${truncate(recLines[i]!, maxLength)}`, colorize));
       } else if (i >= recLines.length) {
-        lines.push(greenC(`- ${truncate(expLines[i], maxLength)}`, colorize));
+        lines.push(greenC(`- ${truncate(expLines[i]!, maxLength)}`, colorize));
       } else if (expLines[i] !== recLines[i]) {
-        lines.push(greenC(`- ${truncate(expLines[i], maxLength)}`, colorize));
-        lines.push(redC(`+ ${truncate(recLines[i], maxLength)}`, colorize));
+        lines.push(greenC(`- ${truncate(expLines[i]!, maxLength)}`, colorize));
+        lines.push(redC(`+ ${truncate(recLines[i]!, maxLength)}`, colorize));
       } else {
-        lines.push(dimC(`  ${truncate(expLines[i], maxLength)}`, colorize));
+        lines.push(dimC(`  ${truncate(expLines[i]!, maxLength)}`, colorize));
       }
     }
     return lines.join('\n');

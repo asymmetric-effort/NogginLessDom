@@ -55,7 +55,7 @@ export class Blob {
 
   async arrayBuffer(): Promise<ArrayBuffer> {
     const merged = this._mergedBuffer();
-    return merged.buffer.slice(
+    return (merged.buffer as ArrayBuffer).slice(
       merged.byteOffset,
       merged.byteOffset + merged.byteLength,
     );

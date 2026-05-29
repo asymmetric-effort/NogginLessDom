@@ -792,7 +792,7 @@ export class Window {
   private rafIdCounter = 0;
   private _matchMediaMatches: boolean;
   private _fetchHandler: FetchHandler | null = null;
-  private _xhrHandler: XHRHandler | null = null;
+  private _xhrHandler: XHRHandler | undefined = undefined;
   private _selection: import('./selection.js').Selection | null = null;
   private _eventHandlers: Map<string, (event: Event) => void> = new Map();
   private _colorScheme: 'light' | 'dark';
