@@ -787,10 +787,16 @@ export class HTMLCanvasElement extends Element {
   }
 
   toDataURL(type?: string, _quality?: number): string {
-    if (type) {
-      return `data:${type};base64,`;
-    }
-    return 'data:,';
+    const mimeType = type || 'image/png';
+    return `data:${mimeType};base64,`;
+  }
+
+  toBlob(
+    callback: (blob: null) => void,
+    _type?: string,
+    _quality?: number,
+  ): void {
+    callback(null);
   }
 }
 

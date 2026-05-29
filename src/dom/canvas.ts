@@ -6,6 +6,29 @@
 import type { Element } from './index.js';
 
 /**
+ * CanvasGradient stub \u2014 records color stops for test inspection.
+ */
+export class CanvasGradient {
+  private _stops: Array<{ offset: number; color: string }> = [];
+
+  addColorStop(offset: number, color: string): void {
+    this._stops.push({ offset, color });
+  }
+
+  /** @internal Test helper to inspect recorded stops. */
+  __getStops(): Array<{ offset: number; color: string }> {
+    return [...this._stops];
+  }
+}
+
+/**
+ * CanvasPattern stub \u2014 empty implementation for testing.
+ */
+export class CanvasPattern {
+  // empty stub
+}
+
+/**
  * Minimal ImageData implementation for canvas operations.
  */
 export class ImageData {
@@ -174,6 +197,51 @@ export class CanvasRenderingContext2D {
 
   putImageData(_data: ImageData, _dx: number, _dy: number): void {
     this._record('putImageData', [_data, _dx, _dy]);
+  }
+
+  // Gradient & pattern methods
+  createLinearGradient(
+    _x0: number,
+    _y0: number,
+    _x1: number,
+    _y1: number,
+  ): CanvasGradient {
+    this._record('createLinearGradient', [_x0, _y0, _x1, _y1]);
+    return new CanvasGradient();
+  }
+
+  createRadialGradient(
+    _x0: number,
+    _y0: number,
+    _r0: number,
+    _x1: number,
+    _y1: number,
+    _r1: number,
+  ): CanvasGradient {
+    this._record('createRadialGradient', [_x0, _y0, _r0, _x1, _y1, _r1]);
+    return new CanvasGradient();
+  }
+
+  createPattern(
+    _image: Element,
+    _repetition: string | null,
+  ): CanvasPattern | null {
+    this._record('createPattern', [_image, _repetition]);
+    return new CanvasPattern();
+  }
+
+  // Clipping
+  clip(): void {
+    this._record('clip', []);
+  }
+
+  // Hit testing
+  isPointInPath(_x: number, _y: number): boolean {
+    return false;
+  }
+
+  isPointInStroke(_x: number, _y: number): boolean {
+    return false;
   }
 
   // Transform methods

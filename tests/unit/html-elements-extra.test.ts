@@ -93,10 +93,10 @@ describe('Additional HTML Element Classes', () => {
       assert.strictEqual(el.getContext('webgl'), null);
     });
 
-    it('toDataURL() should return empty data URL', () => {
+    it('toDataURL() should return data URI with default image/png', () => {
       const el = new HTMLCanvasElement();
       const url = el.toDataURL();
-      assert.strictEqual(url, 'data:,');
+      assert.strictEqual(url, 'data:image/png;base64,');
     });
 
     it('toDataURL(type) should return data URL with type', () => {
