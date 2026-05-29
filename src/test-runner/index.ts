@@ -11,6 +11,12 @@ import {
   beforeEach as nodeBE,
   afterEach as nodeAE,
 } from 'node:test';
+import {
+  pushDescribe,
+  popDescribe,
+  buildFullName,
+  shouldSkipTest,
+} from './filter.js';
 
 type TestFn = (...args: unknown[]) => void | Promise<void>;
 type SuiteFn = (...args: unknown[]) => void | Promise<void>;
@@ -107,7 +113,8 @@ function makeDescribeEach(): (
       for (const entry of table) {
         const args = toArgs(entry);
         const title = formatName(name, args);
-        nodeDescribe(title, () => fn(...args));
+        const suiteFn = (): void | Promise<void> => fn(...args);
+        nodeDescribe(title, wrapSuiteFn(title, suiteFn));
       }
     };
   };
@@ -175,64 +182,88 @@ interface DescribeFn {
 /**
  * Define a test suite.
  */
+/**
+ * Wrap a suite callback so that the describe stack is maintained.
+ */
+function wrapSuiteFn(name: string, fn: SuiteFn): SuiteFn {
+  return (...args: unknown[]): void | Promise<void> => {
+    pushDescribe(name);
+    try {
+      const result = fn(...args);
+      // Handle async suite functions (unlikely but safe)
+      if (result && typeof (result as Promise<void>).then === 'function') {
+        return (result as Promise<void>).finally(() => popDescribe());
+      }
+      popDescribe();
+      return result;
+    } catch (err) {
+      popDescribe();
+      throw err;
+    }
+  };
+}
+
 const describe: DescribeFn = Object.assign(
   function describe(name: string, fn: SuiteFn): void {
-    nodeDescribe(name, fn);
+    nodeDescribe(name, wrapSuiteFn(name, fn));
   },
   {
     skip(name: string, fn: SuiteFn): void {
-      nodeDescribe(name, { skip: true }, fn);
+      nodeDescribe(name, { skip: true }, wrapSuiteFn(name, fn));
     },
     only(name: string, fn: SuiteFn): void {
-      nodeDescribe(name, { only: true }, fn);
+      nodeDescribe(name, { only: true }, wrapSuiteFn(name, fn));
     },
     todo(name: string, _fn?: SuiteFn): void {
       nodeDescribe(name, { todo: true }, () => {});
     },
     each: makeDescribeEach(),
     concurrent(name: string, fn: SuiteFn): void {
-      nodeDescribe(name, { concurrency: true }, fn);
+      nodeDescribe(name, { concurrency: true }, wrapSuiteFn(name, fn));
     },
     skipIf(condition: unknown): (name: string, fn: SuiteFn) => void {
       return (name: string, fn: SuiteFn): void => {
         if (condition) {
-          nodeDescribe(name, { skip: true }, fn);
+          nodeDescribe(name, { skip: true }, wrapSuiteFn(name, fn));
         } else {
-          nodeDescribe(name, fn);
+          nodeDescribe(name, wrapSuiteFn(name, fn));
         }
       };
     },
     runIf(condition: unknown): (name: string, fn: SuiteFn) => void {
       return (name: string, fn: SuiteFn): void => {
         if (condition) {
-          nodeDescribe(name, fn);
+          nodeDescribe(name, wrapSuiteFn(name, fn));
         } else {
-          nodeDescribe(name, { skip: true }, fn);
+          nodeDescribe(name, { skip: true }, wrapSuiteFn(name, fn));
         }
       };
     },
     shuffle(name: string, fn: SuiteFn): void {
-      nodeDescribe(name, () => {
-        // Enable collection mode so baseIt captures instead of registering
-        shuffleCollecting = true;
-        shuffleCollected.length = 0;
+      nodeDescribe(
+        name,
+        wrapSuiteFn(name, () => {
+          // Enable collection mode so baseIt captures instead of registering
+          shuffleCollecting = true;
+          shuffleCollected.length = 0;
 
-        fn();
+          fn();
 
-        shuffleCollecting = false;
-        const tests = shuffleCollected.slice();
-        shuffleCollected.length = 0;
+          shuffleCollecting = false;
+          const tests = shuffleCollected.slice();
+          shuffleCollected.length = 0;
 
-        // Shuffle with Fisher-Yates using a seeded PRNG
-        const seed = getShuffleSeed();
-        const rand = mulberry32(seed);
-        fisherYatesShuffle(tests, rand);
+          // Shuffle with Fisher-Yates using a seeded PRNG
+          const seed = getShuffleSeed();
+          const rand = mulberry32(seed);
+          fisherYatesShuffle(tests, rand);
 
-        // Re-register in shuffled order
-        for (const t of tests) {
-          registerIt(t.name, t.fn, t.options);
-        }
-      });
+          // Re-register in shuffled order
+          for (const t of tests) {
+            registerIt(t.name, t.fn, t.options);
+          }
+        }),
+      );
     },
   },
 );
@@ -312,6 +343,15 @@ function baseIt(name: string, fn: TestFn, options?: TestOptions): void {
     shuffleCollected.push({ name, fn, options });
     return;
   }
+
+  // When a name pattern is active, skip non-matching tests.
+  // Tests already marked with `only` still respect the pattern (intersection).
+  const fullName = buildFullName(name);
+  if (shouldSkipTest(fullName)) {
+    registerIt(name, fn, { ...options, skip: 'filtered by test name pattern' });
+    return;
+  }
+
   registerIt(name, fn, options);
 }
 
@@ -327,7 +367,13 @@ const it: ItFn = Object.assign(
       nodeIt(name, { skip: true }, fn ?? ((): void => {}));
     },
     only(name: string, fn: TestFn): void {
-      nodeIt(name, { only: true }, fn);
+      // Pattern + .only = intersection: skip if pattern doesn't match
+      const fullName = buildFullName(name);
+      if (shouldSkipTest(fullName)) {
+        nodeIt(name, { skip: 'filtered by test name pattern' }, fn);
+      } else {
+        nodeIt(name, { only: true }, fn);
+      }
     },
     todo(name: string, _fn?: TestFn): void {
       nodeIt(name, { todo: true }, () => {});
@@ -491,3 +537,16 @@ export function clearLifecycleHooks(): void {
   onTestFailedCallbacks.length = 0;
   onTestFinishedCallbacks.length = 0;
 }
+
+// ---------------------------------------------------------------------------
+// Re-export filter API
+// ---------------------------------------------------------------------------
+
+export {
+  setTestNamePattern,
+  clearTestNamePattern,
+  getTestNamePattern,
+  setTestFilePattern,
+  clearTestFilePattern,
+  getTestFilePattern,
+} from './filter.js';

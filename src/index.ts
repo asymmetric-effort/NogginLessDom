@@ -17,6 +17,12 @@ export {
   afterAll,
   onTestFailed,
   onTestFinished,
+  setTestNamePattern,
+  clearTestNamePattern,
+  getTestNamePattern,
+  setTestFilePattern,
+  clearTestFilePattern,
+  getTestFilePattern,
 } from './test-runner/index.js';
 
 export { expect } from './assertions/index.js';
