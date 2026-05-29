@@ -213,4 +213,48 @@ describe('assertions', () => {
       }).toThrow(/bad/);
     });
   });
+
+  // GHSA-62rx-59cp-5fcr: Stack overflow in deep comparison
+  describe('deep comparison depth limit', () => {
+    it('should throw when deeply nested objects exceed depth 100 (toEqual)', () => {
+      // Build a deeply nested object (depth > 100)
+      // Use an asymmetric matcher at leaf to trigger deepEqualWithAsymmetric
+      let actual: Record<string, unknown> = { value: 'leaf' };
+      let expected: Record<string, unknown> = {
+        value: expect.anything() as unknown,
+      };
+      for (let i = 0; i < 110; i++) {
+        actual = { nested: actual };
+        expected = { nested: expected };
+      }
+      assert.throws(
+        () => expect(actual).toEqual(expected as never),
+        /Deep comparison exceeded maximum depth/,
+      );
+    });
+
+    it('should throw when deeply nested objects exceed depth 100 (toMatchObject)', () => {
+      let actual: Record<string, unknown> = { value: 'leaf' };
+      let expected: Record<string, unknown> = { value: 'leaf' };
+      for (let i = 0; i < 110; i++) {
+        actual = { nested: actual };
+        expected = { nested: expected };
+      }
+      assert.throws(
+        () => expect(actual).toMatchObject(expected as Record<string, unknown>),
+        /Deep comparison exceeded maximum depth/,
+      );
+    });
+
+    it('should succeed for objects within depth 100', () => {
+      let actual: Record<string, unknown> = { value: 'leaf' };
+      let expected: Record<string, unknown> = { value: 'leaf' };
+      for (let i = 0; i < 50; i++) {
+        actual = { nested: actual };
+        expected = { nested: expected };
+      }
+      // Should not throw
+      expect(actual).toEqual(expected as never);
+    });
+  });
 });

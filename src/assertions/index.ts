@@ -30,7 +30,17 @@ function isAsymmetricMatcher(val: unknown): val is AsymmetricMatcher {
  * Deep equality check that recognizes asymmetric matchers.
  * Returns true if values are deeply equal (treating asymmetric matchers specially).
  */
-function deepEqualWithAsymmetric(actual: unknown, expected: unknown): boolean {
+function deepEqualWithAsymmetric(
+  actual: unknown,
+  expected: unknown,
+  depth = 0,
+): boolean {
+  // GHSA-62rx-59cp-5fcr: Prevent stack overflow from deeply nested objects
+  if (depth > 100) {
+    throw new Error(
+      'Deep comparison exceeded maximum depth of 100 — possible circular or excessively nested structure',
+    );
+  }
   if (isAsymmetricMatcher(expected)) {
     return expected.asymmetricMatch(actual);
   }
@@ -43,7 +53,7 @@ function deepEqualWithAsymmetric(actual: unknown, expected: unknown): boolean {
     if (!Array.isArray(actual)) return false;
     if (actual.length !== expected.length) return false;
     return expected.every((item, i) =>
-      deepEqualWithAsymmetric(actual[i], item),
+      deepEqualWithAsymmetric(actual[i], item, depth + 1),
     );
   }
 
@@ -53,7 +63,7 @@ function deepEqualWithAsymmetric(actual: unknown, expected: unknown): boolean {
   const actualKeys = Object.keys(actualObj);
   if (expectedKeys.length !== actualKeys.length) return false;
   return expectedKeys.every((key) =>
-    deepEqualWithAsymmetric(actualObj[key], expectedObj[key]),
+    deepEqualWithAsymmetric(actualObj[key], expectedObj[key], depth + 1),
   );
 }
 
@@ -61,7 +71,17 @@ function deepEqualWithAsymmetric(actual: unknown, expected: unknown): boolean {
  * Partial deep match: checks that every key in expected exists in actual
  * with a matching value. Extra keys in actual are allowed.
  */
-function deepMatchObject(actual: unknown, expected: unknown): boolean {
+function deepMatchObject(
+  actual: unknown,
+  expected: unknown,
+  depth = 0,
+): boolean {
+  // GHSA-62rx-59cp-5fcr: Prevent stack overflow from deeply nested objects
+  if (depth > 100) {
+    throw new Error(
+      'Deep comparison exceeded maximum depth of 100 — possible circular or excessively nested structure',
+    );
+  }
   if (isAsymmetricMatcher(expected)) {
     return expected.asymmetricMatch(actual);
   }
@@ -76,14 +96,14 @@ function deepMatchObject(actual: unknown, expected: unknown): boolean {
     // Each element in expected must match the corresponding element in actual
     return expected.every((item, i) => {
       if (i >= actual.length) return false;
-      return deepMatchObject(actual[i], item);
+      return deepMatchObject(actual[i], item, depth + 1);
     });
   }
 
   const actualObj = actual as Record<string, unknown>;
   const expectedObj = expected as Record<string, unknown>;
   return Object.keys(expectedObj).every((key) =>
-    deepMatchObject(actualObj[key], expectedObj[key]),
+    deepMatchObject(actualObj[key], expectedObj[key], depth + 1),
   );
 }
 
