@@ -167,6 +167,17 @@ interface Matchers<T> {
   toMatchObject(expected: Record<string, unknown> | unknown[]): void;
   toHaveBeenCalledOnce(): void;
   toSatisfy(predicate: (value: unknown) => boolean): void;
+  toBeEmpty(): void;
+  toBeOneOf(values: unknown[]): void;
+  toBeWithin(start: number, end: number): void;
+  toThrowWithMessage(
+    ErrorType: new (...args: unknown[]) => Error,
+    message: string | RegExp,
+  ): void;
+  toHaveNthReturnedWith(n: number, value: unknown): void;
+  toContainAllEntries(entries: [string, unknown][]): void;
+  toContainAnyEntries(entries: [string, unknown][]): void;
+  toSatisfyAll(predicate: (value: unknown) => boolean): void;
   toHaveBeenCalled(): void;
   toHaveBeenCalledTimes(n: number): void;
   toHaveBeenCalledWith(...args: unknown[]): void;
@@ -1047,6 +1058,187 @@ export function expect<T>(actual: T): Matchers<T> {
           result,
           `Expected ${JSON.stringify(actual)} to satisfy predicate`,
         );
+      }
+    },
+
+    toBeEmpty(): void {
+      trackAssertion();
+      let isEmpty: boolean;
+      if (typeof actual === 'string') {
+        isEmpty = actual === '';
+      } else if (Array.isArray(actual)) {
+        isEmpty = actual.length === 0;
+      } else if (actual instanceof Map || actual instanceof Set) {
+        isEmpty = actual.size === 0;
+      } else if (actual !== null && typeof actual === 'object') {
+        isEmpty = Object.keys(actual as Record<string, unknown>).length === 0;
+      } else {
+        isEmpty = false;
+      }
+      if (negated) {
+        assert.ok(!isEmpty, `Expected value not to be empty`);
+      } else {
+        assert.ok(isEmpty, `Expected value to be empty`);
+      }
+    },
+
+    toBeOneOf(values: unknown[]): void {
+      trackAssertion();
+      const found = values.some((v) => v === actual);
+      if (negated) {
+        assert.ok(
+          !found,
+          `Expected ${String(actual)} not to be one of ${JSON.stringify(values)}`,
+        );
+      } else {
+        assert.ok(
+          found,
+          `Expected ${String(actual)} to be one of ${JSON.stringify(values)}`,
+        );
+      }
+    },
+
+    toBeWithin(start: number, end: number): void {
+      trackAssertion();
+      const num = actual as unknown as number;
+      const inRange = num >= start && num < end;
+      if (negated) {
+        assert.ok(
+          !inRange,
+          `Expected ${num} not to be within [${start}, ${end})`,
+        );
+      } else {
+        assert.ok(inRange, `Expected ${num} to be within [${start}, ${end})`);
+      }
+    },
+
+    toThrowWithMessage(
+      ErrorType: new (...args: unknown[]) => Error,
+      message: string | RegExp,
+    ): void {
+      trackAssertion();
+      const fn = actual as unknown as () => void;
+      let thrown: Error | undefined;
+      try {
+        fn();
+      } catch (err) {
+        thrown = err instanceof Error ? err : new Error(String(err));
+      }
+      if (negated) {
+        if (thrown) {
+          const isRightType = thrown instanceof ErrorType;
+          const msgMatch =
+            typeof message === 'string'
+              ? thrown.message.includes(message)
+              : message.test(thrown.message);
+          assert.ok(
+            !(isRightType && msgMatch),
+            `Expected function not to throw ${ErrorType.name} with message matching ${String(message)}`,
+          );
+        }
+        // If nothing was thrown, not-negated passes
+      } else {
+        assert.ok(thrown, `Expected function to throw`);
+        assert.ok(
+          thrown instanceof ErrorType,
+          `Expected error to be instance of ${ErrorType.name}, but got ${thrown!.constructor.name}`,
+        );
+        if (typeof message === 'string') {
+          assert.ok(
+            thrown!.message.includes(message),
+            `Expected error message to contain "${message}" but got "${thrown!.message}"`,
+          );
+        } else {
+          assert.ok(
+            message.test(thrown!.message),
+            `Expected error message to match ${message} but got "${thrown!.message}"`,
+          );
+        }
+      }
+    },
+
+    toHaveNthReturnedWith(n: number, value: unknown): void {
+      trackAssertion();
+      const mock = getMockState(actual);
+      const nthResult = mock.results[n - 1];
+      const matches =
+        nthResult &&
+        nthResult.type === 'return' &&
+        deepEqualWithAsymmetric(nthResult.value, value);
+      if (negated) {
+        assert.ok(
+          !matches,
+          `Expected call ${n} not to have returned ${JSON.stringify(value)}`,
+        );
+      } else {
+        assert.ok(
+          matches,
+          `Expected call ${n} to have returned ${JSON.stringify(value)}, but got ${JSON.stringify(nthResult?.value)}`,
+        );
+      }
+    },
+
+    toContainAllEntries(entries: [string, unknown][]): void {
+      trackAssertion();
+      let allMatch: boolean;
+      if (actual instanceof Map) {
+        allMatch = entries.every(
+          ([key, value]) =>
+            actual.has(key) && deepEqualWithAsymmetric(actual.get(key), value),
+        );
+      } else {
+        const obj = actual as Record<string, unknown>;
+        allMatch = entries.every(
+          ([key, value]) =>
+            key in obj && deepEqualWithAsymmetric(obj[key], value),
+        );
+      }
+      if (negated) {
+        assert.ok(!allMatch, `Expected value not to contain all entries`);
+      } else {
+        assert.ok(
+          allMatch,
+          `Expected value to contain all entries ${JSON.stringify(entries)}`,
+        );
+      }
+    },
+
+    toContainAnyEntries(entries: [string, unknown][]): void {
+      trackAssertion();
+      let anyMatch: boolean;
+      if (actual instanceof Map) {
+        anyMatch = entries.some(
+          ([key, value]) =>
+            actual.has(key) && deepEqualWithAsymmetric(actual.get(key), value),
+        );
+      } else {
+        const obj = actual as Record<string, unknown>;
+        anyMatch = entries.some(
+          ([key, value]) =>
+            key in obj && deepEqualWithAsymmetric(obj[key], value),
+        );
+      }
+      if (negated) {
+        assert.ok(
+          !anyMatch,
+          `Expected value not to contain any of the entries`,
+        );
+      } else {
+        assert.ok(
+          anyMatch,
+          `Expected value to contain at least one of the entries ${JSON.stringify(entries)}`,
+        );
+      }
+    },
+
+    toSatisfyAll(predicate: (value: unknown) => boolean): void {
+      trackAssertion();
+      const arr = actual as unknown as unknown[];
+      const allMatch = arr.every(predicate);
+      if (negated) {
+        assert.ok(!allMatch, `Expected not all elements to satisfy predicate`);
+      } else {
+        assert.ok(allMatch, `Expected all elements to satisfy predicate`);
       }
     },
 
