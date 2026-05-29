@@ -232,6 +232,36 @@ nodeDescribe('enhanced timer mocking', () => {
   });
 });
 
+// GHSA-ghwv-f6jh-fmpm: Infinite loop prevention in fake timers
+nodeDescribe('fake timer infinite loop protection', () => {
+  nodeIt('advanceTimersByTime throws on zero-delay interval loops', () => {
+    const clock = useFakeTimers(0);
+    try {
+      // A zero-delay interval that never clears itself
+      setInterval(() => {}, 0);
+      assert.throws(
+        () => clock.advanceTimersByTime(1000),
+        /exceeded 10000 iterations/,
+      );
+    } finally {
+      useRealTimers();
+    }
+  });
+
+  nodeIt('runOnlyPendingTimers throws on zero-delay interval loops', () => {
+    const clock = useFakeTimers(0);
+    try {
+      setInterval(() => {}, 0);
+      assert.throws(
+        () => clock.runOnlyPendingTimers(),
+        /exceeded 10000 iterations/,
+      );
+    } finally {
+      useRealTimers();
+    }
+  });
+});
+
 nodeDescribe('mock.hoisted', () => {
   nodeIt('mock.hoisted is a function', () => {
     assert.strictEqual(typeof mock.hoisted, 'function');

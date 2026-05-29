@@ -550,7 +550,14 @@ export function useFakeTimers(
     advanceTimersByTime(ms: number): void {
       const target = state.now + ms;
       let didWork = true;
+      // GHSA-ghwv-f6jh-fmpm: Safety counter to prevent infinite loops
+      let safety = 10000;
       while (didWork) {
+        if (--safety <= 0) {
+          throw new Error(
+            'advanceTimersByTime: exceeded 10000 iterations — possible infinite loop',
+          );
+        }
         didWork = false;
         let nextFire = Infinity;
         for (const [, timer] of state.timers) {
@@ -640,7 +647,14 @@ export function useFakeTimers(
       }
       // Advance time step-by-step, only firing timers from the original set
       const target = latest;
+      // GHSA-ghwv-f6jh-fmpm: Safety counter to prevent infinite loops
+      let safety = 10000;
       while (true) {
+        if (--safety <= 0) {
+          throw new Error(
+            'runOnlyPendingTimers: exceeded 10000 iterations — possible infinite loop',
+          );
+        }
         // Find the next fire time among still-pending original timers
         let nextFire = Infinity;
         for (const id of pendingIds) {
