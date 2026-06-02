@@ -111,6 +111,24 @@ export {
 } from './dom/window.js';
 
 export {
+  Performance,
+  PerformanceObserver,
+  PerformanceObserverEntryList,
+} from './dom/performance.js';
+export type {
+  PerformanceEntry,
+  PerformanceMark,
+  PerformanceMeasure,
+} from './dom/performance.js';
+
+export {
+  Animation,
+  KeyframeEffect,
+  AnimationTimeline,
+} from './dom/animation.js';
+export type { EffectTiming, KeyframeEffectOptions } from './dom/animation.js';
+
+export {
   WebSocket,
   CloseEvent as WSCloseEvent,
   WSMessageEvent,
@@ -162,8 +180,11 @@ export type {
   MediaContext,
 } from './dom/media-query.js';
 
-export { DataTransfer, DataTransferItemList } from './dom/data-transfer.js';
-export type { DataTransferItem } from './dom/data-transfer.js';
+export {
+  DataTransfer,
+  DataTransferItemList,
+  DataTransferItem,
+} from './dom/data-transfer.js';
 
 export {
   Worker,
