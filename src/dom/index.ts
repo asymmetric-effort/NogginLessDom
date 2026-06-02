@@ -736,6 +736,7 @@ export class Element extends Node {
   private _scrollWidth = 0;
   private _scrollHeight = 0;
   private _eventHandlers: Map<string, (event: Event) => void> = new Map();
+  private _pointerCapture: Set<number> = new Set();
 
   constructor(tagName: string, namespaceURI?: string | null) {
     const isSVG =
@@ -1871,6 +1872,41 @@ export class Element extends Node {
 
   set tabIndex(value: number) {
     this._tabIndex = value;
+  }
+
+  // ---- Pointer Capture ----
+
+  setPointerCapture(pointerId: number): void {
+    this._pointerCapture.add(pointerId);
+  }
+
+  releasePointerCapture(pointerId: number): void {
+    this._pointerCapture.delete(pointerId);
+  }
+
+  hasPointerCapture(pointerId: number): boolean {
+    return this._pointerCapture.has(pointerId);
+  }
+
+  // ---- Web Animations API ----
+
+  animate(
+    keyframes: Record<string, unknown>[],
+    options?: number | { duration?: number | string; [key: string]: unknown },
+  ): import('./animation.js').Animation {
+    const {
+      Animation: AnimationClass,
+      KeyframeEffect: KFE,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+    } = require('./animation.js') as typeof import('./animation.js');
+    const effect = new KFE(this, keyframes, options);
+    const animation = new AnimationClass(effect);
+    animation.play();
+    return animation;
+  }
+
+  getAnimations(): import('./animation.js').Animation[] {
+    return [];
   }
 }
 
