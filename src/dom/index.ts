@@ -1874,6 +1874,38 @@ export class Element extends Node {
     this._tabIndex = value;
   }
 
+  // ---- contentEditable ----
+
+  private _contentEditable: string = 'inherit';
+
+  get contentEditable(): string {
+    return this._contentEditable;
+  }
+
+  set contentEditable(value: string) {
+    this._contentEditable = value;
+  }
+
+  get isContentEditable(): boolean {
+    if (this._contentEditable === 'true') return true;
+    if (this._contentEditable === 'false') return false;
+    // inherit: check parent
+    if (this.parentNode instanceof Element) {
+      return this.parentNode.isContentEditable;
+    }
+    return false;
+  }
+
+  // ---- focus / blur ----
+
+  focus(): void {
+    this.dispatchEvent(new Event('focus', { bubbles: false }));
+  }
+
+  blur(): void {
+    this.dispatchEvent(new Event('blur', { bubbles: false }));
+  }
+
   // ---- Pointer Capture ----
 
   setPointerCapture(pointerId: number): void {
@@ -2106,6 +2138,17 @@ export class Document extends Node {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       require('./range.js') as typeof import('./range.js');
     return new Range();
+  }
+
+  adoptNode(node: Node): Node {
+    if (node.parentNode) {
+      node.parentNode.removeChild(node);
+    }
+    return node;
+  }
+
+  importNode(node: Node, deep?: boolean): Node {
+    return node.cloneNode(deep ?? false);
   }
 
   createEvent(_type: string): Event {
