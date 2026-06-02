@@ -20,6 +20,7 @@ export interface CSSRule {
   specificity: [number, number, number]; // [id, class, element]
   importantProperties?: Set<string>;
   mediaQuery?: string;
+  pseudo?: string; // e.g. '::before', '::after'
 }
 
 /**
@@ -222,14 +223,25 @@ export function parseStyleSheet(css: string): CSSRule[] {
     for (const sel of selectors) {
       const trimmedSel = sel.trim();
       if (trimmedSel) {
+        // Check for pseudo-element in selector (e.g. div::before)
+        const pseudoMatch = trimmedSel.match(/(::(?:before|after))\s*$/);
+        let baseSelector = trimmedSel;
+        let pseudo: string | undefined;
+        if (pseudoMatch) {
+          pseudo = pseudoMatch[1];
+          baseSelector = trimmedSel.slice(0, -pseudoMatch[0].length).trim();
+          // If selector is just ::before with no element, it applies to any element
+          if (!baseSelector) baseSelector = '*';
+        }
         rules.push({
-          selector: trimmedSel,
+          selector: baseSelector,
           properties: new Map(properties),
           specificity: computeSpecificity(trimmedSel),
           importantProperties:
             importantProperties.size > 0
               ? new Set(importantProperties)
               : undefined,
+          pseudo,
         });
       }
     }
@@ -356,6 +368,229 @@ export function expandShorthand(
   return result;
 }
 
+/**
+ * Check whether a CSS property name is a custom property (starts with --).
+ */
+export function isCustomProperty(property: string): boolean {
+  return property.startsWith('--');
+}
+
+/**
+ * Resolve CSS variable references in a value string.
+ * Replaces `var(--name)` with the value from variableMap.
+ * Replaces `var(--name, fallback)` with value or fallback if undefined.
+ * Supports one level of nested var() references.
+ */
+export function resolveVariables(
+  value: string,
+  variableMap: Map<string, string>,
+): string {
+  // Iteratively resolve var() references (handles nested vars)
+  let result = value;
+  const maxIterations = 10; // prevent infinite loops
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
+    // Find innermost var() first (no nested var inside)
+    const varRegex = /var\(([^()]*)\)/g;
+    let match: RegExpExecArray | null;
+    let replaced = false;
+    let output = '';
+    let lastIndex = 0;
+
+    while ((match = varRegex.exec(result)) !== null) {
+      replaced = true;
+      output += result.slice(lastIndex, match.index);
+      const inner = match[1]!.trim();
+      // Split on the first comma for fallback
+      const commaIdx = inner.indexOf(',');
+      let varName: string;
+      let fallback: string | undefined;
+      if (commaIdx !== -1) {
+        varName = inner.slice(0, commaIdx).trim();
+        fallback = inner.slice(commaIdx + 1).trim();
+      } else {
+        varName = inner;
+      }
+      const resolved = variableMap.get(varName);
+      if (resolved !== undefined) {
+        output += resolved;
+      } else if (fallback !== undefined) {
+        output += fallback;
+      } else {
+        output += match[0]; // leave as-is if unresolvable
+      }
+      lastIndex = match.index + match[0].length;
+    }
+    if (!replaced) break;
+    output += result.slice(lastIndex);
+    result = output;
+  }
+  return result;
+}
+
+/**
+ * Resolve CSS calc() expressions.
+ * Only resolves when all units match (px with px, etc).
+ * Leaves mixed-unit expressions as-is.
+ */
+export function resolveCalc(expression: string): string {
+  // Resolve innermost calc() expressions first
+  let result = expression;
+  const maxIterations = 10;
+  for (let iteration = 0; iteration < maxIterations; iteration++) {
+    // Find innermost calc() (no nested calc inside)
+    const calcRegex = /calc\(([^()]*)\)/g;
+    let match: RegExpExecArray | null;
+    let replaced = false;
+    let output = '';
+    let lastIndex = 0;
+
+    while ((match = calcRegex.exec(result)) !== null) {
+      replaced = true;
+      output += result.slice(lastIndex, match.index);
+      const inner = match[1]!.trim();
+      const resolved = evaluateCalcExpression(inner);
+      output += resolved;
+      lastIndex = match.index + match[0].length;
+    }
+    if (!replaced) break;
+    output += result.slice(lastIndex);
+    result = output;
+  }
+  return result;
+}
+
+/**
+ * Evaluate a simple calc expression (no nested calc).
+ * Supports +, -, *, / with same-unit operands.
+ */
+function evaluateCalcExpression(expr: string): string {
+  const trimmed = expr.trim();
+
+  // Parse tokens: numbers with optional units
+  // We support: number unit, operators +, -, *, /
+  const tokenRegex =
+    /(-?\d+(?:\.\d+)?)(px|em|rem|%|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pt|pc)?|([+\-*/])/g;
+  const tokens: Array<
+    | {
+        type: 'number';
+        value: number;
+        unit: string;
+      }
+    | { type: 'operator'; op: string }
+  > = [];
+
+  let tokenMatch: RegExpExecArray | null;
+  while ((tokenMatch = tokenRegex.exec(trimmed)) !== null) {
+    if (tokenMatch[3]) {
+      tokens.push({ type: 'operator', op: tokenMatch[3] });
+    } else if (tokenMatch[1]) {
+      tokens.push({
+        type: 'number',
+        value: parseFloat(tokenMatch[1]),
+        unit: tokenMatch[2] ?? '',
+      });
+    }
+  }
+
+  if (tokens.length === 0) return `calc(${expr})`;
+
+  // Handle * and / first (higher precedence)
+  const intermediate: typeof tokens = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i]!;
+    if (token.type === 'operator' && (token.op === '*' || token.op === '/')) {
+      const left = intermediate.pop();
+      const right = tokens[++i];
+      if (
+        !left ||
+        !right ||
+        left.type !== 'number' ||
+        right.type !== 'number'
+      ) {
+        return `calc(${expr})`;
+      }
+      // For multiplication: one operand must be unitless
+      if (token.op === '*') {
+        let resultVal: number;
+        let resultUnit: string;
+        if (left.unit === '' && right.unit !== '') {
+          resultVal = left.value * right.value;
+          resultUnit = right.unit;
+        } else if (left.unit !== '' && right.unit === '') {
+          resultVal = left.value * right.value;
+          resultUnit = left.unit;
+        } else if (left.unit === '' && right.unit === '') {
+          resultVal = left.value * right.value;
+          resultUnit = '';
+        } else {
+          return `calc(${expr})`; // can't multiply two units
+        }
+        intermediate.push({
+          type: 'number',
+          value: resultVal,
+          unit: resultUnit,
+        });
+      } else {
+        // Division: right operand should be unitless
+        if (right.unit !== '' && left.unit !== right.unit) {
+          return `calc(${expr})`;
+        }
+        const resultUnit = right.unit === '' ? left.unit : '';
+        intermediate.push({
+          type: 'number',
+          value: left.value / right.value,
+          unit: resultUnit,
+        });
+      }
+    } else {
+      intermediate.push(token);
+    }
+  }
+
+  // Handle + and -
+  if (intermediate.length === 0) return `calc(${expr})`;
+  if (intermediate[0]!.type !== 'number') return `calc(${expr})`;
+
+  let resultValue = (
+    intermediate[0] as { type: 'number'; value: number; unit: string }
+  ).value;
+  let resultUnit = (
+    intermediate[0] as { type: 'number'; value: number; unit: string }
+  ).unit;
+
+  for (let i = 1; i < intermediate.length; i += 2) {
+    const op = intermediate[i];
+    const operand = intermediate[i + 1];
+    if (
+      !op ||
+      !operand ||
+      op.type !== 'operator' ||
+      operand.type !== 'number'
+    ) {
+      return `calc(${expr})`;
+    }
+    // For + and -, units must match
+    if (operand.unit !== resultUnit) {
+      // Mixed units: can't resolve
+      return `calc(${expr})`;
+    }
+    if (op.op === '+') {
+      resultValue += operand.value;
+    } else if (op.op === '-') {
+      resultValue -= operand.value;
+    } else {
+      return `calc(${expr})`;
+    }
+  }
+
+  // Format result: remove trailing .0
+  const formatted =
+    resultValue === Math.floor(resultValue)
+      ? resultValue.toString()
+      : resultValue.toString();
+  return `${formatted}${resultUnit}`;
+}
+
 function compareSpecificity(
   a: [number, number, number],
   b: [number, number, number],
@@ -372,11 +607,19 @@ export function collectApplicableStyles(
   element: Node,
   stylesheets: CSSRule[],
   mediaContext?: MediaContext,
+  pseudo?: string | null,
 ): Map<string, string> {
   const matching: Array<{ rule: CSSRule; index: number }> = [];
+  const targetPseudo = pseudo || undefined;
 
   for (let idx = 0; idx < stylesheets.length; idx++) {
     const rule = stylesheets[idx]!;
+    // Filter by pseudo-element: only match rules with same pseudo
+    if (targetPseudo) {
+      if (rule.pseudo !== targetPseudo) continue;
+    } else {
+      if (rule.pseudo) continue;
+    }
     // Skip rules with media queries that don't match
     if (rule.mediaQuery) {
       if (!mediaContext) continue;
@@ -407,6 +650,29 @@ export function collectApplicableStyles(
       if (isImportant) {
         resultImportant.add(prop);
       }
+    }
+  }
+
+  // Resolve CSS variables
+  const variableMap = new Map<string, string>();
+  for (const [prop, val] of result) {
+    if (isCustomProperty(prop)) {
+      variableMap.set(prop, val);
+    }
+  }
+  // Resolve var() references in all values
+  if (variableMap.size > 0) {
+    for (const [prop, val] of result) {
+      if (!isCustomProperty(prop) && val.includes('var(')) {
+        result.set(prop, resolveVariables(val, variableMap));
+      }
+    }
+  }
+
+  // Resolve calc() expressions
+  for (const [prop, val] of result) {
+    if (val.includes('calc(')) {
+      result.set(prop, resolveCalc(val));
     }
   }
 
@@ -420,11 +686,19 @@ export function collectApplicableStylesWithImportance(
   element: Node,
   stylesheets: CSSRule[],
   mediaContext?: MediaContext,
+  pseudo?: string | null,
 ): { styles: Map<string, string>; important: Set<string> } {
   const matching: Array<{ rule: CSSRule; index: number }> = [];
+  const targetPseudo = pseudo || undefined;
 
   for (let idx = 0; idx < stylesheets.length; idx++) {
     const rule = stylesheets[idx]!;
+    // Filter by pseudo-element
+    if (targetPseudo) {
+      if (rule.pseudo !== targetPseudo) continue;
+    } else {
+      if (rule.pseudo) continue;
+    }
     // Skip rules with media queries that don't match
     if (rule.mediaQuery) {
       if (!mediaContext) continue;
@@ -455,6 +729,28 @@ export function collectApplicableStylesWithImportance(
       if (isImportant) {
         resultImportant.add(prop);
       }
+    }
+  }
+
+  // Resolve CSS variables
+  const variableMap = new Map<string, string>();
+  for (const [prop, val] of result) {
+    if (isCustomProperty(prop)) {
+      variableMap.set(prop, val);
+    }
+  }
+  if (variableMap.size > 0) {
+    for (const [prop, val] of result) {
+      if (!isCustomProperty(prop) && val.includes('var(')) {
+        result.set(prop, resolveVariables(val, variableMap));
+      }
+    }
+  }
+
+  // Resolve calc() expressions
+  for (const [prop, val] of result) {
+    if (val.includes('calc(')) {
+      result.set(prop, resolveCalc(val));
     }
   }
 
