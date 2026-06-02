@@ -525,6 +525,23 @@ export class HashChangeEvent extends Event {
 }
 
 /**
+ * PromiseRejectionEvent — extends Event with promise and reason properties.
+ */
+export class PromiseRejectionEvent extends Event {
+  readonly promise: Promise<unknown>;
+  readonly reason: unknown;
+
+  constructor(
+    type: string,
+    init: { promise: Promise<unknown>; reason?: unknown },
+  ) {
+    super(type);
+    this.promise = init.promise;
+    this.reason = init.reason;
+  }
+}
+
+/**
  * BeforeUnloadEvent — extends Event with a settable returnValue.
  */
 export class BeforeUnloadEvent extends Event {

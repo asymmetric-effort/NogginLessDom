@@ -3,7 +3,7 @@
  * @module dom/html-elements
  */
 
-import { Element, Event, Node } from './index.js';
+import { Element, Event, Node, DocumentFragment } from './index.js';
 import { CanvasRenderingContext2D } from './canvas.js';
 
 /**
@@ -804,11 +804,14 @@ export class HTMLCanvasElement extends Element {
  * HTMLTemplateElement — <template>
  */
 export class HTMLTemplateElement extends Element {
-  public readonly content: Node;
+  private _content: DocumentFragment = new DocumentFragment();
+
+  get content(): DocumentFragment {
+    return this._content;
+  }
 
   constructor() {
     super('template');
-    this.content = new Node(11, '#document-fragment');
   }
 }
 
@@ -1183,6 +1186,98 @@ export class HTMLLinkElement extends Element {
 }
 
 /**
+ * HTMLOutputElement — <output>
+ */
+export class HTMLOutputElement extends Element {
+  constructor() {
+    super('output');
+  }
+
+  get value(): string {
+    return this.textContent;
+  }
+
+  set value(v: string) {
+    this.textContent = v;
+  }
+
+  get defaultValue(): string {
+    return this.getAttribute('defaultvalue') ?? '';
+  }
+
+  get htmlFor(): import('./token-list.js').DOMTokenList {
+    return this.classList; /* simplified */
+  }
+}
+
+/**
+ * HTMLTimeElement — <time>
+ */
+export class HTMLTimeElement extends Element {
+  constructor() {
+    super('time');
+  }
+
+  get dateTime(): string {
+    return this.getAttribute('datetime') ?? '';
+  }
+
+  set dateTime(v: string) {
+    this.setAttribute('datetime', v);
+  }
+}
+
+/**
+ * HTMLPictureElement — <picture>
+ */
+export class HTMLPictureElement extends Element {
+  constructor() {
+    super('picture');
+  }
+}
+
+/**
+ * HTMLSourceElement — <source>
+ */
+export class HTMLSourceElement extends Element {
+  constructor() {
+    super('source');
+  }
+
+  get src(): string {
+    return this.getAttribute('src') ?? '';
+  }
+
+  set src(v: string) {
+    this.setAttribute('src', v);
+  }
+
+  get type(): string {
+    return this.getAttribute('type') ?? '';
+  }
+
+  set type(v: string) {
+    this.setAttribute('type', v);
+  }
+
+  get srcset(): string {
+    return this.getAttribute('srcset') ?? '';
+  }
+
+  set srcset(v: string) {
+    this.setAttribute('srcset', v);
+  }
+
+  get media(): string {
+    return this.getAttribute('media') ?? '';
+  }
+
+  set media(v: string) {
+    this.setAttribute('media', v);
+  }
+}
+
+/**
  * Map of tag names to their typed element constructors.
  */
 export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
@@ -1212,4 +1307,8 @@ export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
   SCRIPT: HTMLScriptElement,
   SLOT: HTMLSlotElement,
   LINK: HTMLLinkElement,
+  OUTPUT: HTMLOutputElement,
+  TIME: HTMLTimeElement,
+  PICTURE: HTMLPictureElement,
+  SOURCE: HTMLSourceElement,
 };

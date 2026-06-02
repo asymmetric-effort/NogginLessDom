@@ -93,6 +93,10 @@ export {
   HTMLScriptElement,
   HTMLSlotElement,
   HTMLLinkElement,
+  HTMLOutputElement,
+  HTMLTimeElement,
+  HTMLPictureElement,
+  HTMLSourceElement,
   ValidityState,
 } from './dom/html-elements.js';
 
@@ -238,6 +242,7 @@ export {
   ProgressEvent,
   HashChangeEvent,
   BeforeUnloadEvent,
+  PromiseRejectionEvent,
 } from './dom/events.js';
 
 export type { Touch } from './dom/events.js';
