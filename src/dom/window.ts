@@ -43,6 +43,12 @@ import {
   WebSocket as NogginWebSocket,
   type WebSocketHandler,
 } from './websocket.js';
+import { IDBFactory } from './indexeddb.js';
+import {
+  Worker as NogginWorker,
+  SharedWorker as NogginSharedWorker,
+  ServiceWorkerContainer,
+} from './workers.js';
 
 /**
  * Default fetch handler using node:http and node:https.
@@ -340,10 +346,12 @@ export class Navigator {
   public maxTouchPoints: number = 0;
   public clipboard: Clipboard;
   public permissions: Permissions;
+  public serviceWorker: ServiceWorkerContainer;
 
   constructor() {
     this.clipboard = new Clipboard();
     this.permissions = new Permissions();
+    this.serviceWorker = new ServiceWorkerContainer();
   }
 
   sendBeacon(_url: string, _data?: string): boolean {
@@ -900,6 +908,7 @@ export class Window {
   public scrollY: number;
   public pageXOffset: number;
   public pageYOffset: number;
+  public indexedDB: IDBFactory;
 
   // Web API properties
   public FormData: typeof FormData = FormData;
@@ -918,6 +927,8 @@ export class Window {
   public AbortController: typeof NogginAbortController = NogginAbortController;
   public AbortSignal: typeof NogginAbortSignal = NogginAbortSignal;
   public crypto: Crypto = globalThis.crypto;
+  public Worker: typeof NogginWorker = NogginWorker;
+  public SharedWorker: typeof NogginSharedWorker = NogginSharedWorker;
 
   private eventListeners: Map<string, Array<(event: Event) => void>> =
     new Map();
@@ -932,6 +943,11 @@ export class Window {
   private _colorScheme: 'light' | 'dark';
   private _reducedMotion: boolean;
   private _activeMediaQueryLists: Set<MediaQueryList> = new Set();
+  private _stylesheetLoader:
+    | ((href: string) => string | Promise<string>)
+    | undefined = undefined;
+  /** @internal Loaded external stylesheets (href -> css text). */
+  _loadedStylesheets: Map<string, string> = new Map();
 
   constructor(options?: WindowOptions) {
     this.document = new Document();
@@ -982,6 +998,7 @@ export class Window {
     this.scrollY = 0;
     this.pageXOffset = 0;
     this.pageYOffset = 0;
+    this.indexedDB = new IDBFactory();
   }
 
   matchMedia(query: string): MediaQueryList {
@@ -1046,6 +1063,12 @@ export class Window {
       specificity: [number, number, number];
       importantProperties?: Set<string>;
     }> = [];
+    // Include loaded external stylesheets
+    for (const [, cssText] of this._loadedStylesheets) {
+      const rules = parseSS(cssText);
+      allRules.push(...rules);
+    }
+
     const styleElements = this.document.querySelectorAll('style');
     for (let s = 0; s < styleElements.length; s++) {
       const styleEl = styleElements[s]!;
@@ -1125,6 +1148,29 @@ export class Window {
 
   configureWebSocket(handler: WebSocketHandler): void {
     this._wsHandler = handler;
+  }
+
+  configureStylesheetLoader(
+    loader: (href: string) => string | Promise<string>,
+  ): void {
+    this._stylesheetLoader = loader;
+  }
+
+  /** @internal */
+  _getStylesheetLoader():
+    | ((href: string) => string | Promise<string>)
+    | undefined {
+    return this._stylesheetLoader;
+  }
+
+  /**
+   * @internal Load a stylesheet from a given href using the configured loader.
+   */
+  async _loadStylesheet(href: string): Promise<void> {
+    if (!this._stylesheetLoader) return;
+    if (this._loadedStylesheets.has(href)) return;
+    const css = await this._stylesheetLoader(href);
+    this._loadedStylesheets.set(href, css);
   }
 
   get WebSocket(): typeof NogginWebSocket {

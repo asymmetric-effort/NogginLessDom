@@ -92,6 +92,7 @@ export {
   HTMLFieldSetElement,
   HTMLScriptElement,
   HTMLSlotElement,
+  HTMLLinkElement,
   ValidityState,
 } from './dom/html-elements.js';
 
@@ -133,6 +134,18 @@ export { DOMParser, XMLSerializer } from './dom/dom-parser.js';
 export { AbortController, AbortSignal } from './dom/abort.js';
 
 export {
+  IDBFactory,
+  IDBDatabase,
+  IDBObjectStore,
+  IDBTransaction,
+  IDBRequest,
+  IDBOpenDBRequest,
+  IDBIndex,
+  IDBCursor,
+  IDBKeyRange,
+} from './dom/indexeddb.js';
+
+export {
   CanvasRenderingContext2D,
   CanvasGradient,
   CanvasPattern,
@@ -153,11 +166,34 @@ export { DataTransfer, DataTransferItemList } from './dom/data-transfer.js';
 export type { DataTransferItem } from './dom/data-transfer.js';
 
 export {
+  Worker,
+  SharedWorker,
+  MessagePort,
+  ServiceWorkerContainer,
+  ServiceWorker,
+  ServiceWorkerRegistration,
+} from './dom/workers.js';
+
+export {
+  SVGElement,
+  SVGSVGElement,
+  SVGPathElement,
+  SVGCircleElement,
+  SVGRectElement,
+  SVGLineElement,
+  SVGTextElement,
+  SVGGElement,
+  SVGDefsElement,
+  SVGUseElement,
+} from './dom/svg.js';
+
+export {
   parseStyleSheet,
   computeSpecificity,
   INHERITED_PROPERTIES,
   expandShorthand,
   collectApplicableStyles,
+  collectApplicableStylesWithImportance,
 } from './dom/css-cascade.js';
 export type { CSSRule } from './dom/css-cascade.js';
 
