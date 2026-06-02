@@ -23,6 +23,8 @@ const VOID_ELEMENTS = new Set([
   'WBR',
 ]);
 
+const RAW_TEXT_ELEMENTS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA']);
+
 const ENTITY_MAP: Record<string, string> = {
   '&amp;': '&',
   '&lt;': '<',
@@ -30,13 +32,37 @@ const ENTITY_MAP: Record<string, string> = {
   '&quot;': '"',
   '&#39;': "'",
   '&apos;': "'",
+  '&nbsp;': '\u00A0',
+  '&copy;': '\u00A9',
+  '&reg;': '\u00AE',
+  '&trade;': '\u2122',
+  '&mdash;': '\u2014',
+  '&ndash;': '\u2013',
+  '&laquo;': '\u00AB',
+  '&raquo;': '\u00BB',
+  '&bull;': '\u2022',
+  '&hellip;': '\u2026',
+  '&euro;': '\u20AC',
+  '&pound;': '\u00A3',
+  '&yen;': '\u00A5',
+  '&cent;': '\u00A2',
 };
 
 function decodeEntities(text: string): string {
-  return text.replace(
-    /&(?:amp|lt|gt|quot|#39|apos);/g,
-    (entity) => ENTITY_MAP[entity] ?? entity,
-  );
+  return text.replace(/&(?:#x([0-9a-fA-F]+)|#(\d+)|[a-zA-Z]+);/g, (match) => {
+    // Numeric hex entity: &#xHHHH;
+    const hexMatch = /^&#x([0-9a-fA-F]+);$/.exec(match);
+    if (hexMatch) {
+      return String.fromCodePoint(parseInt(hexMatch[1]!, 16));
+    }
+    // Numeric decimal entity: &#NNN;
+    const decMatch = /^&#(\d+);$/.exec(match);
+    if (decMatch) {
+      return String.fromCodePoint(parseInt(decMatch[1]!, 10));
+    }
+    // Named entity
+    return ENTITY_MAP[match] ?? match;
+  });
 }
 
 /**
@@ -56,6 +82,30 @@ export function parseHTML(html: string): Node[] {
 
     while (pos < html.length) {
       if (html[pos] === '<') {
+        // Check for comment
+        if (html.startsWith('<!--', pos)) {
+          // Skip HTML comment
+          const endIdx = html.indexOf('-->', pos + 4);
+          if (endIdx !== -1) {
+            pos = endIdx + 3;
+          } else {
+            pos = html.length;
+          }
+          continue;
+        }
+
+        // Check for DOCTYPE
+        if (html.startsWith('<!', pos)) {
+          // Skip <!DOCTYPE ...> or any <! ... >
+          const endIdx = html.indexOf('>', pos + 2);
+          if (endIdx !== -1) {
+            pos = endIdx + 1;
+          } else {
+            pos = html.length;
+          }
+          continue;
+        }
+
         // Check for closing tag
         if (html[pos + 1] === '/') {
           // This is a closing tag — return to parent
@@ -66,13 +116,21 @@ export function parseHTML(html: string): Node[] {
         const tag = parseOpenTag();
         if (tag) {
           if (!tag.selfClosing && !VOID_ELEMENTS.has(tag.element.tagName)) {
-            // Parse children
-            const children = parseNodes(tag.element, depth + 1);
-            for (const child of children) {
-              tag.element.appendChild(child);
+            // Raw text elements: capture everything until matching closing tag
+            if (RAW_TEXT_ELEMENTS.has(tag.element.tagName)) {
+              const rawContent = parseRawTextContent(tag.element.tagName);
+              if (rawContent.length > 0) {
+                tag.element.appendChild(new TextNode(rawContent));
+              }
+            } else {
+              // Parse children
+              const children = parseNodes(tag.element, depth + 1);
+              for (const child of children) {
+                tag.element.appendChild(child);
+              }
+              // Consume closing tag
+              consumeClosingTag();
             }
-            // Consume closing tag
-            consumeClosingTag();
           }
           result.push(tag.element);
         }
@@ -194,6 +252,24 @@ export function parseHTML(html: string): Node[] {
       pos++;
     }
     if (pos < html.length) pos++; // skip '>'
+  }
+
+  function parseRawTextContent(tagName: string): string {
+    const closingTag = `</${tagName.toLowerCase()}>`;
+    let content = '';
+    while (pos < html.length) {
+      // Case-insensitive search for closing tag
+      const lowerRemainder = html.slice(pos).toLowerCase();
+      if (lowerRemainder.startsWith(closingTag)) {
+        // Consume the closing tag
+        pos += closingTag.length;
+        return content;
+      }
+      content += html[pos];
+      pos++;
+    }
+    // If we hit end without finding closing tag, return what we have
+    return content;
   }
 
   function skipWhitespace(): void {
