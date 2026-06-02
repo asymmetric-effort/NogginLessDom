@@ -1126,6 +1126,63 @@ export class HTMLSlotElement extends Element {
 }
 
 /**
+ * HTMLLinkElement — <link> element with stylesheet loading support.
+ */
+export class HTMLLinkElement extends Element {
+  constructor() {
+    super('link');
+  }
+
+  get rel(): string {
+    return this.getAttribute('rel') ?? '';
+  }
+  set rel(value: string) {
+    this.setAttribute('rel', value);
+  }
+
+  get href(): string {
+    return this.getAttribute('href') ?? '';
+  }
+  set href(value: string) {
+    this.setAttribute('href', value);
+    this._tryLoadStylesheet();
+  }
+
+  get type(): string {
+    return this.getAttribute('type') ?? '';
+  }
+  set type(value: string) {
+    this.setAttribute('type', value);
+  }
+
+  /** @internal Trigger stylesheet loading when added to DOM or href/rel changes. */
+  _tryLoadStylesheet(): void {
+    if (this.rel !== 'stylesheet') return;
+    const href = this.href;
+    if (!href) return;
+    const doc = this.ownerDocument;
+    if (!doc) return;
+    const win = doc.defaultView as
+      | import('./window.js').Window
+      | null
+      | undefined;
+    if (!win) return;
+    const loader = (
+      win as {
+        _getStylesheetLoader?: () =>
+          | ((h: string) => string | Promise<string>)
+          | undefined;
+      }
+    )._getStylesheetLoader?.();
+    if (!loader) return;
+    // Fire and forget — load the stylesheet asynchronously
+    void (
+      win as { _loadStylesheet: (h: string) => Promise<void> }
+    )._loadStylesheet(href);
+  }
+}
+
+/**
  * Map of tag names to their typed element constructors.
  */
 export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
@@ -1154,4 +1211,5 @@ export const HTML_ELEMENT_MAP: Record<string, new () => Element> = {
   FIELDSET: HTMLFieldSetElement,
   SCRIPT: HTMLScriptElement,
   SLOT: HTMLSlotElement,
+  LINK: HTMLLinkElement,
 };
