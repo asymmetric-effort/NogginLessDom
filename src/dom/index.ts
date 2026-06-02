@@ -1994,6 +1994,20 @@ export class Document extends Node {
   }
 
   createElementNS(namespaceURI: string, qualifiedName: string): Element {
+    if (namespaceURI === 'http://www.w3.org/2000/svg') {
+      const { SVG_ELEMENT_MAP, SVGElement: SVGElementClass } =
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('./svg.js') as typeof import('./svg.js');
+      const Ctor = SVG_ELEMENT_MAP[qualifiedName];
+      if (Ctor) {
+        const el = new Ctor();
+        el.ownerDocument = this;
+        return el;
+      }
+      const el = new SVGElementClass(qualifiedName);
+      el.ownerDocument = this;
+      return el;
+    }
     const el = new Element(qualifiedName, namespaceURI);
     el.ownerDocument = this;
     return el;
