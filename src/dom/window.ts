@@ -7,7 +7,8 @@ import { URL, URLSearchParams } from 'node:url';
 import * as http from 'node:http';
 import * as https from 'node:https';
 import { Document, Element, Event } from './index.js';
-import { StorageEvent } from './events.js';
+import { StorageEvent, PopStateEvent } from './events.js';
+import { Performance } from './performance.js';
 import { CSSStyleDeclaration } from './style.js';
 import { FormData } from './form-data.js';
 import { Headers as NogginHeaders } from './headers.js';
@@ -248,11 +249,12 @@ interface HistoryEntry {
 }
 
 /**
- * Basic History stub.
+ * History — supports pushState, replaceState, back, forward, go with popstate events.
  */
 export class History {
   private entries: HistoryEntry[] = [{ state: null, title: '', url: '' }];
   private currentIndex = 0;
+  /** @internal */ _window: Window | null = null;
 
   get length(): number {
     return this.entries.length;
@@ -267,21 +269,25 @@ export class History {
     this.entries = this.entries.slice(0, this.currentIndex + 1);
     this.entries.push({ state, title, url });
     this.currentIndex++;
+    // Per spec: pushState does NOT fire popstate
   }
 
   replaceState(state: unknown, title: string, url: string): void {
     this.entries[this.currentIndex] = { state, title, url };
+    // Per spec: replaceState does NOT fire popstate
   }
 
   back(): void {
     if (this.currentIndex > 0) {
       this.currentIndex--;
+      this._firePopState();
     }
   }
 
   forward(): void {
     if (this.currentIndex < this.entries.length - 1) {
       this.currentIndex++;
+      this._firePopState();
     }
   }
 
@@ -289,6 +295,18 @@ export class History {
     const newIndex = this.currentIndex + delta;
     if (newIndex >= 0 && newIndex < this.entries.length) {
       this.currentIndex = newIndex;
+      if (delta !== 0) {
+        this._firePopState();
+      }
+    }
+  }
+
+  private _firePopState(): void {
+    if (this._window) {
+      const event = new PopStateEvent('popstate', {
+        state: this.entries[this.currentIndex]!.state,
+      });
+      this._window.dispatchEvent(event);
     }
   }
 }
@@ -602,15 +620,7 @@ interface RequestInit {
   body?: string;
 }
 
-/** Performance API stub interface. */
-interface PerformanceStub {
-  now(): number;
-  mark(_name: string): void;
-  measure(_name: string, _start?: string, _end?: string): void;
-  getEntries(): unknown[];
-  getEntriesByName(_name: string): unknown[];
-  getEntriesByType(_type: string): unknown[];
-}
+// Performance API is now provided by ./performance.ts
 
 /** Screen stub interface. */
 interface ScreenStub {
@@ -899,7 +909,7 @@ export class Window {
   public innerHeight: number;
   public URL: typeof URL;
   public URLSearchParams: typeof URLSearchParams;
-  public performance: PerformanceStub;
+  public performance: Performance;
   public console: typeof globalThis.console;
   public screen: ScreenStub;
   public devicePixelRatio: number;
@@ -953,6 +963,7 @@ export class Window {
     this.document = new Document();
     this.location = new Location();
     this.history = new History();
+    this.history._window = this;
     this.navigator = new Navigator();
     this.localStorage = new Storage();
     this.localStorage._window = this;
@@ -967,22 +978,7 @@ export class Window {
     this._reducedMotion = options?.reducedMotion ?? false;
     this.URL = URL;
     this.URLSearchParams = URLSearchParams;
-    this.performance = {
-      now(): number {
-        return Date.now();
-      },
-      mark(_name: string): void {},
-      measure(_name: string, _start?: string, _end?: string): void {},
-      getEntries(): unknown[] {
-        return [];
-      },
-      getEntriesByName(_name: string): unknown[] {
-        return [];
-      },
-      getEntriesByType(_type: string): unknown[] {
-        return [];
-      },
-    };
+    this.performance = new Performance();
     this.console = globalThis.console;
     this.screen = {
       width: options?.screenWidth ?? 1920,
@@ -1040,20 +1036,31 @@ export class Window {
     }
   }
 
-  getComputedStyle(el: Element): CSSStyleDeclaration {
+  getComputedStyle(
+    el: Element,
+    pseudoElement?: string | null,
+  ): CSSStyleDeclaration {
     const {
       parseStyleSheet: parseSS,
       collectApplicableStylesWithImportance: collectStylesImportance,
       collectApplicableStyles: collectStyles,
       INHERITED_PROPERTIES: INHERITED,
+      isCustomProperty,
+      resolveVariables,
+      resolveCalc,
       // eslint-disable-next-line @typescript-eslint/no-require-imports
     } = require('./css-cascade.js') as typeof import('./css-cascade.js');
     const computed = new CSSStyleDeclaration();
 
-    // Apply default display value based on tag name
-    const defaultDisplay = DEFAULT_DISPLAY[el.tagName];
-    if (defaultDisplay) {
-      computed.setProperty('display', defaultDisplay);
+    // Normalize pseudo parameter
+    const pseudo = pseudoElement || null;
+
+    // Apply default display value based on tag name (only for non-pseudo)
+    if (!pseudo) {
+      const defaultDisplay = DEFAULT_DISPLAY[el.tagName];
+      if (defaultDisplay) {
+        computed.setProperty('display', defaultDisplay);
+      }
     }
 
     // Collect <style> elements and parse them into CSS rules
@@ -1062,6 +1069,7 @@ export class Window {
       properties: Map<string, string>;
       specificity: [number, number, number];
       importantProperties?: Set<string>;
+      pseudo?: string;
     }> = [];
     // Include loaded external stylesheets
     for (const [, cssText] of this._loadedStylesheets) {
@@ -1077,45 +1085,114 @@ export class Window {
       allRules.push(...rules);
     }
 
-    // Collect applicable stylesheet styles sorted by specificity + source order
-    const { styles: stylesheetStyles, important: sheetImportant } =
-      collectStylesImportance(el, allRules);
-    for (const [prop, val] of stylesheetStyles) {
-      computed.setProperty(prop, val);
-    }
+    // Build a variable map from ancestor chain + current element for resolution
+    const variableMap = new Map<string, string>();
 
-    // Overlay inline styles: inline !important always wins, inline normal
-    // wins over stylesheet normal but loses to stylesheet !important
-    const inlineStyle = el.style;
-    for (let i = 0; i < inlineStyle.length; i++) {
-      const prop = inlineStyle.item(i);
-      const val = inlineStyle.getPropertyValue(prop);
-      if (val) {
-        const inlinePriority = inlineStyle.getPropertyPriority(prop);
-        const isInlineImportant = inlinePriority === 'important';
-        if (sheetImportant.has(prop) && !isInlineImportant) {
-          continue;
+    // Collect variables from ancestor chain (for inheritance)
+    const ancestors: Element[] = [];
+    let anc = el.parentNode as Element | null;
+    while (anc) {
+      if (anc.nodeType === 1) ancestors.unshift(anc);
+      anc = anc.parentNode as Element | null;
+    }
+    for (const ancestor of ancestors) {
+      // Collect custom properties from stylesheets for ancestor
+      const ancestorStyles = collectStyles(ancestor, allRules);
+      for (const [prop, val] of ancestorStyles) {
+        if (isCustomProperty(prop)) {
+          variableMap.set(prop, val);
         }
-        computed.setProperty(prop, val);
+      }
+      // Collect custom properties from inline styles for ancestor
+      if (ancestor.style) {
+        for (const [prop, val] of ancestor.style) {
+          if (isCustomProperty(prop)) {
+            variableMap.set(prop, val);
+          }
+        }
       }
     }
 
-    // Inherit inheritable properties from parent chain
-    for (const prop of INHERITED) {
-      if (!computed.getPropertyValue(prop)) {
-        let ancestor = el.parentNode as Element | null;
-        while (ancestor) {
-          if (ancestor.nodeType === 1) {
-            const ancestorStyles = collectStyles(ancestor, allRules);
-            const fromStylesheet = ancestorStyles.get(prop);
-            const fromInline = ancestor.style?.getPropertyValue(prop);
-            const ancestorVal = fromInline || fromStylesheet;
-            if (ancestorVal) {
-              computed.setProperty(prop, ancestorVal);
-              break;
-            }
+    // Collect custom properties from current element's stylesheets
+    const currentStyles = collectStyles(el, allRules);
+    for (const [prop, val] of currentStyles) {
+      if (isCustomProperty(prop)) {
+        variableMap.set(prop, val);
+      }
+    }
+    // Collect custom properties from current element's inline styles
+    for (const [prop, val] of el.style) {
+      if (isCustomProperty(prop)) {
+        variableMap.set(prop, val);
+      }
+    }
+
+    // Collect applicable stylesheet styles sorted by specificity + source order
+    const { styles: stylesheetStyles, important: sheetImportant } =
+      collectStylesImportance(el, allRules, undefined, pseudo);
+    for (const [prop, val] of stylesheetStyles) {
+      // Resolve var() references using the variable map
+      let resolvedVal = val;
+      if (resolvedVal.includes('var(')) {
+        resolvedVal = resolveVariables(resolvedVal, variableMap);
+      }
+      if (resolvedVal.includes('calc(')) {
+        resolvedVal = resolveCalc(resolvedVal);
+      }
+      computed.setProperty(prop, resolvedVal);
+    }
+
+    // Overlay inline styles (only for non-pseudo)
+    if (!pseudo) {
+      const inlineStyle = el.style;
+      for (let i = 0; i < inlineStyle.length; i++) {
+        const prop = inlineStyle.item(i);
+        const val = inlineStyle.getPropertyValue(prop);
+        if (val) {
+          const inlinePriority = inlineStyle.getPropertyPriority(prop);
+          const isInlineImportant = inlinePriority === 'important';
+          if (sheetImportant.has(prop) && !isInlineImportant) {
+            continue;
           }
-          ancestor = ancestor.parentNode as Element | null;
+          // Resolve var() references in inline style values
+          let resolvedVal = val;
+          if (resolvedVal.includes('var(')) {
+            resolvedVal = resolveVariables(resolvedVal, variableMap);
+          }
+          if (resolvedVal.includes('calc(')) {
+            resolvedVal = resolveCalc(resolvedVal);
+          }
+          computed.setProperty(prop, resolvedVal);
+        }
+      }
+    }
+
+    // Inherit inheritable properties from parent chain (only for non-pseudo)
+    if (!pseudo) {
+      // Inherit standard CSS properties
+      for (const prop of INHERITED) {
+        if (!computed.getPropertyValue(prop)) {
+          let ancestor = el.parentNode as Element | null;
+          while (ancestor) {
+            if (ancestor.nodeType === 1) {
+              const ancestorStyles = collectStyles(ancestor, allRules);
+              const fromStylesheet = ancestorStyles.get(prop);
+              const fromInline = ancestor.style?.getPropertyValue(prop);
+              const ancestorVal = fromInline || fromStylesheet;
+              if (ancestorVal) {
+                computed.setProperty(prop, ancestorVal);
+                break;
+              }
+            }
+            ancestor = ancestor.parentNode as Element | null;
+          }
+        }
+      }
+
+      // Inherit CSS custom properties from parent chain
+      for (const [prop, val] of variableMap) {
+        if (!computed.getPropertyValue(prop)) {
+          computed.setProperty(prop, val);
         }
       }
     }

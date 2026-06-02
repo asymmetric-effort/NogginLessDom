@@ -170,7 +170,7 @@ describe('Window Web APIs', () => {
       const win = createWindow();
       const result = win.performance.now();
       assert.strictEqual(typeof result, 'number');
-      assert.ok(result > 0);
+      assert.ok(result >= 0);
     });
 
     it('should have mark and measure as no-ops', () => {
@@ -180,7 +180,7 @@ describe('Window Web APIs', () => {
       win.performance.measure('test', 'start');
     });
 
-    it('should return empty arrays from getEntries methods', () => {
+    it('should return empty arrays from getEntries methods when no entries exist', () => {
       const win = createWindow();
       assert.deepStrictEqual(win.performance.getEntries(), []);
       assert.deepStrictEqual(win.performance.getEntriesByName('test'), []);
