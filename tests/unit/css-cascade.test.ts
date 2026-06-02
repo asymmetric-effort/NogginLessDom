@@ -33,12 +33,15 @@ describe('parseStyleSheet', () => {
     assert.equal(rules.length, 1);
     assert.equal(rules[0]!.properties.get('color'), 'red');
   });
-  it('should ignore @rules', () => {
+  it('should parse @media rules and keep non-media @rules skipped', () => {
     const rules = parseStyleSheet(
       '@media screen { div { color: red; } } p { font-size: 14px; }',
     );
-    assert.equal(rules.length, 1);
-    assert.equal(rules[0]!.selector, 'p');
+    assert.equal(rules.length, 2);
+    assert.equal(rules[0]!.selector, 'div');
+    assert.equal(rules[0]!.mediaQuery, 'screen');
+    assert.equal(rules[1]!.selector, 'p');
+    assert.equal(rules[1]!.mediaQuery, undefined);
   });
   it('should skip @import rules without braces', () => {
     const rules = parseStyleSheet(

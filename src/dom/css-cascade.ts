@@ -5,6 +5,11 @@
 
 import { matchesSelector } from './selector.js';
 import type { Node } from './index.js';
+import {
+  parseMediaQuery,
+  evaluateMediaQuery,
+  type MediaContext,
+} from './media-query.js';
 
 /**
  * A parsed CSS rule with selector, properties, and computed specificity.
@@ -14,6 +19,7 @@ export interface CSSRule {
   properties: Map<string, string>;
   specificity: [number, number, number]; // [id, class, element]
   importantProperties?: Set<string>;
+  mediaQuery?: string;
 }
 
 /**
@@ -136,6 +142,33 @@ export function parseStyleSheet(css: string): CSSRule[] {
     if (i >= cleaned.length) break;
 
     if (cleaned[i] === '@') {
+      // Check for @media
+      const remaining = cleaned.slice(i);
+      const mediaMatch = /^@media\s+([^{]+)\{/.exec(remaining);
+      if (mediaMatch) {
+        const mediaQuery = mediaMatch[1]!.trim();
+        const mediaBlockStart = i + mediaMatch[0].length;
+        // Find the matching closing brace
+        let depth = 1;
+        let j = mediaBlockStart;
+        while (j < cleaned.length && depth > 0) {
+          if (cleaned[j] === '{') depth++;
+          else if (cleaned[j] === '}') depth--;
+          if (depth > 0) j++;
+        }
+        const innerCSS = cleaned.slice(mediaBlockStart, j);
+        const innerRules = parseStyleSheet(innerCSS);
+        for (const rule of innerRules) {
+          rules.push({
+            ...rule,
+            mediaQuery: rule.mediaQuery
+              ? `${mediaQuery} and ${rule.mediaQuery}`
+              : mediaQuery,
+          });
+        }
+        i = j + 1;
+        continue;
+      }
       i = skipAtRule(cleaned, i);
       continue;
     }
@@ -338,11 +371,18 @@ function compareSpecificity(
 export function collectApplicableStyles(
   element: Node,
   stylesheets: CSSRule[],
+  mediaContext?: MediaContext,
 ): Map<string, string> {
   const matching: Array<{ rule: CSSRule; index: number }> = [];
 
   for (let idx = 0; idx < stylesheets.length; idx++) {
     const rule = stylesheets[idx]!;
+    // Skip rules with media queries that don't match
+    if (rule.mediaQuery) {
+      if (!mediaContext) continue;
+      const parsed = parseMediaQuery(rule.mediaQuery);
+      if (!evaluateMediaQuery(parsed, mediaContext)) continue;
+    }
     if (matchesSelector(element, rule.selector)) {
       matching.push({ rule, index: idx });
     }
@@ -379,11 +419,18 @@ export function collectApplicableStyles(
 export function collectApplicableStylesWithImportance(
   element: Node,
   stylesheets: CSSRule[],
+  mediaContext?: MediaContext,
 ): { styles: Map<string, string>; important: Set<string> } {
   const matching: Array<{ rule: CSSRule; index: number }> = [];
 
   for (let idx = 0; idx < stylesheets.length; idx++) {
     const rule = stylesheets[idx]!;
+    // Skip rules with media queries that don't match
+    if (rule.mediaQuery) {
+      if (!mediaContext) continue;
+      const parsed = parseMediaQuery(rule.mediaQuery);
+      if (!evaluateMediaQuery(parsed, mediaContext)) continue;
+    }
     if (matchesSelector(element, rule.selector)) {
       matching.push({ rule, index: idx });
     }
