@@ -7,7 +7,7 @@ import { URL, URLSearchParams } from 'node:url';
 import * as http from 'node:http';
 import * as https from 'node:https';
 import { Document, Element, Event } from './index.js';
-import { StorageEvent, PopStateEvent } from './events.js';
+import { StorageEvent, PopStateEvent, MessageEvent } from './events.js';
 import { Performance } from './performance.js';
 import { CSSStyleDeclaration } from './style.js';
 import { FormData } from './form-data.js';
@@ -953,6 +953,11 @@ export class Window {
   private _colorScheme: 'light' | 'dark';
   private _reducedMotion: boolean;
   private _activeMediaQueryLists: Set<MediaQueryList> = new Set();
+  private _idleCallbackId = 0;
+  private _idleCallbacks: Map<
+    number,
+    (deadline: { timeRemaining: () => number; didTimeout: boolean }) => void
+  > = new Map();
   private _stylesheetLoader:
     | ((href: string) => string | Promise<string>)
     | undefined = undefined;
@@ -1399,6 +1404,57 @@ export class Window {
   }
   set onblur(handler: ((event: Event) => void) | null) {
     this._setEventHandler('blur', handler);
+  }
+
+  // ---- postMessage ----
+
+  postMessage(data: unknown, targetOrigin?: string): void {
+    const event = new MessageEvent('message', {
+      data,
+      origin: targetOrigin ?? '*',
+    });
+    queueMicrotask(() => {
+      this.dispatchEvent(event);
+    });
+  }
+
+  // ---- open / close stubs ----
+
+  open(_url?: string, _target?: string, _features?: string): Window | null {
+    return this;
+  }
+
+  close(): void {
+    // no-op
+  }
+
+  // ---- requestIdleCallback / cancelIdleCallback ----
+
+  requestIdleCallback(
+    callback: (deadline: {
+      timeRemaining: () => number;
+      didTimeout: boolean;
+    }) => void,
+    _options?: { timeout?: number },
+  ): number {
+    this._idleCallbackId++;
+    this._idleCallbacks.set(this._idleCallbackId, callback);
+    return this._idleCallbackId;
+  }
+
+  cancelIdleCallback(id: number): void {
+    this._idleCallbacks.delete(id);
+  }
+
+  /**
+   * Test helper: synchronously run all queued idle callbacks.
+   */
+  flushIdleCallbacks(): void {
+    const callbacks = new Map(this._idleCallbacks);
+    this._idleCallbacks.clear();
+    for (const [, cb] of callbacks) {
+      cb({ timeRemaining: () => 50, didTimeout: false });
+    }
   }
 
   // ---- Timer methods ----
