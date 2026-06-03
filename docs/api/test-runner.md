@@ -468,3 +468,105 @@ interface TestOptions {
   retries?: number;
 }
 ```
+
+## Dependency Analysis APIs
+
+### Circular Dependency Detection
+
+#### `detectCircularImports(entryFiles, options?)`
+
+Find circular import chains in your project.
+
+- **entryFiles**: `string[]` — files to start the search from
+- **options.cwd**: `string` — working directory (default: `process.cwd()`)
+- **options.exclude**: `string[]` — glob patterns to skip
+- **options.maxCycles**: `number` — stop after N cycles (default: 50)
+- **Returns**: `CircularDependency[]` — array of `{ cycle: string[], files: Set<string> }`
+
+#### `formatCycleReport(cycles)`
+
+Format detected cycles as a human-readable string with arrow-separated paths.
+
+#### `configureCycleDetection(config)`
+
+Enable cycle detection during test runs.
+
+- **config.enabled**: `boolean` — enable detection
+- **config.strict**: `boolean` — `true` = fail test run; `false` = warn only
+- **config.exclude**: `string[]` — glob patterns to skip
+- **config.maxCycles**: `number` — limit reported cycles
+
+### Import Depth Analysis
+
+#### `analyzeImportDepth(entryFiles, options?)`
+
+Calculate the maximum import chain depth for each file.
+
+- **entryFiles**: `string[]` — files to analyze
+- **options.cwd**: `string` — working directory
+- **options.exclude**: `string[]` — glob patterns to skip
+- **options.threshold**: `number` — flag files exceeding this depth
+- **Returns**: `DepthAnalysisResult` with:
+  - `entries`: `DepthAnalysis[]` — per-file depth, longest chain, import counts
+  - `maxDepth`: `number`
+  - `averageDepth`: `number`
+  - `filesExceedingThreshold`: `DepthAnalysis[]`
+
+#### `configureDepthCheck(config)`
+
+Enable depth checking during test runs.
+
+- **config.enabled**: `boolean`
+- **config.threshold**: `number` — max allowed depth
+- **config.strict**: `boolean` — `true` = fail; `false` = warn
+
+### Unused Import Detection
+
+#### `detectUnusedImports(files, options?)`
+
+Find imports that are declared but never referenced.
+
+- **files**: `string[]` — files to analyze
+- **options.cwd**: `string` — working directory
+- **options.exclude**: `string[]` — glob patterns to skip
+- **options.ignoreTypeImports**: `boolean` — skip `import type` (default: true)
+- **options.ignoreSideEffectImports**: `boolean` — skip `import './setup'` (default: true)
+- **Returns**: `UnusedImport[]` — array of `{ file, importSource, importedSymbols, line, isNamespaceImport, isTypeOnly }`
+
+#### `formatUnusedImportReport(unused)`
+
+Format unused imports as a human-readable report.
+
+#### `configureUnusedImportDetection(config)`
+
+Enable unused import detection during test runs.
+
+### Dependency Graph
+
+#### `buildDependencyGraph(entryFiles, options?)`
+
+Build a full dependency graph from entry points.
+
+- **entryFiles**: `string[]` — root files
+- **options.cwd**: `string` — working directory
+- **options.exclude**: `string[]` — glob patterns to skip
+- **options.includeMetadata**: `boolean` — add LOC and export counts
+- **options.relativePaths**: `boolean` — use relative paths (default: true)
+- **Returns**: `DependencyGraph` with nodes, edges, and summary stats
+
+#### `exportGraphJSON(graph, pretty?)`
+
+Serialize the graph to a JSON string.
+
+#### `exportGraphDOT(graph)`
+
+Convert the graph to Graphviz DOT format.
+
+#### `exportGraphMermaid(graph)`
+
+Convert the graph to Mermaid flowchart format.
+
+#### `saveGraph(entryFiles, outputPath, options?)`
+
+Build the graph and write it to disk. Format is auto-detected from file
+extension: `.json`, `.dot`, `.mmd`.

@@ -210,3 +210,151 @@ details. The key settings for NogginLessDom compatibility are:
   }
 }
 ```
+
+## Dependency Analysis
+
+NogginLessDom includes built-in tools for analyzing your project's import
+structure. These can be enabled via environment variables or programmatic API.
+
+### Circular Dependency Detection
+
+Detect circular import chains that cause initialization issues and break
+module mocking.
+
+```bash
+# Warn on cycles (continues test run)
+DETECT_CYCLES=1 bun test
+
+# Fail on cycles (exits before running tests)
+DETECT_CYCLES=strict bun test
+```
+
+Programmatic API:
+
+```typescript
+import {
+  detectCircularImports,
+  formatCycleReport,
+  configureCycleDetection,
+} from '@asymmetric-effort/nogginlessdom';
+
+// Detect cycles in specific files
+const cycles = detectCircularImports(['src/index.ts']);
+if (cycles.length > 0) {
+  console.log(formatCycleReport(cycles));
+}
+
+// Enable during test runs
+configureCycleDetection({ enabled: true, strict: true });
+```
+
+### Import Depth Analysis
+
+Analyze the depth of your import chains to catch barrel file explosion and
+deeply nested module structures.
+
+```bash
+# Warn if any file exceeds depth 8
+IMPORT_DEPTH_THRESHOLD=8 bun test
+
+# Strict mode
+IMPORT_DEPTH_THRESHOLD=8:strict bun test
+```
+
+Programmatic API:
+
+```typescript
+import { analyzeImportDepth } from '@asymmetric-effort/nogginlessdom';
+
+const result = analyzeImportDepth(['src/index.ts'], { threshold: 10 });
+console.log('Max depth:', result.maxDepth);
+console.log('Average depth:', result.averageDepth.toFixed(1));
+for (const entry of result.filesExceedingThreshold) {
+  console.log(`  ${entry.file}: depth ${entry.depth}`);
+  console.log(`    Chain: ${entry.longestChain.join(' → ')}`);
+}
+```
+
+### Unused Import Detection
+
+Find imports that are declared but never referenced in your source files.
+
+```bash
+# Warn on unused imports
+DETECT_UNUSED_IMPORTS=1 bun test
+
+# Fail on unused imports
+DETECT_UNUSED_IMPORTS=strict bun test
+```
+
+Programmatic API:
+
+```typescript
+import {
+  detectUnusedImports,
+  formatUnusedImportReport,
+} from '@asymmetric-effort/nogginlessdom';
+
+const unused = detectUnusedImports(['src/**/*.ts']);
+if (unused.length > 0) {
+  console.log(formatUnusedImportReport(unused));
+}
+```
+
+Configuration options:
+
+```typescript
+import { configureUnusedImportDetection } from '@asymmetric-effort/nogginlessdom';
+
+configureUnusedImportDetection({
+  enabled: true,
+  strict: false,
+  ignoreTypeImports: true,
+  ignoreSideEffectImports: true,
+  exclude: ['**/*.d.ts'],
+});
+```
+
+### Dependency Graph Visualization
+
+Export your project's import graph for visualization and analysis.
+
+```bash
+# Write JSON graph after tests
+EXPORT_DEPENDENCY_GRAPH=deps.json bun test
+
+# Generate Graphviz DOT
+EXPORT_DEPENDENCY_GRAPH=deps.dot bun test
+
+# Generate Mermaid
+EXPORT_DEPENDENCY_GRAPH=deps.mmd bun test
+```
+
+Programmatic API:
+
+```typescript
+import {
+  buildDependencyGraph,
+  exportGraphJSON,
+  exportGraphDOT,
+  exportGraphMermaid,
+} from '@asymmetric-effort/nogginlessdom';
+import * as fs from 'node:fs';
+
+const graph = buildDependencyGraph(['src/index.ts']);
+
+// JSON export
+fs.writeFileSync('deps.json', exportGraphJSON(graph, true));
+
+// Graphviz (render with: dot -Tpng deps.dot -o deps.png)
+fs.writeFileSync('deps.dot', exportGraphDOT(graph));
+
+// Mermaid (paste into GitHub markdown)
+console.log(exportGraphMermaid(graph));
+
+// Summary
+console.log('Files:', graph.summary.totalFiles);
+console.log('Max depth:', graph.summary.maxDepth);
+console.log('Cycles:', graph.summary.cycleCount);
+console.log('Hub files:', graph.summary.hubFiles.join(', '));
+```
