@@ -20,8 +20,21 @@ const MOCK_CALL_START =
   /^[ \t]*(?:(?:const|let|var)\s+\w+\s*=\s*)?(?:mock\.module\s*\(|mock\.modulePartial\s*\(|vi\.mock\s*\(|vi\.hoisted\s*\()/;
 
 /** Pattern that matches import declarations (including TypeScript `import type`). */
-const IMPORT_DECL =
-  /^[ \t]*import[ \t](?:type[ \t])?(?:[^'"]*from[ \t]+)?['"][^'"]+['"][ \t]*;?[ \t]*$/;
+/**
+ * Match an import declaration line. Uses two simple patterns OR'd together
+ * to avoid catastrophic backtracking from `[^'"]*`.
+ */
+function isImportDeclaration(line: string): boolean {
+  const t = line.trim();
+  if (!t.startsWith('import ') && !t.startsWith('import\t')) return false;
+  // Side-effect import: import 'foo' or import "foo"
+  if (/^import[ \t]+['"]/.test(t)) return true;
+  // Named/default/namespace import: must contain 'from'
+  const fromIdx = t.indexOf(' from ');
+  if (fromIdx === -1 && t.indexOf('\tfrom\t') === -1) return false;
+  // Verify it ends with a string literal
+  return /['"][^'"]+['"][ \t]*;?[ \t]*$/.test(t);
+}
 
 /**
  * Determine if a source line is the start of an import declaration.
@@ -34,8 +47,7 @@ const IMPORT_DECL =
  * - `import type { x } from 'y'`
  */
 function isImportLine(line: string): boolean {
-  const trimmed = line.trimStart();
-  return trimmed.startsWith('import ') && IMPORT_DECL.test(line);
+  return isImportDeclaration(line);
 }
 
 /**

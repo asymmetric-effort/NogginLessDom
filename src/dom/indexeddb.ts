@@ -63,7 +63,14 @@ function setByKeyPath(obj: unknown, keyPath: string, value: unknown): void {
     current = (current as Record<string, unknown>)[parts[i]!];
   }
   if (current != null && typeof current === 'object') {
-    (current as Record<string, unknown>)[parts[parts.length - 1]!] = value;
+    const lastKey = parts[parts.length - 1]!;
+    if (DANGEROUS_KEYS.has(lastKey)) return;
+    Object.defineProperty(current, lastKey, {
+      value,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
   }
 }
 

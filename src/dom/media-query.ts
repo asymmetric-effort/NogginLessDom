@@ -97,8 +97,8 @@ function parseSingleQuery(query: string): ParsedMediaQuery {
     rest = rest.slice(4).trim();
   }
 
-  // Split by ` and ` (case-insensitive)
-  const parts = rest.split(/[ \t]+and[ \t]+/i);
+  // Split by ' and ' (case-insensitive, single space boundary)
+  const parts = rest.split(/ and /i).map((s) => s.trim());
   const conditions: MediaCondition[] = [];
 
   for (const part of parts) {

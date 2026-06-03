@@ -115,7 +115,28 @@ export function computeSpecificity(selector: string): [number, number, number] {
 }
 
 function removeComments(css: string): string {
-  return css.replace(/\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g, '');
+  let result = '';
+  let i = 0;
+  while (i < css.length) {
+    if (css[i] === '/' && css[i + 1] === '*') {
+      // Skip until closing */
+      i += 2;
+      while (i < css.length - 1) {
+        if (css[i] === '*' && css[i + 1] === '/') {
+          i += 2;
+          break;
+        }
+        i++;
+      }
+      if (i >= css.length - 1 && !(css[i - 2] === '*' && css[i - 1] === '/')) {
+        i = css.length;
+      }
+    } else {
+      result += css[i];
+      i++;
+    }
+  }
+  return result;
 }
 
 function skipAtRule(css: string, start: number): number {
