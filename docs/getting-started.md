@@ -1,15 +1,16 @@
 # Getting Started
 
 This guide walks you through installing NogginLessDom, writing your first test,
-and running it. By the end, you will have a working test suite using the test
-runner, assertions, DOM simulation, and mocking.
+and exploring the framework's core capabilities. By the end you will have a
+working test suite using the test runner, assertions, DOM simulation, mocking,
+snapshots, and coverage.
 
 ## Installation
 
 Install NogginLessDom as a dev dependency. It has zero runtime dependencies, so
 this is the only package you need.
 
-With Bun:
+With Bun (recommended):
 
 ```bash
 bun add -d @asymmetric-effort/nogginlessdom
@@ -21,23 +22,32 @@ With npm:
 npm install --save-dev @asymmetric-effort/nogginlessdom
 ```
 
-## Writing Your First Test
+For additional package managers and TypeScript setup, see the
+[Installation Guide](user/installation.md).
 
-Create a file named `example.test.ts`:
+## Your First Test
+
+Create a file named `math.test.ts`:
 
 ```typescript
 import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
 
 describe('Math', () => {
-  it('should add two numbers', () => {
+  it('adds two numbers', () => {
     expect(1 + 2).toBe(3);
   });
 
-  it('should handle negative numbers', () => {
+  it('handles negative numbers', () => {
     expect(-1 + -2).toBe(-3);
   });
 });
 ```
+
+This test file uses three functions from NogginLessDom:
+
+- `describe` groups related tests into a suite.
+- `it` defines a single test case.
+- `expect` creates an assertion that checks a value against a matcher.
 
 ## Running Tests
 
@@ -50,6 +60,18 @@ bun test
 You should see output indicating that both tests passed. Under the hood,
 NogginLessDom delegates to `node:test`, so you get the same reliable test
 execution and reporting that Node.js provides natively.
+
+Run a specific file:
+
+```bash
+bun test math.test.ts
+```
+
+Run tests matching a name pattern:
+
+```bash
+bun test --grep "adds two"
+```
 
 ## Assertions
 
@@ -72,13 +94,20 @@ describe('Assertions', () => {
     expect(undefined).toBeUndefined();
   });
 
-  it('checks types', () => {
+  it('checks types and numbers', () => {
     expect('hello').toBeTypeOf('string');
-    expect(42).toBeTypeOf('number');
     expect(new Date()).toBeInstanceOf(Date);
+    expect(3.14).toBeCloseTo(Math.PI, 1);
+    expect(10).toBeGreaterThan(5);
   });
 
-  it('checks negation', () => {
+  it('checks collections', () => {
+    expect([1, 2, 3]).toContain(2);
+    expect([1, 2, 3]).toHaveLength(3);
+    expect({ name: 'Alice' }).toHaveProperty('name');
+  });
+
+  it('uses negation', () => {
     expect(1).not.toBe(2);
     expect('foo').not.toContain('bar');
   });
@@ -104,116 +133,161 @@ describe('Assertions', () => {
 
 ## DOM Testing
 
-NogginLessDom includes a complete DOM simulation with 24 typed HTML element
-classes, 20 event types, Shadow DOM, Custom Elements, and more. You do not need
-to install a separate DOM library.
+NogginLessDom includes a complete DOM simulation. No separate DOM library is
+needed. Create documents, add elements, query the tree, dispatch events, and
+assert the results.
 
 ```typescript
 import {
   describe,
   it,
   expect,
+  beforeEach,
   Document,
   Event,
   CustomEvent,
-  MutationObserver,
+  createWindow,
 } from '@asymmetric-effort/nogginlessdom';
 
 describe('DOM', () => {
-  it('should create and query elements', () => {
-    const doc = new Document();
+  let doc: Document;
 
+  beforeEach(() => {
+    doc = new Document();
+  });
+
+  it('creates and queries elements', () => {
     const div = doc.createElement('div');
     div.id = 'app';
-    div.className = 'container';
+    div.className = 'container main';
+
+    const heading = doc.createElement('h1');
+    heading.textContent = 'Welcome';
+    div.appendChild(heading);
 
     const paragraph = doc.createElement('p');
     paragraph.textContent = 'Hello, world!';
-
     div.appendChild(paragraph);
+
     doc.appendChild(div);
 
-    const found = doc.getElementById('app');
-    expect(found).toBeDefined();
-    expect(found?.tagName).toBe('DIV');
-
-    const p = doc.querySelector('p');
-    expect(p?.textContent).toBe('Hello, world!');
+    expect(doc.getElementById('app')).toBeDefined();
+    expect(doc.querySelector('h1')?.textContent).toBe('Welcome');
+    expect(doc.querySelectorAll('p')).toHaveLength(1);
+    expect(div.classList.contains('container')).toBe(true);
   });
 
-  it('should handle events with bubbling', () => {
-    const doc = new Document();
-    const div = doc.createElement('div');
+  it('handles events with bubbling', () => {
+    const parent = doc.createElement('div');
     const button = doc.createElement('button');
-    div.appendChild(button);
+    parent.appendChild(button);
 
     const clicks: string[] = [];
-    div.addEventListener('click', () => clicks.push('div'));
+    parent.addEventListener('click', () => clicks.push('parent'));
     button.addEventListener('click', () => clicks.push('button'));
 
     button.dispatchEvent(new Event('click', { bubbles: true }));
-    expect(clicks).toEqual(['button', 'div']);
+    expect(clicks).toEqual(['button', 'parent']);
   });
 
-  it('should dispatch custom events', () => {
-    const doc = new Document();
+  it('dispatches custom events with detail', () => {
     const el = doc.createElement('div');
     let received: unknown = null;
 
-    el.addEventListener('myevent', (e: Event) => {
+    el.addEventListener('notify', (e: Event) => {
       received = (e as CustomEvent).detail;
     });
 
-    el.dispatchEvent(new CustomEvent('myevent', { detail: { key: 'value' } }));
-    expect(received).toEqual({ key: 'value' });
+    el.dispatchEvent(
+      new CustomEvent('notify', { detail: { message: 'hello' } }),
+    );
+    expect(received).toEqual({ message: 'hello' });
+  });
+
+  it('uses innerHTML for complex structures', () => {
+    const container = doc.createElement('div');
+    container.innerHTML = `
+      <nav>
+        <a href="/">Home</a>
+        <a href="/about">About</a>
+      </nav>
+    `;
+    doc.appendChild(container);
+
+    const links = doc.querySelectorAll('a');
+    expect(links).toHaveLength(2);
+  });
+
+  it('provides a full window environment', () => {
+    const window = createWindow();
+    expect(window.document).toBeDefined();
+    expect(window.location).toBeDefined();
+    expect(window.history).toBeDefined();
+    expect(window.navigator).toBeDefined();
+    expect(window.localStorage).toBeDefined();
   });
 });
 ```
 
 ## Mocking
 
-Create mock functions, spy on existing methods (including accessors), and use
-the `vi` namespace for a comprehensive mocking API:
+Create mock functions, spy on existing methods (including property accessors),
+and control time with fake timers.
+
+### Mock Functions
 
 ```typescript
-import { describe, it, expect, fn, spyOn, vi } from '@asymmetric-effort/nogginlessdom';
+import { describe, it, expect, fn } from '@asymmetric-effort/nogginlessdom';
 
-describe('Mocking', () => {
-  it('should track calls to a mock function', () => {
+describe('Mock functions', () => {
+  it('tracks calls and return values', () => {
     const mockFn = fn((x: number) => x * 2);
 
     mockFn(3);
     mockFn(5);
 
-    expect(mockFn.mock.calls).toHaveLength(2);
-    expect(mockFn.mock.calls[0]).toEqual([3]);
+    expect(mockFn).toHaveBeenCalledTimes(2);
+    expect(mockFn).toHaveBeenCalledWith(3);
     expect(mockFn.mock.results[0]).toEqual({ type: 'return', value: 6 });
   });
 
-  it('should spy on object methods', () => {
+  it('stubs return values', () => {
+    const fetchUser = fn();
+    fetchUser.mockReturnValue({ id: 1, name: 'Alice' });
+
+    expect(fetchUser()).toEqual({ id: 1, name: 'Alice' });
+  });
+
+  it('mocks async functions', () => {
+    const fetchData = fn();
+    fetchData.mockResolvedValue({ status: 'ok' });
+
+    expect(fetchData()).resolves.toEqual({ status: 'ok' });
+  });
+});
+```
+
+### Spying on Methods
+
+```typescript
+import { describe, it, expect, spyOn } from '@asymmetric-effort/nogginlessdom';
+
+describe('Spying', () => {
+  it('spies on object methods', () => {
     const calculator = {
       add: (a: number, b: number) => a + b,
     };
 
     const spy = spyOn(calculator, 'add');
-    calculator.add(1, 2);
+    calculator.add(2, 3);
 
-    expect(spy.mock.calls[0]).toEqual([1, 2]);
+    expect(spy).toHaveBeenCalledWith(2, 3);
     spy.mockRestore();
-  });
-
-  it('should mock resolved values', () => {
-    const fetchData = fn();
-    fetchData.mockResolvedValue({ id: 1, name: 'Test' });
-
-    expect(fetchData()).resolves.toEqual({ id: 1, name: 'Test' });
   });
 });
 ```
 
-## Timer Mocking
-
-Control the passage of time in your tests, including full `Date` mocking:
+### Fake Timers
 
 ```typescript
 import {
@@ -225,21 +299,21 @@ import {
   useRealTimers,
 } from '@asymmetric-effort/nogginlessdom';
 
-describe('Timers', () => {
-  it('should advance fake timers', () => {
+describe('Fake timers', () => {
+  it('advances timers by time', () => {
     const clock = useFakeTimers();
-
     const callback = fn();
-    setTimeout(callback, 1000);
 
-    expect(callback.mock.calls).toHaveLength(0);
-    clock.advanceTimersByTime(1000);
-    expect(callback.mock.calls).toHaveLength(1);
+    setTimeout(callback, 5000);
+    expect(callback).not.toHaveBeenCalled();
+
+    clock.advanceTimersByTime(5000);
+    expect(callback).toHaveBeenCalledOnce();
 
     useRealTimers();
   });
 
-  it('should mock Date', () => {
+  it('mocks the Date constructor', () => {
     const clock = useFakeTimers({ now: new Date('2026-01-01T00:00:00Z') });
 
     expect(Date.now()).toBe(new Date('2026-01-01T00:00:00Z').getTime());
@@ -260,35 +334,61 @@ Capture and compare values across test runs:
 import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
 
 describe('Snapshots', () => {
-  it('should match a snapshot', () => {
+  it('matches a snapshot', () => {
     const data = { name: 'Alice', items: [1, 2, 3] };
     expect(data).toMatchSnapshot();
   });
 
-  it('should match an inline snapshot', () => {
+  it('matches an inline snapshot', () => {
     expect({ greeting: 'hello' }).toMatchInlineSnapshot();
   });
 });
 ```
 
-## Configuration
+On the first run, snapshots are created and saved. On subsequent runs, values
+are compared against the stored snapshots. Update snapshots when intentional
+changes occur by passing the `--update-snapshots` flag.
 
-NogginLessDom respects Bun's test configuration in `bunfig.toml`:
+## Coverage
+
+Enable code coverage in `bunfig.toml`:
 
 ```toml
 [test]
 coverage = true
-coverageThreshold = { line = 98, function = 98, statement = 98 }
+coverageThreshold = { line = 90, function = 90, statement = 90 }
 ```
 
-For more details, see the [Configuration Guide](user/configuration.md).
+Then run tests as usual:
+
+```bash
+bun test
+```
+
+Coverage data is collected automatically. If any metric falls below the
+configured threshold, the test run fails with a non-zero exit code. The
+framework supports V8 and Istanbul providers with 11 output formats. See the
+[Configuration Guide](user/configuration.md) for full coverage options.
+
+## Watch Mode
+
+Re-run tests automatically when files change:
+
+```bash
+bun test --watch
+```
+
+This watches your source and test files and re-runs the relevant test suite
+whenever a change is detected. Combine with `--grep` to watch a specific
+subset of tests during development.
 
 ## Next Steps
 
-- Read the full [API Reference](api/README.md) for detailed documentation of
-  every function and class.
-- See the [User Guide](user/README.md) for installation, configuration, and
-  migration guides.
-- Check the [Architecture](architecture.md) document to understand how the
-  framework is built.
-- If you want to contribute, see the [Developer Guide](developer/README.md).
+- [API Reference](api/README.md) -- Detailed documentation of every function,
+  class, and matcher
+- [Configuration Guide](user/configuration.md) -- Test patterns, coverage,
+  reporters, dependency analysis, and environment variables
+- [Architecture](architecture.md) -- How the framework is built, module
+  structure, and design principles
+- [Installation Guide](user/installation.md) -- Additional package managers,
+  TypeScript configuration, and what gets installed

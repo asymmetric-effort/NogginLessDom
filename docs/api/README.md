@@ -63,6 +63,17 @@ interacts with its dependencies.
 
 [Full Mocking API Reference](mocking.md)
 
+### Coverage
+
+The coverage module provides code coverage collection, reporting, threshold
+enforcement, and baseline tracking. It supports V8, Istanbul, and custom
+coverage providers with 12 built-in reporters.
+
+**Exports:** `startCoverage`, `takeCoverage`, `stopCoverage`, `reportCoverage`,
+`checkCoverageThresholds`, `saveBaseline`, `loadBaseline`, `diffBaseline`
+
+[Full Coverage API Reference](coverage.md)
+
 ## Design Notes
 
 All modules are designed to be used independently or together. There are no

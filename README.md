@@ -7,220 +7,240 @@ A zero-dependency testing framework built on `node:test` and `node:assert`.
 
 <br clear="both" />
 
-## Overview
-
-NogginLessDom is a comprehensive testing framework for Node.js that provides a
+NogginLessDom is a comprehensive testing framework for Node.js that ships a
 full-featured test runner, assertion library, DOM simulation, mocking
-utilities, code coverage, and snapshot testing -- all with **zero runtime
-dependencies**. Every algorithm is implemented from scratch using only Node.js
-built-in modules (`node:test`, `node:assert`, `node:fs`).
+utilities, code coverage, snapshot testing, and dependency analysis -- all with
+**zero runtime dependencies**. Every algorithm is implemented from scratch
+using only Node.js built-in modules. No third-party code ships to consumers,
+eliminating the supply chain attack surface entirely.
 
-By eliminating third-party runtime dependencies entirely, NogginLessDom removes
-the supply chain attack surface that comes with traditional testing toolchains.
-There are no transitive `node_modules` to audit beyond dev tooling (9 dev
-dependencies).
+**v0.0.25** -- 80 source files, 28K+ lines of TypeScript, 3100+ tests.
 
-**v0.0.16** -- 58 source files, 31K+ lines of code, 2156 tests.
+## Key Features
 
-## Features
+- **Test Runner** -- `describe`, `it`, `test` with `skip`, `only`, `todo`,
+  `concurrent`, `each`, `shuffle`, `retry`, `fails`, `skipIf`, `runIf`,
+  and full lifecycle hooks
+- **30+ Assertions** -- `expect()` with equality, truthiness, type, numeric,
+  string, collection, exception, mock, and snapshot matchers plus `.not`,
+  `.resolves`, `.rejects` modifiers
+- **DOM Simulation** -- `Document`, `Element`, 29 typed HTML elements, 20
+  event types, Shadow DOM, Custom Elements, Observer APIs, SVG, Canvas,
+  IndexedDB, Web Workers, WebSocket, and more
+- **Mocking** -- `fn()`, `spyOn()`, module mocking, fake timers with full
+  `Date` mocking, global/env stubbing, and async utilities
+- **Code Coverage** -- V8 and Istanbul providers, 11 reporters, configurable
+  thresholds, source map support, per-test tracking
+- **Dependency Analysis** -- circular import detection, import depth analysis,
+  unused import detection, dependency graph visualization
+- **Zero Dependencies** -- empty `dependencies` in `package.json`, no
+  transitive `node_modules` to audit
 
-### Test Runner
+## Quick Start
 
-- `describe`, `it`, `test` with `skip`, `only`, `todo`, `concurrent`, and
-  `each` support
-- Conditional execution with `skipIf` and `runIf`
-- `fails` modifier for expected-failure tests
-- `shuffle` for randomized test ordering (seeded Fisher-Yates)
-- `retry(n)` for flaky test tolerance
-- Lifecycle hooks: `beforeEach`, `afterEach`, `beforeAll`, `afterAll`
-- `onTestFailed` and `onTestFinished` callbacks
-
-### Assertions (30+ Matchers)
-
-- **Equality** -- `toBe`, `toEqual`, `toStrictEqual`
-- **Truthiness** -- `toBeTruthy`, `toBeFalsy`, `toBeNull`, `toBeUndefined`,
-  `toBeDefined`, `toBeNaN`
-- **Type** -- `toBeInstanceOf`, `toBeTypeOf`
-- **Numeric** -- `toBeGreaterThan`, `toBeGreaterThanOrEqual`, `toBeLessThan`,
-  `toBeLessThanOrEqual`, `toBeCloseTo`
-- **String** -- `toMatch`
-- **Collection** -- `toContain`, `toContainEqual`, `toHaveLength`,
-  `toHaveProperty`, `toMatchObject`
-- **Exception** -- `toThrow`
-- **Custom** -- `toSatisfy`
-- **Mock** -- `toHaveBeenCalled`, `toHaveBeenCalledTimes`,
-  `toHaveBeenCalledWith`, `toHaveBeenLastCalledWith`,
-  `toHaveBeenNthCalledWith`, `toHaveBeenCalledOnce`, `toHaveReturned`,
-  `toHaveReturnedTimes`, `toHaveReturnedWith`, `toHaveLastReturnedWith`
-- **Snapshot** -- `toMatchSnapshot`, `toMatchInlineSnapshot`,
-  `toMatchFileSnapshot`, `toThrowErrorMatchingSnapshot`,
-  `toThrowErrorMatchingInlineSnapshot`
-- **Modifiers** -- `.not`, `.resolves`, `.rejects`
-- **Assertion tracking** -- `expect.assertions(n)`, `expect.hasAssertions()`
-
-### Asymmetric Matchers
-
-- `expect.anything()`, `expect.any(constructor)`
-- `expect.stringContaining()`, `expect.stringMatching()`
-- `expect.objectContaining()`, `expect.arrayContaining()`
-- `expect.not.objectContaining()`, `expect.not.arrayContaining()`,
-  `expect.not.stringContaining()`, `expect.not.stringMatching()`
-- Custom matchers via `expect.extend()`
-
-### DOM Simulation
-
-- **Core** -- `Document`, `DocumentFragment`, `Element`, `Node`, `TextNode`,
-  `Comment`
-- **24 Typed HTML Elements** -- `HTMLInputElement`, `HTMLButtonElement`,
-  `HTMLFormElement`, `HTMLSelectElement`, `HTMLTextAreaElement`,
-  `HTMLAnchorElement`, `HTMLImageElement`, `HTMLLabelElement`,
-  `HTMLOptionElement`, `HTMLDialogElement`, `HTMLCanvasElement`,
-  `HTMLTemplateElement`, `HTMLIFrameElement`, `HTMLVideoElement`,
-  `HTMLAudioElement`, `HTMLProgressElement`, `HTMLMeterElement`,
-  `HTMLDetailsElement`, `HTMLTableElement`, `HTMLTableRowElement`,
-  `HTMLTableCellElement`, `HTMLFieldSetElement`, `HTMLScriptElement`,
-  `HTMLSlotElement`
-- **Collections** -- `NodeList`, `HTMLCollection`, `DOMTokenList`,
-  `CSSStyleDeclaration`
-- **Events** -- `Event`, `CustomEvent`, `MouseEvent`, `KeyboardEvent`,
-  `FocusEvent`, `InputEvent`, `WheelEvent`, `PointerEvent`, `TouchEvent`,
-  `DragEvent`, `ClipboardEvent`, `TransitionEvent`, `AnimationEvent`,
-  `ErrorEvent`, `MessageEvent`, `StorageEvent`, `PopStateEvent`,
-  `ProgressEvent`, `HashChangeEvent`, `BeforeUnloadEvent` with
-  bubbling/capture propagation
-- **Shadow DOM & Custom Elements** -- `ShadowRoot`, `CustomElementRegistry`
-- **Observer APIs** -- `MutationObserver`, `IntersectionObserver`,
-  `ResizeObserver`
-- **Traversal** -- `TreeWalker`, `NodeIterator`, `NodeFilter`, `Range`,
-  `Selection`
-- **Parsing** -- `DOMParser`, `XMLSerializer`, HTML parser/serializer, CSS
-  selector engine
-- **Data** -- `FormData`, `Headers`, `DataTransfer`, `CookieJar`
-- **Abort** -- `AbortController`, `AbortSignal`
-- **Utilities** -- `ValidityState`, `atob`, `btoa`
-
-### Window Environment
-
-- `Window`, `Storage`, `Location`, `History`, `Navigator`, `MediaQueryList`
-- `Request`, `Response`, `fetch`, `URL`, `crypto`
-- `createWindow()` factory for isolated environments
-
-### Mocking
-
-- `fn()` -- create mock functions with full call/result tracking
-- `spyOn()` -- spy on methods and property accessors (get/set)
-- `vi` namespace -- comprehensive compatibility API
-- **Mock control** -- `mockReturnValue`, `mockReturnValueOnce`,
-  `mockResolvedValue`, `mockResolvedValueOnce`, `mockRejectedValue`,
-  `mockRejectedValueOnce`, `mockImplementation`, `mockImplementationOnce`,
-  `mockName`, `getMockName`, `getMockImplementation`, `withImplementation`
-- **Reset** -- `mockClear`, `mockReset`, `mockRestore`
-- **Bulk operations** -- `clearAllMocks`, `resetAllMocks`, `restoreAllMocks`
-- **Module mocking** -- `mock.module`, `mock.doMock`, `mock.importActual`,
-  `mock.importMock`, `mock.require`, `mock.unmock`, `mock.doUnmock`,
-  `mock.resetModules`, `mock.hoisted`
-- **Globals** -- `stubGlobal`, `unstubAllGlobals`, `stubEnv`, `unstubAllEnvs`
-- **Fake timers** -- `useFakeTimers`, `useRealTimers`, `advanceTimersByTime`,
-  `advanceTimersByTimeAsync`, `advanceTimersToNextTimer`,
-  `advanceTimersToNextTimerAsync`, `runAllTimers`, `runAllTimersAsync`,
-  `runOnlyPendingTimers`, `runOnlyPendingTimersAsync`, `setSystemTime`,
-  `getMockedSystemTime`, `getRealSystemTime`, `getTimerCount` with full `Date`
-  constructor mocking
-- **Async utilities** -- `waitFor`, `waitUntil`
-
-### Code Coverage
-
-- V8 and Istanbul coverage providers
-- 11 reporters: text, text-summary, JSON, JSON-summary, LCOV, lcov-only,
-  HTML, HTML-SPA, Clover, Cobertura, Teamcity
-- Source map support
-- Configurable thresholds with auto-update
-- Per-test coverage tracking
-- Uncovered file collection
-
-### Snapshot Testing
-
-- `SnapshotClient` with file and inline snapshot support
-- Custom serializers via `expect.addSnapshotSerializer()`
-- File snapshots with `toMatchFileSnapshot()`
-- Error snapshots with `toThrowErrorMatchingSnapshot()` and
-  `toThrowErrorMatchingInlineSnapshot()`
-- Update modes for CI and development workflows
-- `SnapshotManager` and `SnapshotEnvironment` for advanced control
-
-### General
-
-- **TypeScript First** -- written in strict TypeScript with full type
-  declarations
-- **Zero Dependencies** -- no runtime dependencies at all (9 dev deps only)
-
-## Installation
+Install as a dev dependency:
 
 ```bash
 bun add -d @asymmetric-effort/nogginlessdom
 ```
 
-Or with npm:
-
-```bash
-npm install --save-dev @asymmetric-effort/nogginlessdom
-```
-
-## Quick Start
+Create a test file (`example.test.ts`):
 
 ```typescript
-import { describe, it, expect, Document, fn } from '@asymmetric-effort/nogginlessdom';
+import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
 
-describe('my first test', () => {
-  it('compares values', () => {
-    expect(1 + 1).toBe(2);
-    expect({ a: 1 }).toEqual({ a: 1 });
+describe('Math', () => {
+  it('adds two numbers', () => {
+    expect(1 + 2).toBe(3);
   });
 
-  it('tests DOM elements', () => {
-    const doc = new Document();
-    const div = doc.createElement('div');
-    div.setAttribute('id', 'app');
-    div.textContent = 'Hello World';
-    doc.appendChild(div);
-
-    expect(doc.getElementById('app')!.textContent).toBe('Hello World');
+  it('compares objects deeply', () => {
+    expect({ a: 1, b: [2, 3] }).toEqual({ a: 1, b: [2, 3] });
   });
 
-  it('tracks mock calls', () => {
-    const mock = fn();
-    mock('hello');
-    expect(mock).toHaveBeenCalledWith('hello');
+  it('checks exceptions', () => {
+    expect(() => {
+      throw new Error('oops');
+    }).toThrow('oops');
   });
 });
 ```
 
-Run with:
+Run the tests:
 
 ```bash
 bun test
 ```
 
-## API Overview
+## DOM Testing
 
-| Module          | Key Exports                                                                     | Docs                                      |
-| --------------- | ------------------------------------------------------------------------------- | ----------------------------------------- |
-| **Test Runner** | `describe`, `it`, `test`, lifecycle hooks, `.each`, `.skip`, `.only`, `.retry`  | [test-runner.md](docs/api/test-runner.md) |
-| **Assertions**  | `expect()` with 30+ matchers, `.not`, `.resolves`, `.rejects`                   | [assertions.md](docs/api/assertions.md)   |
-| **DOM**         | `Document`, `Element`, 24 HTML elements, 20 event types, `Window`, `Storage`    | [dom.md](docs/api/dom.md)                 |
-| **Mocking**     | `fn`, `spyOn`, `mock`, `vi`, `useFakeTimers`, module mocking                    | [mocking.md](docs/api/mocking.md)         |
-| **Coverage**    | V8 + Istanbul providers, 11 reporters, thresholds, per-test tracking            | [architecture.md](docs/architecture.md)   |
-| **Snapshots**   | `toMatchSnapshot`, `toMatchInlineSnapshot`, custom serializers                  | [assertions.md](docs/api/assertions.md)   |
+NogginLessDom includes a full DOM simulation. No separate DOM library needed.
+
+```typescript
+import {
+  describe,
+  it,
+  expect,
+  Document,
+  Event,
+} from '@asymmetric-effort/nogginlessdom';
+
+describe('DOM', () => {
+  it('creates and queries elements', () => {
+    const doc = new Document();
+    const div = doc.createElement('div');
+    div.id = 'app';
+    div.className = 'container';
+
+    const paragraph = doc.createElement('p');
+    paragraph.textContent = 'Hello, world!';
+    div.appendChild(paragraph);
+    doc.appendChild(div);
+
+    expect(doc.getElementById('app')).toBeDefined();
+    expect(doc.querySelector('p')?.textContent).toBe('Hello, world!');
+    expect(doc.querySelectorAll('.container')).toHaveLength(1);
+  });
+
+  it('handles events with bubbling', () => {
+    const doc = new Document();
+    const parent = doc.createElement('div');
+    const button = doc.createElement('button');
+    parent.appendChild(button);
+
+    const clicks: string[] = [];
+    parent.addEventListener('click', () => clicks.push('parent'));
+    button.addEventListener('click', () => clicks.push('button'));
+
+    button.dispatchEvent(new Event('click', { bubbles: true }));
+    expect(clicks).toEqual(['button', 'parent']);
+  });
+});
+```
+
+## Mocking
+
+Create mock functions, spy on methods, and control time:
+
+```typescript
+import {
+  describe,
+  it,
+  expect,
+  fn,
+  spyOn,
+  useFakeTimers,
+  useRealTimers,
+} from '@asymmetric-effort/nogginlessdom';
+
+describe('Mocking', () => {
+  it('tracks mock function calls', () => {
+    const mockFn = fn((x: number) => x * 2);
+    mockFn(3);
+    mockFn(5);
+
+    expect(mockFn).toHaveBeenCalledTimes(2);
+    expect(mockFn).toHaveBeenCalledWith(3);
+    expect(mockFn.mock.results[0]).toEqual({ type: 'return', value: 6 });
+  });
+
+  it('spies on object methods', () => {
+    const obj = { greet: (name: string) => `Hello, ${name}` };
+    const spy = spyOn(obj, 'greet');
+
+    obj.greet('Alice');
+    expect(spy).toHaveBeenCalledWith('Alice');
+    spy.mockRestore();
+  });
+
+  it('controls fake timers', () => {
+    const clock = useFakeTimers();
+    const callback = fn();
+
+    setTimeout(callback, 1000);
+    expect(callback).not.toHaveBeenCalled();
+
+    clock.advanceTimersByTime(1000);
+    expect(callback).toHaveBeenCalledOnce();
+
+    useRealTimers();
+  });
+});
+```
+
+## Code Coverage
+
+Enable coverage in `bunfig.toml`:
+
+```toml
+[test]
+coverage = true
+coverageThreshold = { line = 90, function = 90, statement = 90 }
+```
+
+Run tests with coverage:
+
+```bash
+bun test
+```
+
+Coverage data is collected automatically when enabled. The framework supports
+V8 and Istanbul providers with 11 output formats including text, HTML, LCOV,
+Cobertura, and more. See the [Configuration Guide](docs/user/configuration.md)
+for full details.
+
+## Why NogginLessDom?
+
+### Zero Supply Chain Risk
+
+The `dependencies` field in `package.json` is `{}`. When you install
+NogginLessDom, you get exactly one package with no transitive dependency tree.
+Package takeovers, typosquatting, and malicious updates in transitive
+dependencies cannot affect your test toolchain.
+
+### Built on Node.js Built-ins
+
+The test runner wraps `node:test`. Assertions wrap `node:assert`. These are
+battle-tested modules maintained by the Node.js team, guaranteed to be
+available in every Node.js >= 20 environment. NogginLessDom adds a familiar
+API layer on top without reinventing core functionality.
+
+### Everything in One Package
+
+Test runner, assertions, DOM simulation, mocking, coverage, snapshots, and
+dependency analysis -- all from a single import. No need to install and
+configure separate packages for each capability.
+
+### Security by Design
+
+DOM parsing never uses `eval()`, `new Function()`, or dynamic code execution.
+HTML input is validated through deterministic parsing. Path operations include
+symlink protection and traversal validation.
 
 ## Documentation
 
 Full documentation is available in the [`docs/`](docs/) directory:
 
-- [Getting Started](docs/getting-started.md)
-- [API Reference](docs/api/)
-- [Architecture](docs/architecture.md)
-- [User Guide](docs/user/)
-- [Developer Guide](docs/developer/)
+- [Getting Started](docs/getting-started.md) -- Installation, first test, and
+  core features walkthrough
+- [Installation](docs/user/installation.md) -- All package managers, TypeScript
+  setup, and verification
+- [Configuration](docs/user/configuration.md) -- Test patterns, coverage,
+  reporters, dependency analysis, and environment variables
+- [Architecture](docs/architecture.md) -- Module structure, dependency graph,
+  build pipeline, and security design
+- [API Reference](docs/api/) -- Detailed documentation for every module
+
+## API Overview
+
+| Module          | Key Exports                                                                    | Docs                                      |
+| --------------- | ------------------------------------------------------------------------------ | ----------------------------------------- |
+| **Test Runner** | `describe`, `it`, `test`, lifecycle hooks, `.each`, `.skip`, `.only`, `.retry` | [test-runner.md](docs/api/test-runner.md) |
+| **Assertions**  | `expect()` with 30+ matchers, `.not`, `.resolves`, `.rejects`                  | [assertions.md](docs/api/assertions.md)   |
+| **DOM**         | `Document`, `Element`, 29 HTML elements, 20 event types, `Window`, `Storage`   | [dom.md](docs/api/dom.md)                 |
+| **Mocking**     | `fn`, `spyOn`, `mock`, `vi`, `useFakeTimers`, module mocking                   | [mocking.md](docs/api/mocking.md)         |
+| **Coverage**    | V8 + Istanbul providers, 11 reporters, thresholds, per-test tracking           | [architecture.md](docs/architecture.md)   |
+| **Snapshots**   | `toMatchSnapshot`, `toMatchInlineSnapshot`, custom serializers                 | [assertions.md](docs/api/assertions.md)   |
 
 ## Development
 

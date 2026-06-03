@@ -1,260 +1,267 @@
 # Architecture
 
 This document describes the internal architecture of NogginLessDom, including
-module structure, design principles, the dependency graph, and the build
-pipeline.
+the zero-dependency philosophy, module structure, dependency graph, build
+pipeline, and security design.
 
-**v0.0.16** -- 58 source files, 31K+ lines of TypeScript, 2156 tests, zero
+**v0.0.25** -- 80 source files, 28K+ lines of TypeScript, 3100+ tests, zero
 runtime dependencies, 9 dev dependencies.
 
-## Design Principles
+## Overview
 
-Every architectural decision in NogginLessDom is guided by these principles:
+NogginLessDom is a testing framework built entirely on Node.js built-in
+modules. The published package has an empty `dependencies` field. No
+third-party code ships to consumers.
 
-1. **Zero runtime dependencies.** The published package has an empty
-   `dependencies` field. No third-party code ships to consumers. This is not
-   aspirational -- it is a hard constraint enforced by CI and code review.
+This is not aspirational -- it is a hard constraint enforced by CI, code
+review, and automated checks. Every algorithm, parser, and data structure is
+implemented from scratch. The framework wraps `node:test` and `node:assert`
+for test execution and assertion foundations, then builds everything else
+(DOM simulation, mocking, coverage, snapshot testing, dependency analysis)
+as pure TypeScript with no external imports.
 
-2. **Node built-ins only.** All functionality is built on top of `node:test`,
-   `node:assert`, and standard Web/Node APIs. No polyfills, no shims, no
-   vendored libraries.
+### Design Principles
 
-3. **Security first.** The project exists because every dependency is an attack
-   vector. DOM parsing never uses `eval()`, `new Function()`, or any form of
-   dynamic code execution. HTML input is validated and sanitized through
-   deterministic parsing, not regular expressions operating on untrusted input.
+1. **Zero runtime dependencies.** The `dependencies` field is `{}`. No
+   third-party code ships to consumers.
+2. **Node built-ins only.** Built on `node:test`, `node:assert`, and standard
+   Node.js APIs. No polyfills, shims, or vendored libraries.
+3. **Security first.** No `eval()`, `new Function()`, or dynamic code
+   execution. HTML input is validated through deterministic parsing.
+4. **API compatibility.** Public API follows widely adopted testing conventions
+   for straightforward adoption.
+5. **Explicit over implicit.** No magic globals, hidden configuration, or
+   auto-detection. Behavior is controlled through explicit function calls.
 
-4. **API compatibility.** The public API follows widely adopted testing
-   conventions. The function signatures and behavior match what developers
-   expect from a modern testing framework, making adoption straightforward.
+## Module Dependency Graph
 
-5. **Explicit over implicit.** The framework avoids magic globals, hidden
-   configuration, and auto-detection. Behavior is controlled through explicit
-   function calls and clearly documented options.
-
-## Module Structure
-
-NogginLessDom is organized into five core modules, each responsible for a
-distinct concern. All modules are exported from the top-level `src/index.ts`
-entry point.
-
-### test-runner (`src/test-runner/`) -- 1 file, ~493 lines
-
-Wraps the built-in `node:test` module to provide a comprehensive test runner
-interface. Exports:
-
-- `describe(name, fn)` -- Define a test suite with `skip`, `only`, `todo`,
-  `concurrent`, `each`, `skipIf`, `runIf`, and `shuffle` modifiers.
-- `it(name, fn, options?)` / `test` -- Define a test case with `skip`, `only`,
-  `todo`, `concurrent`, `each`, `skipIf`, `runIf`, `fails`, `retry`, and
-  `shuffle` modifiers.
-- `beforeEach(fn)` / `afterEach(fn)` -- Per-test lifecycle hooks.
-- `beforeAll(fn)` / `afterAll(fn)` -- Per-suite lifecycle hooks, mapped to
-  `node:test`'s `before` and `after`.
-- `onTestFailed(callback)` / `onTestFinished(callback)` -- Test lifecycle
-  event callbacks.
-
-The mapping layer is intentionally thin. NogginLessDom does not reimplement test
-scheduling, parallel execution, or reporting -- it relies on the battle-tested
-`node:test` infrastructure for all of that. Advanced features like `shuffle`
-use a seeded Fisher-Yates algorithm for reproducible randomization.
-
-### assertions (`src/assertions/`) -- 5 files, ~2,474 lines
-
-Wraps `node:assert` to provide an `expect(value)` API with 30+ chainable
-matchers. The module translates each matcher call into the corresponding
-`node:assert` function:
-
-- `toBe(expected)` maps to `assert.strictEqual`
-- `toEqual(expected)` maps to `assert.deepStrictEqual` (with asymmetric
-  matcher support)
-- `toThrow()` maps to `assert.throws`
-- Boolean/null matchers map to `assert.strictEqual` with the appropriate literal
-
-Additional capabilities:
-
-- **Object/collection matchers** -- `toMatchObject`, `toContainEqual`,
-  `toSatisfy`, `toBeTypeOf`
-- **Mock matchers** -- `toHaveBeenCalled`, `toHaveBeenCalledTimes`,
-  `toHaveBeenCalledWith`, `toHaveBeenLastCalledWith`,
-  `toHaveBeenNthCalledWith`, `toHaveBeenCalledOnce`, `toHaveReturned`,
-  `toHaveReturnedTimes`, `toHaveReturnedWith`, `toHaveLastReturnedWith`
-- **Snapshot matchers** -- `toMatchSnapshot`, `toMatchInlineSnapshot`,
-  `toMatchFileSnapshot`, `toThrowErrorMatchingSnapshot`,
-  `toThrowErrorMatchingInlineSnapshot`
-- **Asymmetric matchers** -- `expect.anything()`, `expect.any()`,
-  `expect.stringContaining()`, `expect.stringMatching()`,
-  `expect.objectContaining()`, `expect.arrayContaining()`, plus negated
-  variants via `expect.not.*`
-- **Custom matchers** -- `expect.extend()` for user-defined matchers
-- **Assertion tracking** -- `expect.assertions(n)`, `expect.hasAssertions()`,
-  `expect.getState()`, `expect.resetState()`, `expect.verifyAssertions()`
-- **Snapshot infrastructure** -- `SnapshotClient`, `SnapshotManager`,
-  `SnapshotEnvironment`, custom serializers via `expect.addSnapshotSerializer()`
-
-The `.not` modifier inverts assertions by delegating to `assert.notStrictEqual`,
-`assert.notDeepStrictEqual`, and `assert.doesNotThrow` as appropriate.
-
-Async matchers `.resolves` and `.rejects` unwrap promises before applying the
-inner matcher, mapping to `assert.rejects` where applicable.
-
-### dom (`src/dom/`) -- 25 files, ~7,244 lines
-
-Provides a complete DOM environment for testing without third-party code. This is
-the largest and most complex module. Key components:
-
-**Core classes (`index.ts`, ~1,955 lines):**
-
-- `Node` -- Base class for all DOM nodes with full tree manipulation API.
-- `TextNode`, `Comment`, `DocumentFragment` -- Non-element node types.
-- `Element` -- Full element implementation with attributes, events, queries,
-  Shadow DOM, and tree manipulation.
-- `Document` -- DOM tree root with element factory and tree-wide queries.
-- `Event` -- Base event class with bubbling, capture, and propagation control.
-
-**Typed HTML elements (`html-elements.ts`, ~1,125 lines):**
-
-24 element classes: `HTMLAnchorElement`, `HTMLButtonElement`,
-`HTMLInputElement`, `HTMLSelectElement`, `HTMLOptionElement`,
-`HTMLTextAreaElement`, `HTMLFormElement`, `HTMLImageElement`,
-`HTMLLabelElement`, `HTMLDialogElement`, `HTMLCanvasElement`,
-`HTMLTemplateElement`, `HTMLIFrameElement`, `HTMLVideoElement`,
-`HTMLAudioElement`, `HTMLProgressElement`, `HTMLMeterElement`,
-`HTMLDetailsElement`, `HTMLTableElement`, `HTMLTableRowElement`,
-`HTMLTableCellElement`, `HTMLFieldSetElement`, `HTMLScriptElement`,
-`HTMLSlotElement`, plus `ValidityState`.
-
-**Event system (`events.ts`, ~549 lines):**
-
-19 specialized event classes: `CustomEvent`, `MouseEvent`, `KeyboardEvent`,
-`FocusEvent`, `InputEvent`, `WheelEvent`, `PointerEvent`, `TouchEvent`,
-`DragEvent`, `ClipboardEvent`, `TransitionEvent`, `AnimationEvent`,
-`ErrorEvent`, `MessageEvent`, `StorageEvent`, `PopStateEvent`,
-`ProgressEvent`, `HashChangeEvent`, `BeforeUnloadEvent`.
-
-**Window environment (`window.ts`, ~876 lines):**
-
-`Window`, `Storage`, `Location`, `History`, `Navigator`, `MediaQueryList`,
-`Request`, `Response`, `createWindow()` factory.
-
-**CSS selector engine (`selector.ts`, ~501 lines):**
-
-Full selector matching with tag, class, ID, attribute, combinators, and
-pseudo-class support.
-
-**Other DOM modules:**
-
-- `collections.ts` (~140 lines) -- `NodeList`, `HTMLCollection`
-- `shadow.ts` (~62 lines) -- `ShadowRoot`
-- `custom-elements.ts` (~92 lines) -- `CustomElementRegistry`
-- `mutation-observer.ts` (~267 lines) -- `MutationObserver`, `MutationRecord`
-- `intersection-observer.ts` (~127 lines) -- `IntersectionObserver`
-- `resize-observer.ts` (~105 lines) -- `ResizeObserver`
-- `style.ts` (~163 lines) -- `CSSStyleDeclaration`
-- `token-list.ts` (~130 lines) -- `DOMTokenList`
-- `tree-walker.ts` (~456 lines) -- `TreeWalker`, `NodeIterator`, `NodeFilter`
-- `range.ts` (~573 lines) -- `Range`
-- `selection.ts` (~140 lines) -- `Selection`
-- `html-parser.ts` (~200 lines) -- HTML string parser
-- `html-serializer.ts` (~78 lines) -- Node-to-HTML serialization
-- `dom-parser.ts` (~44 lines) -- `DOMParser`, `XMLSerializer`
-- `cookie.ts` (~119 lines) -- `CookieJar`
-- `form-data.ts` (~107 lines) -- `FormData`
-- `headers.ts` (~127 lines) -- `Headers`
-- `data-transfer.ts` (~108 lines) -- `DataTransfer`, `DataTransferItemList`
-- `abort.ts` (~140 lines) -- `AbortController`, `AbortSignal`
-- `web-apis.ts` (~57 lines) -- `atob`, `btoa`, `TextEncoder`, `TextDecoder`,
-  `Blob`, `structuredClone`, `queueMicrotask`, `crypto`
-
-### mocking (`src/mocking/`) -- 2 files, ~1,109 lines
-
-Provides spy, stub, timer mocking, module mocking, and utility functions:
-
-- **`fn(impl?)`** -- Create a mock function with full call/result tracking,
-  `mock.instances`, `mock.contexts`, chained return values, resolved/rejected
-  promise helpers, `withImplementation()`, and naming.
-- **`spyOn(obj, method, accessorType?)`** -- Spy on methods or property
-  accessors (getters/setters).
-- **`MockInstance`** -- Full interface for mock metadata and control.
-- **Timer mocking** -- `useFakeTimers(options?)` returns a `FakeTimerController`
-  with `advanceTimersByTime`, `advanceTimersToNextTimer`, `runAllTimers`,
-  `runOnlyPendingTimers`, `setSystemTime`, `getTimerCount`, and async variants.
-  Full `Date` constructor and `Date.now()` mocking. Selective API faking via
-  `toFake` option.
-- **Module mocking** -- `mock.module()`, `mock.doMock()`, `mock.importActual()`,
-  `mock.importMock()`, `mock.require()`, `mock.unmock()`, `mock.doUnmock()`,
-  `mock.resetModules()`, `mock.getMockedModule()`, `mock.hoisted()`.
-- **Global stubbing** -- `stubGlobal()`, `unstubAllGlobals()`.
-- **Env stubbing** -- `stubEnv()`, `unstubAllEnvs()`.
-- **Bulk operations** -- `clearAllMocks()`, `resetAllMocks()`,
-  `restoreAllMocks()`.
-- **Async utilities** -- `waitFor()`, `waitUntil()` with configurable timeout
-  and interval.
-- **Type utilities** -- `mocked()` identity function for TypeScript narrowing,
-  `isMockFunction()` type guard.
-- **`vi` namespace** -- Single object combining all mocking utilities for
-  convenience.
-
-### coverage (`src/coverage/`) -- 15 files, ~4,662 lines
-
-Provides code coverage collection, analysis, and reporting:
-
-- **Providers** -- V8 coverage provider (`v8-provider.ts`) and Istanbul
-  coverage provider (`istanbul-provider.ts`).
-- **V8-to-Istanbul conversion** (`v8-to-istanbul.ts`) -- Translates V8's
-  function-based coverage format to Istanbul's line/statement/branch format.
-- **Coverage map** (`coverage-map.ts`) -- Core data structure for file coverage
-  data with merge support.
-- **Source map support** (`source-map.ts`) -- Maps coverage data back to
-  original source positions.
-- **Configuration** (`config.ts`, `nyc-config.ts`) -- Coverage configuration
-  resolution and NYC config compatibility.
-- **Thresholds** (`thresholds.ts`) -- Configurable coverage thresholds with
-  enforcement.
-- **Filtering** (`filter.ts`, `ignore.ts`) -- File inclusion/exclusion and
-  istanbul ignore comment parsing.
-- **Changed files** (`changed.ts`) -- Coverage for changed files only.
-- **Per-test tracking** -- `startTestCoverage()`, `stopTestCoverage()`,
-  `getTestCoverage()`, `getAllTestCoverage()`.
-
-**11 coverage reporters** (`reporters/`):
-
-| Reporter             | Output                              |
-| -------------------- | ----------------------------------- |
-| `TextReporter`       | Terminal table output               |
-| `TextSummaryReporter`| Condensed terminal summary          |
-| `JsonReporter`       | JSON coverage data                  |
-| `JsonSummaryReporter`| JSON coverage summary               |
-| `LcovReporter`       | LCOV format with optional HTML      |
-| `LcovOnlyReporter`   | LCOV format without HTML            |
-| `HtmlReporter`       | Full HTML coverage report           |
-| `HtmlSpaReporter`    | Single-page application HTML report |
-| `CloverReporter`     | Clover XML format                   |
-| `CoberturaReporter`  | Cobertura XML format                |
-| `TeamcityReporter`   | TeamCity service messages           |
-
-## Dependency Graph
+The framework is organized into six core modules. All are exported from
+`src/index.ts`.
 
 ```text
 src/index.ts
   |
   +-- src/test-runner/    -->  node:test
+  |     (test execution, lifecycle, reporters, watch, dependency analysis)
   |
   +-- src/assertions/     -->  node:assert, node:fs (snapshots)
+  |     (expect, matchers, asymmetric matchers, snapshots, diff)
   |
   +-- src/dom/            -->  (no external deps; pure implementation)
+  |     (Document, Element, events, window, CSS, observers, canvas,
+  |      SVG, IndexedDB, workers, WebSocket, and more)
   |
   +-- src/mocking/        -->  (no external deps; pure implementation)
+  |     (fn, spyOn, vi, fake timers, module mocking, global stubbing)
   |
-  +-- src/coverage/       -->  node:fs, node:path, node:inspector (V8 coverage)
+  +-- src/coverage/       -->  node:fs, node:path, node:inspector
+  |     (V8/Istanbul providers, reporters, thresholds, source maps)
+  |
+  +-- src/hoist/          -->  (no external deps; regex-based transform)
+        (mock hoisting for ESM compatibility)
 ```
 
-The test-runner and assertions modules depend on Node.js built-in modules. The
-DOM and mocking modules are entirely self-contained with zero imports outside
-the project. The coverage module uses Node.js file system and inspector APIs.
-
-There are no cross-dependencies between the five modules. Each can be imported
+There are no cross-dependencies between the six modules. Each can be imported
 and used independently.
+
+## Test Runner Module
+
+**Location:** `src/test-runner/`
+
+Wraps the built-in `node:test` module to provide a comprehensive test runner
+interface.
+
+| File                  | Responsibility                                           |
+| --------------------- | -------------------------------------------------------- |
+| `index.ts`            | `describe`, `it`, `test`, lifecycle hooks, and modifiers |
+| `reporter.ts`         | `ReporterManager` and five built-in reporters            |
+| `watch.ts`            | File watching, import graph building, glob matching      |
+| `cycle-detection.ts`  | Circular import detection with configurable strictness   |
+| `depth-analysis.ts`   | Import chain depth analysis                              |
+| `unused-imports.ts`   | Unused import detection                                  |
+| `dependency-graph.ts` | Dependency graph building with JSON, DOT, Mermaid export |
+
+The mapping layer to `node:test` is intentionally thin. NogginLessDom does not
+reimplement test scheduling, parallel execution, or native reporting -- it
+relies on the battle-tested `node:test` infrastructure. Advanced features like
+`shuffle` use a seeded Fisher-Yates algorithm for reproducible randomization.
+
+## Assertions Module
+
+**Location:** `src/assertions/`
+
+Wraps `node:assert` to provide an `expect(value)` API with 30+ chainable
+matchers.
+
+| File            | Responsibility                                             |
+| --------------- | ---------------------------------------------------------- |
+| `index.ts`      | `expect()`, all matchers, `.not`, `.resolves`, `.rejects`  |
+| `asymmetric.ts` | Asymmetric matchers and negated variants                   |
+| `snapshot.ts`   | `SnapshotClient`, `SnapshotManager`, `SnapshotEnvironment` |
+| `diff.ts`       | `objectDiff`, `stringDiff`, ANSI error formatting          |
+| `extend.ts`     | `expect.extend()` for user-defined matchers                |
+
+Each matcher call translates to the corresponding `node:assert` function:
+
+- `toBe(expected)` maps to `assert.strictEqual`
+- `toEqual(expected)` maps to `assert.deepStrictEqual`
+- `toThrow()` maps to `assert.throws`
+- `.not` delegates to `assert.notStrictEqual`, `assert.notDeepStrictEqual`,
+  `assert.doesNotThrow`
+- `.resolves` / `.rejects` unwrap promises before applying the inner matcher
+
+## DOM Module
+
+**Location:** `src/dom/`
+
+The largest module. Provides a complete DOM environment for testing without any
+third-party code.
+
+### Core
+
+| File       | Contents                                                       |
+| ---------- | -------------------------------------------------------------- |
+| `index.ts` | `Node`, `Element`, `Document`, `DocumentFragment`, `TextNode`, |
+|            | `Comment`, `Event`, `NodeList`, `HTMLCollection`,              |
+|            | `DOMTokenList`, `CSSStyleDeclaration`, `TreeWalker`,           |
+|            | `NodeIterator`                                                 |
+
+### HTML Elements
+
+| File               | Contents                                           |
+| ------------------ | -------------------------------------------------- |
+| `html-elements.ts` | 29 typed HTML element classes plus `ValidityState` |
+
+### Events
+
+| File        | Contents                                                    |
+| ----------- | ----------------------------------------------------------- |
+| `events.ts` | 20 event classes including `CustomEvent`, `MouseEvent`,     |
+|             | `KeyboardEvent`, `FocusEvent`, `PointerEvent`, `DragEvent`, |
+|             | `ClipboardEvent`, and more                                  |
+
+### Window and Browser APIs
+
+| File             | Contents                                                 |
+| ---------------- | -------------------------------------------------------- |
+| `window.ts`      | `Window`, `Storage`, `Location`, `History`, `Navigator`, |
+|                  | `Clipboard`, `Permissions`, `MediaQueryList`, `Request`, |
+|                  | `Response`, `createWindow()`                             |
+| `performance.ts` | `Performance`, `PerformanceObserver`                     |
+| `animation.ts`   | `Animation`, `KeyframeEffect`, `AnimationTimeline`       |
+| `websocket.ts`   | `WebSocket`, `CloseEvent`, `WSMessageEvent`              |
+| `workers.ts`     | `Worker`, `SharedWorker`, `MessagePort`,                 |
+|                  | `ServiceWorkerContainer`, `ServiceWorker`                |
+| `indexeddb.ts`   | `IDBFactory`, `IDBDatabase`, `IDBObjectStore`,           |
+|                  | `IDBTransaction`, `IDBRequest`, `IDBIndex`, `IDBCursor`, |
+|                  | `IDBKeyRange`                                            |
+| `xhr.ts`         | `XMLHttpRequest`                                         |
+| `media-query.ts` | `parseMediaQuery`, `evaluateMediaQuery`                  |
+
+### DOM Infrastructure
+
+| File                       | Contents                                      |
+| -------------------------- | --------------------------------------------- |
+| `selector.ts`              | CSS selector engine with combinators and      |
+|                            | pseudo-classes                                |
+| `collections.ts`           | `NodeList`, `HTMLCollection`                  |
+| `shadow.ts`                | `ShadowRoot`                                  |
+| `custom-elements.ts`       | `CustomElementRegistry`                       |
+| `mutation-observer.ts`     | `MutationObserver`, `MutationRecord`          |
+| `intersection-observer.ts` | `IntersectionObserver`                        |
+| `resize-observer.ts`       | `ResizeObserver`                              |
+| `style.ts`                 | `CSSStyleDeclaration`                         |
+| `token-list.ts`            | `DOMTokenList`                                |
+| `tree-walker.ts`           | `TreeWalker`, `NodeIterator`, `NodeFilter`    |
+| `range.ts`                 | `Range`                                       |
+| `selection.ts`             | `Selection`                                   |
+| `css-cascade.ts`           | CSS parsing, specificity, cascade, shorthand  |
+|                            | expansion                                     |
+| `svg.ts`                   | SVG element classes (`SVGSVGElement`,         |
+|                            | `SVGPathElement`, `SVGCircleElement`, etc.)   |
+| `canvas.ts`                | `CanvasRenderingContext2D`, `CanvasGradient`, |
+|                            | `ImageData`                                   |
+
+### Data and Parsing
+
+| File                 | Contents                                      |
+| -------------------- | --------------------------------------------- |
+| `html-parser.ts`     | HTML string parser                            |
+| `html-serializer.ts` | Node-to-HTML serialization                    |
+| `dom-parser.ts`      | `DOMParser`, `XMLSerializer`                  |
+| `form-data.ts`       | `FormData`                                    |
+| `blob.ts`            | `Blob`                                        |
+| `headers.ts`         | `Headers`                                     |
+| `cookie.ts`          | `CookieJar`                                   |
+| `data-transfer.ts`   | `DataTransfer`, `DataTransferItemList`        |
+| `abort.ts`           | `AbortController`, `AbortSignal`              |
+| `web-apis.ts`        | `atob`, `btoa`, `TextEncoder`, `TextDecoder`, |
+|                      | `structuredClone`, `crypto`                   |
+
+## Mocking Module
+
+**Location:** `src/mocking/`
+
+Provides spy, stub, timer mocking, module mocking, and utility functions.
+
+| File       | Responsibility                                               |
+| ---------- | ------------------------------------------------------------ |
+| `index.ts` | `fn()`, `spyOn()`, timer mocking, module mocking, global/env |
+|            | stubbing, bulk operations, async utilities                   |
+| `vi.ts`    | `vi` convenience namespace combining all mocking utilities   |
+
+Key capabilities:
+
+- **Mock functions** with full call/result tracking, chained return values,
+  promise helpers, and `withImplementation()`
+- **Spy on methods and accessors** (getters/setters)
+- **Fake timers** with `advanceTimersByTime`, `runAllTimers`,
+  `setSystemTime`, and full `Date` constructor mocking
+- **Module mocking** with `mock.module()`, `mock.doMock()`, and
+  `mock.hoisted()` for ESM compatibility
+- **Global stubbing** with `stubGlobal()` and env stubbing with `stubEnv()`
+- **Async utilities** with `waitFor()` and `waitUntil()`
+
+## Coverage Module
+
+**Location:** `src/coverage/`
+
+Provides code coverage collection, analysis, and reporting.
+
+| File                   | Responsibility                                       |
+| ---------------------- | ---------------------------------------------------- |
+| `index.ts`             | Public API (`startCoverage`, `takeCoverage`,         |
+|                        | `stopCoverage`, `reportCoverage`,                    |
+|                        | `checkCoverageThresholds`)                           |
+| `v8-provider.ts`       | V8 coverage provider using `node:inspector`          |
+| `istanbul-provider.ts` | Istanbul instrumentation-based coverage provider     |
+| `v8-to-istanbul.ts`    | V8-to-Istanbul format conversion                     |
+| `coverage-map.ts`      | Core data structure for file coverage with merge     |
+| `source-map.ts`        | Maps coverage data back to original source positions |
+| `config.ts`            | Coverage configuration resolution                    |
+| `nyc-config.ts`        | NYC config compatibility                             |
+| `thresholds.ts`        | Configurable coverage thresholds with enforcement    |
+| `filter.ts`            | File inclusion/exclusion filtering                   |
+| `ignore.ts`            | Istanbul ignore comment parsing                      |
+| `changed.ts`           | Coverage for changed files only                      |
+| `reporters/`           | 11 reporter implementations                          |
+
+## Hoist Module
+
+**Location:** `src/hoist/`
+
+Reorders top-level mock calls (`mock.module()`, `vi.mock()`, `vi.hoisted()`)
+so they appear before all import declarations. This is necessary for ESM
+because import bindings are evaluated before any module-level statements
+execute.
+
+| File            | Responsibility                                         |
+| --------------- | ------------------------------------------------------ |
+| `index.ts`      | `hoistMocks()` -- regex-based source transform         |
+| `bun-plugin.ts` | Bun build plugin that applies hoisting during bundling |
+
+The implementation is intentionally regex-based (no AST parser) to preserve the
+zero-dependency constraint.
 
 ## Build Pipeline
 
@@ -267,33 +274,33 @@ TypeScript Source (src/)
   bun build src/index.ts --outdir build --target node
         |
         v
-  JavaScript output (build/*.js)
+  JavaScript output (build/index.js, ESM format)
         |
         v
   tsc --emitDeclarationOnly
         |
         v
-  Type declarations (build/*.d.ts) + declaration maps + source maps
+  Type declarations (build/*.d.ts) + source maps
 ```
 
 ### Build Artifacts
 
-| Artifact               | Description                               |
-| ---------------------- | ----------------------------------------- |
-| `build/index.js`       | Bundled JavaScript, ESM format            |
-| `build/index.d.ts`     | TypeScript type declarations              |
-| `build/*.d.ts.map`     | Declaration source maps                   |
-| `build/*.js.map`       | JavaScript source maps                    |
+| Artifact           | Description                    |
+| ------------------ | ------------------------------ |
+| `build/index.js`   | Bundled JavaScript, ESM format |
+| `build/index.d.ts` | TypeScript type declarations   |
+| `build/*.d.ts.map` | Declaration source maps        |
+| `build/*.js.map`   | JavaScript source maps         |
 
-### Build Targets
+### Make Targets
 
-| Make Target      | Description                                                 |
-| ---------------- | ----------------------------------------------------------- |
-| `make build`     | Clean build: removes `build/`, compiles, emits              |
-| `make clean`     | Removes `build/` directory and Docker artifacts             |
-| `make lint`      | Runs markdownlint, eslint, yamllint, jsonlint, prettier     |
-| `make test`      | Runs unit, integration, and e2e test suites                 |
-| `make setup`     | Install dependencies and git hooks                          |
+| Target       | Description                                                 |
+| ------------ | ----------------------------------------------------------- |
+| `make build` | Clean build: removes `build/`, compiles, emits declarations |
+| `make clean` | Removes `build/` directory and Docker artifacts             |
+| `make lint`  | Runs markdownlint, eslint, yamllint, jsonlint, prettier     |
+| `make test`  | Runs unit, integration, and e2e test suites                 |
+| `make setup` | Install dependencies and git hooks                          |
 
 ### CI Pipeline
 
@@ -303,14 +310,52 @@ monitors dev dependencies for known vulnerabilities.
 
 ### Dev Dependencies (9)
 
-| Package                              | Purpose                           |
-| ------------------------------------ | --------------------------------- |
-| `@asymmetric-effort/jsonlint`        | JSON linting                      |
-| `@asymmetric-effort/yamllint`        | YAML linting                      |
-| `@typescript-eslint/eslint-plugin`   | TypeScript ESLint rules           |
-| `@typescript-eslint/parser`          | TypeScript ESLint parser          |
-| `bun-types`                          | Bun runtime type definitions      |
-| `eslint`                             | JavaScript/TypeScript linting     |
-| `markdownlint-cli`                   | Markdown linting                  |
-| `prettier`                           | Code formatting                   |
-| `typescript`                         | TypeScript compiler               |
+| Package                            | Purpose                       |
+| ---------------------------------- | ----------------------------- |
+| `@asymmetric-effort/jsonlint`      | JSON linting                  |
+| `@asymmetric-effort/yamllint`      | YAML linting                  |
+| `@typescript-eslint/eslint-plugin` | TypeScript ESLint rules       |
+| `@typescript-eslint/parser`        | TypeScript ESLint parser      |
+| `bun-types`                        | Bun runtime type definitions  |
+| `eslint`                           | JavaScript/TypeScript linting |
+| `markdownlint-cli`                 | Markdown linting              |
+| `prettier`                         | Code formatting               |
+| `typescript`                       | TypeScript compiler           |
+
+## Security Design
+
+NogginLessDom's security posture stems from architectural decisions, not
+bolt-on hardening.
+
+### Zero Dependencies
+
+The `dependencies` field is `{}`. There is no transitive dependency tree to
+audit, no packages that can be hijacked, and no supply chain to monitor. This
+eliminates entire categories of attacks: package takeovers, typosquatting,
+malicious updates, and dependency confusion.
+
+### No Dynamic Code Execution
+
+The DOM module parses HTML without `eval()`, `new Function()`, or any form of
+dynamic code execution. HTML input is validated and sanitized through
+deterministic parsing algorithms, not regular expressions operating on
+untrusted input.
+
+### Path Validation
+
+File operations in the coverage and snapshot modules validate paths before
+access. Path traversal attacks (e.g., `../../etc/passwd`) and symlink-based
+escapes are detected and rejected.
+
+### Version Validation
+
+The release pipeline validates that `VERSION` matches the semver pattern
+`^[0-9]+\.[0-9]+\.[0-9]+$` before proceeding, preventing injection through
+the version string (GHSA-482x-9gr3-8prm).
+
+### Minimal Published Surface
+
+The published package contains only the compiled output (`build/`),
+`LICENSE.txt`, and `README.md`. Source code, tests, documentation, and build
+configuration are excluded, reducing the surface area available for analysis
+by potential attackers.

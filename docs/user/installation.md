@@ -47,6 +47,11 @@ tree to audit, lock, or worry about.
 This is a core design principle. See the [Architecture](../architecture.md)
 document for the reasoning behind this decision.
 
+## Requirements
+
+- **Node.js** >= 20.0.0
+- **Bun** (recommended) or any Node.js-compatible runtime
+
 ## Verifying the Installation
 
 After installing, verify that the package is importable:
@@ -58,17 +63,18 @@ bun -e "import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
 Or with Node.js:
 
 ```bash
-node -e "import('@asymmetric-effort/nogginlessdom').then(m => console.log('OK:', Object.keys(m).join(', ')))"
+node -e "import('@asymmetric-effort/nogginlessdom').then(m => console.log('OK:', Object.keys(m).length, 'exports'))"
 ```
 
-You should see the exported function names printed to the console.
+You should see confirmation that the package loaded and its exports are
+accessible.
 
 ## TypeScript Setup
 
 NogginLessDom is written in TypeScript and ships with type declarations
 (`*.d.ts` files). No additional `@types/` packages are needed.
 
-### Importing
+### Basic Imports
 
 ```typescript
 import {
@@ -102,7 +108,13 @@ import { describe, it, expect } from '@asymmetric-effort/nogginlessdom';
 import { Document, Element, Event } from '@asymmetric-effort/nogginlessdom';
 
 // Just mocking utilities
-import { fn, spyOn } from '@asymmetric-effort/nogginlessdom';
+import { fn, spyOn, vi } from '@asymmetric-effort/nogginlessdom';
+
+// Coverage tools
+import { startCoverage, stopCoverage } from '@asymmetric-effort/nogginlessdom';
+
+// Dependency analysis
+import { detectCircularImports, buildDependencyGraph } from '@asymmetric-effort/nogginlessdom';
 ```
 
 ### TypeScript Configuration
@@ -137,13 +149,13 @@ type support:
 
 The published package contains:
 
-| Path               | Contents                                       |
-| ------------------ | ---------------------------------------------- |
-| `build/index.js`   | Bundled JavaScript (ESM, Node target)          |
-| `build/index.d.ts` | TypeScript type declarations                   |
-| `build/*.map`      | Source maps for debugging and IDE navigation   |
-| `LICENSE.txt`      | MIT license                                    |
-| `README.md`        | Package readme                                 |
+| Path               | Contents                                     |
+| ------------------ | -------------------------------------------- |
+| `build/index.js`   | Bundled JavaScript (ESM, Node target)        |
+| `build/index.d.ts` | TypeScript type declarations                 |
+| `build/*.map`      | Source maps for debugging and IDE navigation |
+| `LICENSE.txt`      | MIT license                                  |
+| `README.md`        | Package readme                               |
 
 Source code, tests, documentation, and build configuration are **not** included
 in the published package. The install footprint is minimal.
@@ -156,6 +168,12 @@ bun update @asymmetric-effort/nogginlessdom
 
 # npm
 npm update @asymmetric-effort/nogginlessdom
+
+# yarn
+yarn upgrade @asymmetric-effort/nogginlessdom
+
+# pnpm
+pnpm update @asymmetric-effort/nogginlessdom
 ```
 
 ## Uninstalling
@@ -166,4 +184,10 @@ bun remove @asymmetric-effort/nogginlessdom
 
 # npm
 npm uninstall @asymmetric-effort/nogginlessdom
+
+# yarn
+yarn remove @asymmetric-effort/nogginlessdom
+
+# pnpm
+pnpm remove @asymmetric-effort/nogginlessdom
 ```

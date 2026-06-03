@@ -1,594 +1,627 @@
 # Mocking API Reference
 
-The mocking module provides comprehensive utilities for creating mock
-functions, spying on object methods and accessors, controlling timers (with
-full Date mocking), module mocking, global stubbing, environment variable
-stubbing, and async test utilities. All mocking utilities are implemented from
-scratch with zero dependencies.
+The mocking module provides comprehensive utilities for creating mock functions,
+spying on object methods and accessors, controlling timers, mocking modules,
+stubbing globals and environment variables, and async test helpers.
 
 ```typescript
 import {
-  fn,
-  spyOn,
-  useFakeTimers,
-  useRealTimers,
-  mock,
-  vi,
+  fn, spyOn, mock, vi,
+  useFakeTimers, useRealTimers,
 } from '@asymmetric-effort/nogginlessdom';
 ```
 
+---
+
 ## Mock Functions
 
-### `fn(implementation?)`
+### fn()
 
-Create a mock function. Optionally provide an initial implementation. If no
-implementation is provided, the mock function returns `undefined` when called.
-
-**Parameters:**
-
-| Parameter        | Type                       | Description                      |
-| ---------------- | -------------------------- | -------------------------------- |
-| `implementation` | `(...args) => TReturn`     | Optional function implementation |
-
-**Returns:** A mock function with the `MockInstance` interface.
-
-**Examples:**
-
-```typescript
-// Mock with no implementation (returns undefined)
-const mockFn = fn();
-mockFn('hello');
-expect(mockFn.mock.calls).toHaveLength(1);
-expect(mockFn.mock.calls[0]).toEqual(['hello']);
-
-// Mock with implementation
-const double = fn((x: number) => x * 2);
-expect(double(5)).toBe(10);
-expect(double.mock.results[0]).toEqual({ type: 'return', value: 10 });
-
-// Mock that throws
-const failing = fn(() => {
-  throw new Error('fail');
-});
-expect(() => failing()).toThrow('fail');
-expect(failing.mock.results[0].type).toBe('throw');
-```
-
-### `spyOn(object, method, accessorType?)`
-
-Create a spy on an existing object method or accessor. The spy wraps the
-original, tracking all calls and return values while still calling through to
-the original implementation by default.
-
-**Parameters:**
-
-| Parameter      | Type              | Description                          |
-| -------------- | ----------------- | ------------------------------------ |
-| `object`       | `object`          | The object containing the method     |
-| `method`       | `string`          | The name of the method to spy on     |
-| `accessorType` | `'get' \| 'set'`  | Optional -- spy on getter or setter  |
-
-**Returns:** A mock function (`MockInstance`) that replaces the original.
-
-**Example -- method spy:**
-
-```typescript
-const api = {
-  fetchUser(id: number) {
-    return { id, name: 'Alice' };
-  },
-};
-
-const spy = spyOn(api, 'fetchUser');
-const user = api.fetchUser(1);
-expect(user).toEqual({ id: 1, name: 'Alice' });
-expect(spy.mock.calls[0]).toEqual([1]);
-
-spy.mockReturnValue({ id: 99, name: 'Mock User' });
-expect(api.fetchUser(1)).toEqual({ id: 99, name: 'Mock User' });
-
-spy.mockRestore();
-expect(api.fetchUser(1)).toEqual({ id: 1, name: 'Alice' });
-```
-
-**Example -- accessor spy:**
-
-```typescript
-const obj = {
-  _value: 0,
-  get value() { return this._value; },
-  set value(v: number) { this._value = v; },
-};
-
-const getSpy = spyOn(obj, 'value', 'get');
-obj.value;
-expect(getSpy).toHaveBeenCalled();
-
-const setSpy = spyOn(obj, 'value', 'set');
-obj.value = 42;
-expect(setSpy).toHaveBeenCalledWith(42);
-```
-
-## MockInstance Interface
-
-Every mock function (created by `fn()` or `spyOn()`) implements the
-`MockInstance` interface.
-
-### Properties
-
-#### `mock.calls: TArgs[]`
-
-Array of argument arrays, one entry per call.
+Creates a mock function that tracks calls, arguments, return values, and
+instances.
 
 ```typescript
 const mockFn = fn();
 mockFn('a', 'b');
 mockFn('c');
 
-expect(mockFn.mock.calls).toEqual([
-  ['a', 'b'],
-  ['c'],
-]);
+mockFn.mock.calls;    // [['a', 'b'], ['c']]
+mockFn.mock.results;  // [{ type: 'return', value: undefined }, ...]
 ```
 
-#### `mock.results: Array<{ type: 'return' | 'throw'; value: TReturn }>`
+With an implementation:
 
-Array of result objects, one entry per call.
+```typescript
+const add = fn((a: number, b: number) => a + b);
+add(1, 2);  // 3
+```
 
-#### `mock.lastCall: TArgs | undefined`
-
-The arguments of the most recent call, or `undefined` if not called.
-
-#### `mock.instances: unknown[]`
-
-Array of `this` values when the mock was called as a constructor (`new`).
-
-#### `mock.contexts: unknown[]`
-
-Array of `this` values for all calls (both regular and constructor).
-
-### Return Value Methods
-
-#### `mockReturnValue(value): MockInstance`
-
-Set the default return value for all subsequent calls.
+### Mock Return Values
 
 ```typescript
 const mockFn = fn();
+
+// Return the same value every time
 mockFn.mockReturnValue(42);
-expect(mockFn()).toBe(42);
+mockFn();  // 42
+mockFn();  // 42
+
+// Return a value only for the next call
+mockFn.mockReturnValueOnce('first');
+mockFn.mockReturnValueOnce('second');
+mockFn();  // 'first'
+mockFn();  // 'second'
+mockFn();  // 42 (falls back to mockReturnValue)
 ```
 
-#### `mockReturnValueOnce(value): MockInstance`
-
-Set the return value for the next call only. Chainable.
+### Mock Implementations
 
 ```typescript
 const mockFn = fn();
-mockFn.mockReturnValueOnce('first').mockReturnValueOnce('second');
-mockFn.mockReturnValue('default');
 
-expect(mockFn()).toBe('first');
-expect(mockFn()).toBe('second');
-expect(mockFn()).toBe('default');
+// Set a persistent implementation
+mockFn.mockImplementation((x: number) => x * 2);
+mockFn(5);  // 10
+
+// Set a one-time implementation
+mockFn.mockImplementationOnce((x: number) => x * 3);
+mockFn(5);  // 15 (one-time)
+mockFn(5);  // 10 (falls back to mockImplementation)
 ```
 
-#### `mockResolvedValue(value): MockInstance`
-
-Set the mock to return `Promise.resolve(value)`.
+### Async Mocks
 
 ```typescript
 const mockFn = fn();
-mockFn.mockResolvedValue({ id: 1, name: 'Alice' });
-await expect(mockFn()).resolves.toEqual({ id: 1, name: 'Alice' });
+
+mockFn.mockResolvedValue({ data: 'ok' });
+await mockFn();  // { data: 'ok' }
+
+mockFn.mockResolvedValueOnce({ data: 'once' });
+await mockFn();  // { data: 'once' }
+await mockFn();  // { data: 'ok' }
+
+mockFn.mockRejectedValue(new Error('fail'));
+await mockFn();  // throws Error('fail')
+
+mockFn.mockRejectedValueOnce(new Error('once'));
+await mockFn();  // throws Error('once')
 ```
 
-#### `mockResolvedValueOnce(value): MockInstance`
-
-Set the mock to return `Promise.resolve(value)` for the next call only.
-
-#### `mockRejectedValue(value): MockInstance`
-
-Set the mock to return `Promise.reject(value)`.
-
-#### `mockRejectedValueOnce(value): MockInstance`
-
-Set the mock to return `Promise.reject(value)` for the next call only.
-
-### Implementation Methods
-
-#### `mockImplementation(fn): MockInstance`
-
-Replace the mock's implementation for all subsequent calls.
+### Mock Naming
 
 ```typescript
 const mockFn = fn();
-mockFn.mockImplementation((a: number, b: number) => a + b);
-expect(mockFn(2, 3)).toBe(5);
+mockFn.mockName('myFunction');
+mockFn.getMockName();  // 'myFunction'
 ```
 
-#### `mockImplementationOnce(fn): MockInstance`
+### getMockImplementation
 
-Replace the mock's implementation for the next call only. Chainable.
+```typescript
+const impl = (x: number) => x + 1;
+const mockFn = fn(impl);
+mockFn.getMockImplementation();  // impl
+```
 
-#### `withImplementation(impl, callback)`
+### withImplementation
 
-Temporarily replace the implementation for the duration of a callback.
-Supports both sync and async callbacks.
+Temporarily replaces the implementation for the duration of a callback.
 
 ```typescript
 const mockFn = fn(() => 'original');
-mockFn.withImplementation(() => 'temporary', () => {
-  expect(mockFn()).toBe('temporary');
-});
-expect(mockFn()).toBe('original');
+
+mockFn.withImplementation(
+  () => 'temporary',
+  () => {
+    mockFn();  // 'temporary'
+  },
+);
+mockFn();  // 'original'
+
+// Also works with async callbacks
+await mockFn.withImplementation(
+  () => 'async-temp',
+  async () => {
+    mockFn();  // 'async-temp'
+  },
+);
 ```
 
-### Name Methods
+---
 
-#### `mockName(name): MockInstance`
+## Mock Properties
 
-Set a name for the mock (useful for debugging).
+### .mock.calls
 
-#### `getMockName(): string`
-
-Get the mock's name (defaults to `'vi.fn()'`).
-
-#### `getMockImplementation()`
-
-Get the current implementation function, or `undefined`.
-
-### Reset Methods
-
-#### `mockClear()`
-
-Reset `mock.calls`, `mock.results`, `mock.instances`, `mock.contexts`, and
-`mock.lastCall`. Does not change implementation or return values.
-
-#### `mockReset()`
-
-Like `mockClear()`, but also removes configured return values and
-implementations.
-
-#### `mockRestore()`
-
-Restore the original implementation. For spies created with `spyOn()`,
-restores the original method on the object. For `fn()` mocks, behaves like
-`mockReset()`.
-
-## Timer Mocking
-
-Timer mocking replaces the global `setTimeout`, `setInterval`, `clearTimeout`,
-`clearInterval`, `setImmediate`, `clearImmediate`, and `Date` with
-deterministic fake implementations.
-
-### `useFakeTimers(optionsOrNow?)`
-
-Replace global timer functions with fakes. Returns a `FakeTimerController`.
-
-**Parameters:**
-
-| Parameter       | Type                         | Description                    |
-| --------------- | ---------------------------- | ------------------------------ |
-| `optionsOrNow`  | `number \| FakeTimerOptions` | Initial time or options object |
-
-**FakeTimerOptions:**
-
-| Option              | Type             | Description                                          |
-| ------------------- | ---------------- | ---------------------------------------------------- |
-| `now`               | `number \| Date` | Initial timestamp (default: 0)                       |
-| `shouldAdvanceTime` | `boolean`        | Auto-advance time (accepted, stubbed)                |
-| `toFake`            | `string[]`       | Which APIs to fake (e.g., `['setTimeout', 'Date']`)  |
+Array of argument arrays for each call.
 
 ```typescript
-// Simple usage
-const clock = useFakeTimers();
-
-// With initial time
-const clock = useFakeTimers(Date.now());
-
-// With options
-const clock = useFakeTimers({ now: new Date('2026-01-01'), toFake: ['setTimeout', 'Date'] });
+mockFn('a', 1);
+mockFn('b', 2);
+mockFn.mock.calls;  // [['a', 1], ['b', 2]]
 ```
 
-### FakeTimerController Methods
+### .mock.results
 
-| Method                            | Description                                            |
-| --------------------------------- | ------------------------------------------------------ |
-| `advanceTimersByTime(ms)`         | Advance time by `ms`, firing scheduled timers          |
-| `advanceTimersByTimeAsync(ms)`    | Async version of `advanceTimersByTime`                 |
-| `advanceTimersToNextTimer()`      | Advance to the next scheduled timer                    |
-| `advanceTimersToNextTimerAsync()` | Async version of `advanceTimersToNextTimer`            |
-| `runAllTimers()`                  | Run all pending timers recursively (safety limit: 1000)|
-| `runAllTimersAsync()`             | Async version of `runAllTimers`                        |
-| `runOnlyPendingTimers()`          | Run only currently pending timers (not newly scheduled)|
-| `runOnlyPendingTimersAsync()`     | Async version of `runOnlyPendingTimers`                |
-| `getTimerCount()`                 | Return the number of pending timers                    |
-| `setSystemTime(time)`             | Set the current fake time (number or Date)             |
-| `getMockedSystemTime()`           | Get the current fake time as a Date                    |
-| `getRealSystemTime()`             | Get the real system time (bypassing fakes)             |
-| `now`                             | Current fake timestamp (readonly property)             |
+Array of `{ type, value }` objects for each call.
 
-### `useRealTimers()`
+```typescript
+const mockFn = fn(() => 42);
+mockFn();
+mockFn.mock.results;  // [{ type: 'return', value: 42 }]
 
-Restore the original global timer functions and `Date`. Always call this in
-`afterEach` or `afterAll` to avoid leaking fake timers.
+const throwing = fn(() => { throw new Error('oops'); });
+try { throwing(); } catch {}
+throwing.mock.results;  // [{ type: 'throw', value: Error('oops') }]
+```
 
-### `getMockedSystemTime()`
+### .mock.lastCall
 
-Return the current mocked system time as a Date, or `null` if not using fake
-timers.
+The arguments of the most recent call, or `undefined` if never called.
 
-### `getRealSystemTime()`
+```typescript
+mockFn('x', 'y');
+mockFn.mock.lastCall;  // ['x', 'y']
+```
 
-Return the real system time (`Date.now()`) regardless of fake timer state.
+### .mock.instances
+
+Array of `this` values when the mock was called with `new`.
+
+```typescript
+const MockClass = fn();
+const instance = new MockClass();
+MockClass.mock.instances;  // [instance]
+```
+
+### .mock.contexts
+
+Array of `this` values for every call (both regular and constructor calls).
+
+---
+
+## Mock Control
+
+### mockClear()
+
+Resets call tracking (calls, results, instances, contexts) but preserves the
+implementation and return values.
+
+```typescript
+mockFn('a');
+mockFn.mockClear();
+mockFn.mock.calls;  // []
+```
+
+### mockReset()
+
+Calls `mockClear()` and also removes the implementation and return values.
+
+```typescript
+mockFn.mockReturnValue(42);
+mockFn.mockReset();
+mockFn();  // undefined
+```
+
+### mockRestore()
+
+Calls `mockReset()`. For spies created with `spyOn`, also restores the original
+function or accessor on the object.
+
+```typescript
+const spy = spyOn(obj, 'method');
+spy.mockRestore();
+// obj.method is now the original function
+```
+
+---
+
+## Spies
+
+### spyOn
+
+Creates a spy on an object method. The spy wraps the original function and
+tracks calls while still invoking the original by default.
+
+```typescript
+const obj = {
+  greet(name: string) { return `Hello, ${name}`; },
+};
+
+const spy = spyOn(obj, 'greet');
+obj.greet('World');          // 'Hello, World'
+spy.mock.calls;              // [['World']]
+
+// Override the implementation
+spy.mockReturnValue('Hi');
+obj.greet('World');          // 'Hi'
+
+// Restore the original
+spy.mockRestore();
+obj.greet('World');          // 'Hello, World'
+```
+
+### Spying on Getters
+
+```typescript
+const obj = {
+  get value() { return 42; },
+};
+
+const spy = spyOn(obj, 'value', 'get');
+spy.mockReturnValue(100);
+obj.value;  // 100
+
+spy.mockRestore();
+obj.value;  // 42
+```
+
+### Spying on Setters
+
+```typescript
+const obj = {
+  _data: '',
+  set data(v: string) { this._data = v; },
+};
+
+const spy = spyOn(obj, 'data', 'set');
+obj.data = 'hello';
+spy.mock.calls;  // [['hello']]
+
+spy.mockRestore();
+```
+
+---
 
 ## Module Mocking
 
-### `mock.module(moduleName, factory)`
+### mock.module
 
-Register a mock for a module path. The factory function returns the mock
-module's exports.
+Registers a mock for a module path. The factory function receives an
+`importOriginal` helper to access the real module.
 
 ```typescript
-mock.module('fs', () => ({
+await mock.module('fs', () => ({
   readFileSync: fn(() => 'mocked content'),
   writeFileSync: fn(),
 }));
 
-const { myFunction } = await import('./my-module.js');
+// With importOriginal to keep some real exports
+await mock.module('fs', async ({ importOriginal }) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    readFileSync: fn(() => 'mocked'),
+  };
+});
 ```
 
-### `mock.doMock(moduleName, factory)`
+Mocks must be set up before the module under test is imported.
 
-Alias for `mock.module()` -- explicitly non-hoisted module mock.
+### mock.modulePartial
 
-### `mock.importActual(moduleName)`
-
-Import the real module, bypassing any registered mocks.
+Partially mocks a module: imports the real module, overlays overrides, and
+optionally auto-mocks remaining functions.
 
 ```typescript
-const actualFs = await mock.importActual('fs');
+await mock.modulePartial('fs', {
+  readFileSync: fn(() => 'mocked'),
+}, { autoMockRest: true });
 ```
 
-### `mock.importMock(moduleName)`
+### importActual
 
-Import a module with mock-awareness: if a mock is registered, return it.
-Otherwise, dynamically import the real module and auto-mock all exports
-(functions become mock functions, primitives are kept as-is).
+Dynamically imports the real module, bypassing any registered mocks.
 
-### `mock.require(moduleName)`
+```typescript
+const realFs = await mock.importActual('fs');
+```
 
-Mock-aware require: returns mock if registered, otherwise the real module.
+### importMock
 
-### `mock.unmock(moduleName)`
+Imports a module with mock awareness. If a mock is registered, returns it.
+Otherwise, auto-mocks all function exports.
 
-Remove the mock for a module path.
+```typescript
+const mockedFs = await mock.importMock('fs');
+// All functions are replaced with fn() mocks
+```
 
-### `mock.doUnmock(moduleName)`
+### mock.require
 
-Alias for `mock.unmock()`.
+Synchronous mock-aware require. Returns the mock if registered, otherwise
+falls back to the real module.
 
-### `mock.resetModules()`
+```typescript
+const fs = mock.require('fs');
+```
 
-Clear all registered module mocks.
+### mock.unmock and mock.doUnmock
 
-### `mock.getMockedModule(moduleName)`
+Removes the mock registration for a module.
 
-Get the mocked module exports, or `undefined` if not mocked.
+```typescript
+mock.unmock('fs');
+```
 
-### `mock.hoisted(factory)`
+### mock.resetModules
 
-Execute a factory function immediately and return its result. Useful for
+Clears all registered module mocks.
+
+```typescript
+mock.resetModules();
+```
+
+### mock.getMockedModule
+
+Returns the mock for a given module, or undefined.
+
+```typescript
+const m = mock.getMockedModule('fs');
+```
+
+### mock.hoisted
+
+Executes a factory function immediately and returns its result. Useful for
 variable declarations that need to be available before `mock.module()` calls.
 
 ```typescript
 const mocks = mock.hoisted(() => ({
-  myFn: fn(),
+  readFile: fn(),
 }));
-
-mock.module('./my-module', () => ({
-  myFn: mocks.myFn,
-}));
+await mock.module('fs', () => mocks);
 ```
 
-## Global Stubbing
+---
 
-### `mock.stubGlobal(name, value)`
+## Fake Timers
 
-Replace a global property with a value, storing the original for later
+### useFakeTimers
+
+Replaces `setTimeout`, `setInterval`, `clearTimeout`, `clearInterval`, `Date`,
+`Date.now`, `setImmediate`, `clearImmediate`, `requestAnimationFrame`,
+`cancelAnimationFrame`, and `performance.now` with controllable fakes.
+
+```typescript
+const clock = useFakeTimers();
+
+setTimeout(() => console.log('fired'), 1000);
+clock.advanceTimersByTime(1000);  // 'fired'
+```
+
+With options:
+
+```typescript
+const clock = useFakeTimers({
+  now: new Date('2025-01-01'),
+  toFake: ['setTimeout', 'Date'],  // only fake specific APIs
+});
+
+Date.now();  // 1735689600000 (2025-01-01)
+```
+
+### FakeTimerController Methods
+
+| Method | Description |
+|---|---|
+| `advanceTimersByTime(ms)` | Advance clock by ms, firing timers along the way |
+| `advanceTimersByTimeAsync(ms)` | Same as above, returns Promise |
+| `advanceTimersToNextTimer()` | Advance to the next scheduled timer |
+| `advanceTimersToNextTimerAsync()` | Same as above, returns Promise |
+| `getTimerCount()` | Number of pending timers |
+| `runAllTimers()` | Run all pending timers (max 1000 iterations) |
+| `runAllTimersAsync()` | Same as above, returns Promise |
+| `runOnlyPendingTimers()` | Run only currently pending timers (not new ones) |
+| `runOnlyPendingTimersAsync()` | Same as above, returns Promise |
+| `setSystemTime(time)` | Set the current fake time (number or Date) |
+| `getMockedSystemTime()` | Get current fake time as Date |
+| `getRealSystemTime()` | Get real system time |
+| `now` | Current fake time in milliseconds |
+
+### useRealTimers
+
+Restores all original timer functions, Date, requestAnimationFrame, and
+performance.now.
+
+```typescript
+useRealTimers();
+```
+
+### requestAnimationFrame Integration
+
+When fake timers are active, `requestAnimationFrame` callbacks are scheduled
+with a virtual 16ms delay and receive the current fake timestamp.
+
+```typescript
+const clock = useFakeTimers();
+let frame = 0;
+requestAnimationFrame((ts) => { frame = ts; });
+clock.advanceTimersByTime(16);
+// frame === 16
+```
+
+### Date and performance Mocking
+
+When fake timers are active:
+
+- `Date.now()` returns the fake time
+- `new Date()` (no arguments) uses the fake time
+- `new Date(value)` still works with explicit values
+- `performance.now()` returns the fake time
+
+```typescript
+const clock = useFakeTimers({ now: 1000 });
+Date.now();           // 1000
+new Date().getTime(); // 1000
+performance.now();    // 1000
+
+clock.advanceTimersByTime(500);
+Date.now();           // 1500
+```
+
+---
+
+## Global Stubs
+
+### mock.stubGlobal
+
+Replaces a global property with a value, storing the original for later
 restoration.
 
 ```typescript
-mock.stubGlobal('fetch', fn());
-// ... test code that uses fetch ...
+mock.stubGlobal('fetch', fn(() => Promise.resolve(new Response('ok'))));
+globalThis.fetch('/api');
 ```
 
-### `mock.unstubAllGlobals()`
+### mock.unstubAllGlobals
 
-Restore all stubbed globals to their original values.
+Restores all stubbed globals to their original values.
 
-### `mock.isMockFunction(value): boolean`
+```typescript
+mock.unstubAllGlobals();
+```
 
-Check if a value is a mock function created by `fn()` or `spyOn()`.
+### stubEnv
 
-## Bulk Mock Operations
-
-### `mock.clearAllMocks()`
-
-Call `mockClear()` on all tracked mock functions.
-
-### `mock.resetAllMocks()`
-
-Call `mockReset()` on all tracked mock functions.
-
-### `mock.restoreAllMocks()`
-
-Call `mockRestore()` on all active mocks/spies and unstub all globals.
-
-## The `vi` Namespace
-
-The `vi` object provides a single namespace that combines all mocking
-utilities for convenience. It includes everything from the `mock` object plus
-additional utilities:
-
-### `vi.fn(implementation?)`
-
-Alias for `fn()`.
-
-### `vi.spyOn(object, method, accessorType?)`
-
-Alias for `spyOn()`.
-
-### `vi.useFakeTimers(options?)`
-
-Alias for `useFakeTimers()`.
-
-### `vi.useRealTimers()`
-
-Alias for `useRealTimers()`.
-
-### Environment Variables
-
-#### `vi.stubEnv(name, value)`
-
-Stub an environment variable. The original value is stored for restoration.
+Stubs an environment variable, storing the original for restoration.
 
 ```typescript
 vi.stubEnv('NODE_ENV', 'test');
-expect(process.env.NODE_ENV).toBe('test');
+process.env.NODE_ENV;  // 'test'
 ```
 
-#### `vi.unstubAllEnvs()`
+### unstubAllEnvs
 
-Restore all stubbed environment variables to their original values.
+Restores all stubbed environment variables.
 
-### Async Utilities
+```typescript
+vi.unstubAllEnvs();
+```
 
-#### `vi.waitFor(callback, options?)`
+---
 
-Retry a callback until it does not throw. Returns the callback's return value
-on success.
+## Auto-Cleanup
+
+### configureMockBehavior
+
+Configures automatic mock cleanup behavior. Called by the test runner after each
+test.
+
+```typescript
+import { configureMockBehavior } from '@asymmetric-effort/nogginlessdom';
+
+configureMockBehavior({
+  clearMocks: true,       // call mockClear() on all mocks after each test
+  resetMocks: false,      // call mockReset() on all mocks after each test
+  restoreMocks: false,    // call mockRestore() on all mocks after each test
+  unstubGlobals: false,   // call unstubAllGlobals() after each test
+  fakeTimers: {
+    autoRestore: false,   // call useRealTimers() after each test
+  },
+});
+```
+
+Priority: `restoreMocks` > `resetMocks` > `clearMocks`. Only one is applied.
+
+### Bulk Operations
+
+```typescript
+mock.clearAllMocks();    // mockClear() on every tracked mock
+mock.resetAllMocks();    // mockReset() on every tracked mock
+mock.restoreAllMocks();  // mockRestore() on every tracked mock + unstubAllGlobals
+mock.isMockFunction(fn); // true if value was created by fn() or spyOn()
+```
+
+---
+
+## Async Utilities
+
+### waitFor
+
+Retries a callback until it does not throw. Returns the callback's return value.
 
 ```typescript
 const result = await vi.waitFor(() => {
-  const el = document.getElementById('loaded');
-  if (!el) throw new Error('Not ready');
+  const el = document.querySelector('.loaded');
+  if (!el) throw new Error('not loaded');
   return el;
-}, { timeout: 5000, interval: 100 });
+}, {
+  timeout: 5000,   // max wait time in ms (default: 1000)
+  interval: 100,   // retry interval in ms (default: 50)
+});
 ```
 
-| Option     | Type     | Default | Description                           |
-| ---------- | -------- | ------- | ------------------------------------- |
-| `timeout`  | `number` | 1000    | Maximum time to wait in milliseconds  |
-| `interval` | `number` | 50      | Time between retries in milliseconds  |
-
-#### `vi.waitUntil(callback, options?)`
-
-Retry a callback until it returns a truthy value. Returns the truthy value.
+Works with async callbacks:
 
 ```typescript
-const element = await vi.waitUntil(() => document.getElementById('ready'), {
+await vi.waitFor(async () => {
+  const res = await fetch('/status');
+  if (!res.ok) throw new Error('not ready');
+});
+```
+
+### waitUntil
+
+Retries a callback until it returns a truthy value. Returns the truthy value.
+
+```typescript
+const element = await vi.waitUntil(() => {
+  return document.querySelector('.ready');
+}, {
   timeout: 3000,
+  interval: 50,
 });
 ```
 
-### Type Utilities
+---
 
-#### `vi.mocked(item)`
+## vi Namespace
 
-Identity function for TypeScript type narrowing of mocked values. Returns the
-item as-is but narrows the type.
-
-### Module Mocking via `vi`
-
-All `mock.*` methods are also available on `vi`:
-
-- `vi.mock(moduleName, factory)` -- alias for `mock.module()`
-- `vi.doMock(moduleName, factory)`
-- `vi.importActual(moduleName)`
-- `vi.importMock(moduleName)`
-- `vi.require(moduleName)`
-- `vi.unmock(moduleName)`
-- `vi.doUnmock(moduleName)`
-- `vi.resetModules()`
-- `vi.getMockedModule(moduleName)`
-- `vi.hoisted(factory)`
-- `vi.stubGlobal(name, value)`
-- `vi.unstubAllGlobals()`
-- `vi.isMockFunction(value)`
-- `vi.clearAllMocks()`
-- `vi.resetAllMocks()`
-- `vi.restoreAllMocks()`
-
-## Complete Example
+The `vi` object provides a single namespace that mirrors established testing
+conventions for compatibility. It re-exports all mocking utilities.
 
 ```typescript
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  fn,
-  spyOn,
-  useFakeTimers,
-  useRealTimers,
-  vi,
-} from '@asymmetric-effort/nogginlessdom';
+import { vi } from '@asymmetric-effort/nogginlessdom';
 
-describe('NotificationService', () => {
-  afterEach(() => {
-    useRealTimers();
-    vi.restoreAllMocks();
-    vi.unstubAllEnvs();
-  });
+vi.fn();
+vi.spyOn(obj, 'method');
+vi.useFakeTimers();
+vi.useRealTimers();
+vi.getMockedSystemTime();
+vi.getRealSystemTime();
+vi.stubEnv('KEY', 'value');
+vi.unstubAllEnvs();
+vi.waitFor(callback, options);
+vi.waitUntil(callback, options);
+vi.mocked(value);            // identity function for type narrowing
+vi.configureMockBehavior(config);
+vi.getMockConfig();
+vi.mock('module', factory);  // alias for mock.module
+vi.module('module', factory);
+vi.modulePartial('module', overrides, options);
+vi.doMock('module', factory);
+vi.importActual('module');
+vi.importMock('module');
+vi.require('module');
+vi.unmock('module');
+vi.doUnmock('module');
+vi.resetModules();
+vi.getMockedModule('module');
+vi.stubGlobal('name', value);
+vi.unstubAllGlobals();
+vi.isMockFunction(value);
+vi.clearAllMocks();
+vi.resetAllMocks();
+vi.restoreAllMocks();
+vi.hoisted(factory);
+```
 
-  it('should debounce notifications', () => {
-    const clock = useFakeTimers();
+### vi.mocked
 
-    const send = fn();
-    const debounced = debounce(send, 300);
+Identity function used for TypeScript type narrowing of mocked values.
 
-    debounced('msg1');
-    debounced('msg2');
-    debounced('msg3');
-
-    expect(send.mock.calls).toHaveLength(0);
-
-    clock.advanceTimersByTime(300);
-
-    expect(send.mock.calls).toHaveLength(1);
-    expect(send.mock.lastCall).toEqual(['msg3']);
-  });
-
-  it('should log errors via console.error', () => {
-    const spy = spyOn(console, 'error');
-
-    try {
-      processInvalidInput(null);
-    } catch {
-      // expected
-    }
-
-    expect(spy.mock.calls).toHaveLength(1);
-    expect(spy.mock.calls[0][0]).toMatch(/invalid input/i);
-
-    spy.mockRestore();
-  });
-
-  it('should use environment-specific config', () => {
-    vi.stubEnv('API_URL', 'https://test.example.com');
-    const config = loadConfig();
-    expect(config.apiUrl).toBe('https://test.example.com');
-  });
-
-  it('should wait for async condition', async () => {
-    let ready = false;
-    setTimeout(() => { ready = true; }, 100);
-
-    await vi.waitUntil(() => ready, { timeout: 500 });
-    expect(ready).toBe(true);
-  });
-});
+```typescript
+const mockedFetch = vi.mocked(fetch);
+// TypeScript now treats mockedFetch as a mock function type
 ```
