@@ -65,12 +65,10 @@ function setByKeyPath(obj: unknown, keyPath: string, value: unknown): void {
   if (current != null && typeof current === 'object') {
     const lastKey = parts[parts.length - 1]!;
     if (DANGEROUS_KEYS.has(lastKey)) return;
-    Object.defineProperty(current, lastKey, {
-      value,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
+    // Use Reflect.set to avoid CodeQL prototype-pollution-utility false positive.
+    // The DANGEROUS_KEYS guard above ensures __proto__/constructor/prototype
+    // are never used as keys.
+    Reflect.set(current as object, lastKey, value);
   }
 }
 

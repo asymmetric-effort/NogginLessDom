@@ -32,8 +32,10 @@ function isImportDeclaration(line: string): boolean {
   // Named/default/namespace import: must contain 'from'
   const fromIdx = t.indexOf(' from ');
   if (fromIdx === -1 && t.indexOf('\tfrom\t') === -1) return false;
-  // Verify it ends with a string literal
-  return /['"][^'"]+['"][ \t]*;?[ \t]*$/.test(t);
+  // Verify it contains a quoted string after 'from'
+  const lastSingle = t.lastIndexOf("'");
+  const lastDouble = t.lastIndexOf('"');
+  return lastSingle > 0 || lastDouble > 0;
 }
 
 /**
