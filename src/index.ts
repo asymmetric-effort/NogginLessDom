@@ -295,4 +295,58 @@ export type {
   ReporterOptions,
 } from './test-runner/reporter.js';
 
+export {
+  buildForwardGraph,
+  detectCircularImports,
+  formatCycleReport,
+  configureCycleDetection,
+  getCycleDetectionConfig,
+  resetCycleDetectionConfig,
+} from './test-runner/cycle-detection.js';
+
+export type {
+  CircularDependency,
+  CycleDetectionConfig,
+} from './test-runner/cycle-detection.js';
+
+export {
+  analyzeImportDepth,
+  configureDepthCheck,
+  getDepthCheckConfig,
+  resetDepthCheckConfig,
+} from './test-runner/depth-analysis.js';
+
+export type {
+  DepthAnalysis,
+  DepthAnalysisResult,
+  DepthCheckConfig,
+} from './test-runner/depth-analysis.js';
+
+export {
+  detectUnusedImports,
+  formatUnusedImportReport,
+  configureUnusedImportDetection,
+  getUnusedImportConfig,
+  resetUnusedImportConfig,
+} from './test-runner/unused-imports.js';
+
+export type {
+  UnusedImport,
+  UnusedImportConfig,
+} from './test-runner/unused-imports.js';
+
+export {
+  buildDependencyGraph,
+  exportGraphJSON,
+  exportGraphDOT,
+  exportGraphMermaid,
+  saveGraph,
+} from './test-runner/dependency-graph.js';
+
+export type {
+  DependencyNode,
+  DependencyEdge,
+  DependencyGraph,
+} from './test-runner/dependency-graph.js';
+
 export { hoistMocks } from './hoist/index.js';
