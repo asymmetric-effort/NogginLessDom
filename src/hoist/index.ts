@@ -21,7 +21,7 @@ const MOCK_CALL_START =
 
 /** Pattern that matches import declarations (including TypeScript `import type`). */
 const IMPORT_DECL =
-  /^[ \t]*import\s(?:type\s)?(?:[^'"]*from\s+)?['"][^'"]+['"]\s*;?\s*$/;
+  /^[ \t]*import[ \t](?:type[ \t])?(?:[^'"]*from[ \t]+)?['"][^'"]+['"][ \t]*;?[ \t]*$/;
 
 /**
  * Determine if a source line is the start of an import declaration.

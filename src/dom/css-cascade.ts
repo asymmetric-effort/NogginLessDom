@@ -64,17 +64,26 @@ export function computeSpecificity(selector: string): [number, number, number] {
   let classes = 0;
   let elements = 0;
 
-  const notRegex = /:not\(([^)]*)\)/g;
   let processed = selector;
-  let notMatch: RegExpExecArray | null;
-  while ((notMatch = notRegex.exec(selector)) !== null) {
-    const inner = notMatch[1]!;
+  // Extract :not() contents iteratively to avoid ReDoS
+  let notStart = processed.indexOf(':not(');
+  while (notStart !== -1) {
+    const innerStart = notStart + 5;
+    let depth = 1;
+    let i = innerStart;
+    while (i < processed.length && depth > 0) {
+      if (processed[i] === '(') depth++;
+      else if (processed[i] === ')') depth--;
+      i++;
+    }
+    const inner = processed.slice(innerStart, i - 1);
     const [a, b, c] = computeSpecificity(inner);
     ids += a;
     classes += b;
     elements += c;
+    processed = processed.slice(0, notStart) + processed.slice(i);
+    notStart = processed.indexOf(':not(');
   }
-  processed = processed.replace(/:not\([^)]*\)/g, '');
 
   const idMatches = processed.match(/#[a-zA-Z_-][a-zA-Z0-9_-]*/g);
   if (idMatches) ids += idMatches.length;
@@ -106,7 +115,7 @@ export function computeSpecificity(selector: string): [number, number, number] {
 }
 
 function removeComments(css: string): string {
-  return css.replace(/\/\*[\s\S]*?\*\//g, '');
+  return css.replace(/\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g, '');
 }
 
 function skipAtRule(css: string, start: number): number {

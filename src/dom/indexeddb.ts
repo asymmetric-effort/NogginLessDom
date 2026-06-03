@@ -52,8 +52,11 @@ function extractByKeyPath(obj: unknown, keyPath: string): unknown {
 /**
  * Set a value in an object using a dotted key path.
  */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function setByKeyPath(obj: unknown, keyPath: string, value: unknown): void {
   const parts = keyPath.split('.');
+  if (parts.some((p) => DANGEROUS_KEYS.has(p))) return;
   let current: unknown = obj;
   for (let i = 0; i < parts.length - 1; i++) {
     if (current == null || typeof current !== 'object') return;
