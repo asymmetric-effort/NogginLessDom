@@ -1,6 +1,6 @@
 {
   "name": "@asymmetric-effort/nogginlessdom",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "A zero-dependency testing framework with comprehensive test runner, assertions, DOM simulation, and mocking, built on node:test and node:assert",
   "type": "module",
   "engines": {
@@ -55,6 +55,7 @@
     "eslint": "^10.0.0",
     "markdownlint-cli": "^0.48.0",
     "prettier": "^3.0.0",
+    "steamroller": "github:asymmetric-effort/steamroller",
     "typescript": "^6.0.0"
   },
   "dependencies": {}
