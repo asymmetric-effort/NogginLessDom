@@ -294,3 +294,5 @@ export type {
   TestReporter,
   ReporterOptions,
 } from './test-runner/reporter.js';
+
+export { hoistMocks } from './hoist/index.js';
