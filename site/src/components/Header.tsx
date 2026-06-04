@@ -43,6 +43,7 @@ export function Header(): ReturnType<typeof createElement> {
     createElement(
       'nav',
       { style: { display: 'flex', gap: '1.5rem' } },
+      createElement('a', { href: '#/', style: navLinkStyle() }, 'Home'),
       createElement(
         'a',
         { href: '#/getting-started', style: navLinkStyle() },
