@@ -23,14 +23,14 @@ jobs:
         language: ['javascript-typescript']
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: asymmetric-effort/actions/actions/checkout@v1
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
+        uses: asymmetric-effort/actions/actions/codeql-init@v1
         with:
           languages: ${{ matrix.language }}
       - name: Autobuild
-        uses: github/codeql-action/autobuild@v4
+        uses: asymmetric-effort/actions/actions/codeql-autobuild@v1
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v4
+        uses: asymmetric-effort/actions/actions/codeql-analyze@v1
         with:
           category: "/language:${{ matrix.language }}"
