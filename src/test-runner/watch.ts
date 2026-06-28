@@ -6,6 +6,14 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  buildSymbolDependencyMap,
+  diffExports,
+  getAffectedTestFiles,
+  loadParser,
+  isParserAvailable,
+  type SymbolDependency,
+} from './symbol-tracker.js';
 
 // ---------------------------------------------------------------------------
 // Glob matching
@@ -298,6 +306,9 @@ export function watchTests(
     }
   }
 
+  // Cache previous file contents for symbol-level diffing (Issue #199)
+  const previousFileContents = new Map<string, string>();
+
   function scheduleDebouncedRun(): void {
     if (stopped) return;
     if (debounceTimer !== null) {
@@ -314,10 +325,68 @@ export function watchTests(
       const graph = buildImportGraph(allFiles);
       const testFilesToRun = new Set<string>();
 
+      // Issue #199: Try symbol-level tracking when steamroller is available
+      const useSymbolTracking = isParserAvailable();
+      let symbolMap: Map<string, SymbolDependency[]> | null = null;
+      if (useSymbolTracking) {
+        const tests = getTestFiles();
+        symbolMap = buildSymbolDependencyMap(tests);
+      }
+
       for (const changedFile of changes) {
         if (isTestFile(changedFile)) {
           testFilesToRun.add(changedFile);
+        } else if (useSymbolTracking && symbolMap) {
+          // Issue #199: Symbol-level test targeting
+          let newContent: string;
+          try {
+            newContent = fs.readFileSync(changedFile, 'utf8');
+          } catch {
+            continue;
+          }
+          const oldContent = previousFileContents.get(changedFile) ?? '';
+          previousFileContents.set(changedFile, newContent);
+
+          const diff = diffExports(oldContent, newContent);
+          const changedSymbols = [
+            ...diff.added,
+            ...diff.removed,
+            ...diff.changed,
+          ];
+
+          if (changedSymbols.length > 0) {
+            const tests = getTestFiles();
+            const affected = getAffectedTestFiles(
+              changedFile,
+              changedSymbols,
+              symbolMap,
+              tests,
+            );
+            for (const t of affected) {
+              testFilesToRun.add(t);
+            }
+          } else {
+            // No export changes detected — fall back to file-level
+            for (const [dep, dependents] of graph) {
+              const changedNoExt = changedFile.replace(/\.\w+$/, '');
+              const depNoExt = dep.replace(/\.\w+$/, '');
+              if (changedNoExt === depNoExt || changedFile === dep) {
+                for (const d of dependents) {
+                  if (isTestFile(d)) {
+                    testFilesToRun.add(d);
+                  }
+                }
+              }
+            }
+            if (testFilesToRun.size === 0) {
+              const tests = getTestFiles();
+              for (const t of tests) {
+                testFilesToRun.add(t);
+              }
+            }
+          }
         } else {
+          // File-level fallback (no symbol tracking)
           // Find test files that depend on this source file
           // Check multiple possible resolutions for the key
           for (const [dep, dependents] of graph) {
@@ -369,6 +438,9 @@ export function watchTests(
     pendingChanges.add(fullPath);
     scheduleDebouncedRun();
   }
+
+  // Issue #199: Try to load steamroller parser for symbol-level tracking
+  void loadParser();
 
   // Start watching directories
   const watchDirs = getWatchDirs();
