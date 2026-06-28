@@ -130,7 +130,7 @@ jobs:
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
 
-      - uses: asymmetric-effort/actions/actions/setup-bun@main
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
@@ -168,10 +168,10 @@ jobs:
       id-token: write
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
-      - uses: asymmetric-effort/actions/actions/setup-node@main
+      - uses: actions/setup-node@v6
         with:
           node-version: '24'
-      - uses: asymmetric-effort/actions/actions/setup-bun@main
+      - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
       - name: Configure npm for OIDC
