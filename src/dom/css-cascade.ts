@@ -59,30 +59,80 @@ export const INHERITED_PROPERTIES = new Set([
  * Compute the specificity of a CSS selector.
  * Returns [id-count, class/attr/pseudo-count, element/pseudo-element-count].
  */
+/**
+ * Extract the contents and end position of a functional pseudo-class
+ * starting at `startIdx` in `selector`.  `startIdx` points at the `(`.
+ */
+function extractFunctionalPseudoContents(
+  selector: string,
+  startIdx: number,
+): { inner: string; end: number } {
+  let depth = 1;
+  let i = startIdx + 1;
+  while (i < selector.length && depth > 0) {
+    if (selector[i] === '(') depth++;
+    else if (selector[i] === ')') depth--;
+    i++;
+  }
+  return { inner: selector.slice(startIdx + 1, i - 1), end: i };
+}
+
+/**
+ * Compute the highest specificity among comma-separated selector arguments.
+ */
+function maxSpecificityOfList(selectorList: string): [number, number, number] {
+  const selectors = splitSelectors(selectorList);
+  let maxSpec: [number, number, number] = [0, 0, 0];
+  for (const sel of selectors) {
+    const spec = computeSpecificity(sel.trim());
+    if (compareSpecificityTuple(spec, maxSpec) > 0) {
+      maxSpec = spec;
+    }
+  }
+  return maxSpec;
+}
+
+function compareSpecificityTuple(
+  a: [number, number, number],
+  b: [number, number, number],
+): number {
+  if (a[0] !== b[0]) return a[0] - b[0];
+  if (a[1] !== b[1]) return a[1] - b[1];
+  return a[2] - b[2];
+}
+
 export function computeSpecificity(selector: string): [number, number, number] {
   let ids = 0;
   let classes = 0;
   let elements = 0;
 
   let processed = selector;
-  // Extract :not() contents iteratively to avoid ReDoS
-  let notStart = processed.indexOf(':not(');
-  while (notStart !== -1) {
-    const innerStart = notStart + 5;
-    let depth = 1;
-    let i = innerStart;
-    while (i < processed.length && depth > 0) {
-      if (processed[i] === '(') depth++;
-      else if (processed[i] === ')') depth--;
-      i++;
+
+  // Process functional pseudo-classes iteratively: :not(), :is(), :has(), :where()
+  // Each takes the specificity of its most specific argument, except
+  // :where() which contributes zero specificity.
+  const functionalPseudos = [':not(', ':is(', ':has(', ':where('];
+  for (const pseudo of functionalPseudos) {
+    let searchStart = processed.indexOf(pseudo);
+    while (searchStart !== -1) {
+      const parenStart = searchStart + pseudo.length - 1;
+      const { inner, end } = extractFunctionalPseudoContents(
+        processed,
+        parenStart,
+      );
+
+      if (pseudo !== ':where(') {
+        // :not, :is, :has — take specificity of most specific argument
+        const [a, b, c] = maxSpecificityOfList(inner);
+        ids += a;
+        classes += b;
+        elements += c;
+      }
+      // :where() contributes zero specificity — just remove it
+
+      processed = processed.slice(0, searchStart) + processed.slice(end);
+      searchStart = processed.indexOf(pseudo);
     }
-    const inner = processed.slice(innerStart, i - 1);
-    const [a, b, c] = computeSpecificity(inner);
-    ids += a;
-    classes += b;
-    elements += c;
-    processed = processed.slice(0, notStart) + processed.slice(i);
-    notStart = processed.indexOf(':not(');
   }
 
   const idMatches = processed.match(/#[a-zA-Z_-][a-zA-Z0-9_-]*/g);
@@ -161,7 +211,230 @@ function skipAtRule(css: string, start: number): number {
 }
 
 /**
+ * Find the matching closing brace for a block starting just after an
+ * opening brace at position `afterOpen`, handling nested braces correctly.
+ * Returns the index of the matching `}`, or -1 if not found.
+ */
+function findMatchingBrace(css: string, afterOpen: number): number {
+  let depth = 1;
+  let i = afterOpen;
+  while (i < css.length && depth > 0) {
+    if (css[i] === '{') depth++;
+    else if (css[i] === '}') depth--;
+    if (depth > 0) i++;
+  }
+  return depth === 0 ? i : -1;
+}
+
+/**
+ * Parse declarations (property: value pairs) from a block that may also
+ * contain nested rule blocks.  Returns only the top-level declarations,
+ * stopping at or skipping nested blocks.
+ */
+function parseDeclarations(block: string): {
+  properties: Map<string, string>;
+  importantProperties: Set<string>;
+} {
+  const properties = new Map<string, string>();
+  const importantProperties = new Set<string>();
+
+  // Extract only top-level declarations (not inside nested blocks)
+  let i = 0;
+  let currentDecl = '';
+  let depth = 0;
+  while (i < block.length) {
+    const ch = block[i]!;
+    if (ch === '{') {
+      depth++;
+      // Skip the entire nested block
+      i++;
+      while (i < block.length && depth > 0) {
+        if (block[i] === '{') depth++;
+        else if (block[i] === '}') depth--;
+        i++;
+      }
+      currentDecl = '';
+      continue;
+    }
+    if (ch === ';' && depth === 0) {
+      processDeclaration(currentDecl.trim(), properties, importantProperties);
+      currentDecl = '';
+      i++;
+      continue;
+    }
+    currentDecl += ch;
+    i++;
+  }
+  // Process any trailing declaration without semicolon
+  if (currentDecl.trim()) {
+    processDeclaration(currentDecl.trim(), properties, importantProperties);
+  }
+
+  return { properties, importantProperties };
+}
+
+function processDeclaration(
+  decl: string,
+  properties: Map<string, string>,
+  importantProperties: Set<string>,
+): void {
+  if (!decl) return;
+  const colonIdx = decl.indexOf(':');
+  if (colonIdx === -1) return;
+  const prop = decl.slice(0, colonIdx).trim();
+  let val = decl.slice(colonIdx + 1).trim();
+  let isImportant = false;
+  if (val.endsWith('!important')) {
+    val = val.slice(0, -10).trim();
+    isImportant = true;
+  }
+  if (prop && val) {
+    const expanded = expandShorthand(prop, val);
+    if (expanded.size > 0) {
+      properties.set(prop, val);
+      if (isImportant) importantProperties.add(prop);
+      for (const [lhProp, lhVal] of expanded) {
+        properties.set(lhProp, lhVal);
+        if (isImportant) importantProperties.add(lhProp);
+      }
+    } else {
+      properties.set(prop, val);
+      if (isImportant) importantProperties.add(prop);
+    }
+  }
+}
+
+/**
+ * Resolve a nested selector relative to its parent selector.
+ * Handles `&` (explicit parent reference) and implicit nesting (prepend parent).
+ */
+export function resolveNestedSelector(
+  parentSelector: string,
+  nestedSelector: string,
+): string {
+  const trimmed = nestedSelector.trim();
+  if (trimmed.includes('&')) {
+    // Replace & with the parent selector
+    return trimmed.replace(/&/g, parentSelector);
+  }
+  // Implicit nesting: prepend parent with a space
+  return `${parentSelector} ${trimmed}`;
+}
+
+/**
+ * Extract nested rule blocks from a CSS block body.
+ * Returns an array of { selector, body } for each nested rule.
+ */
+function extractNestedRules(
+  block: string,
+): Array<{ selector: string; body: string }> {
+  const nested: Array<{ selector: string; body: string }> = [];
+  let i = 0;
+  while (i < block.length) {
+    // Skip whitespace
+    while (i < block.length && /\s/.test(block[i]!)) i++;
+    if (i >= block.length) break;
+
+    // Look for a nested block (selector { ... })
+    const braceIdx = block.indexOf('{', i);
+    if (braceIdx === -1) break;
+
+    // Check if there's a semicolon before the brace (= just a declaration, not a nested rule)
+    const semiIdx = block.indexOf(';', i);
+    if (semiIdx !== -1 && semiIdx < braceIdx) {
+      // This is a declaration, skip it
+      i = semiIdx + 1;
+      continue;
+    }
+
+    const selectorText = block.slice(i, braceIdx).trim();
+    if (!selectorText) {
+      i = braceIdx + 1;
+      continue;
+    }
+
+    // Check if this looks like a selector (not a property: value)
+    // A selector won't have a colon followed by a non-pseudo value before the brace
+    // Simple heuristic: if the part before '{' contains ':' and no pseudo-class patterns,
+    // it's a declaration without a semicolon
+    const colonIdx = selectorText.indexOf(':');
+    if (
+      colonIdx !== -1 &&
+      !selectorText.startsWith(':') &&
+      !selectorText.includes('::') &&
+      !/:[a-zA-Z-]+\(/.test(selectorText.slice(colonIdx))
+    ) {
+      // Looks like a declaration missing semicolon, skip past the brace block
+      const endBrace = findMatchingBrace(block, braceIdx + 1);
+      i = endBrace === -1 ? block.length : endBrace + 1;
+      continue;
+    }
+
+    const endBrace = findMatchingBrace(block, braceIdx + 1);
+    if (endBrace === -1) break;
+
+    const body = block.slice(braceIdx + 1, endBrace);
+    nested.push({ selector: selectorText, body });
+    i = endBrace + 1;
+  }
+
+  return nested;
+}
+
+/**
+ * Emit CSS rules for a selector and its block, handling nesting recursively.
+ */
+function emitRules(
+  selectorText: string,
+  blockContent: string,
+  rules: CSSRule[],
+  mediaQuery?: string,
+): void {
+  const { properties, importantProperties } = parseDeclarations(blockContent);
+
+  // Emit rules for each selector in a comma-separated list
+  const selectors = splitSelectors(selectorText);
+  for (const sel of selectors) {
+    const trimmedSel = sel.trim();
+    if (!trimmedSel) continue;
+
+    if (properties.size > 0) {
+      const pseudoMatch = trimmedSel.match(/(::(?:before|after))\s*$/);
+      let baseSelector = trimmedSel;
+      let pseudo: string | undefined;
+      if (pseudoMatch) {
+        pseudo = pseudoMatch[1];
+        baseSelector = trimmedSel.slice(0, -pseudoMatch[0].length).trim();
+        if (!baseSelector) baseSelector = '*';
+      }
+      rules.push({
+        selector: baseSelector,
+        properties: new Map(properties),
+        specificity: computeSpecificity(trimmedSel),
+        importantProperties:
+          importantProperties.size > 0
+            ? new Set(importantProperties)
+            : undefined,
+        mediaQuery,
+        pseudo,
+      });
+    }
+
+    // Process nested rules
+    const nestedRules = extractNestedRules(blockContent);
+    for (const nested of nestedRules) {
+      const nestedSelectors = splitSelectors(nested.selector);
+      for (const nestedSel of nestedSelectors) {
+        const resolved = resolveNestedSelector(trimmedSel, nestedSel);
+        emitRules(resolved, nested.body, rules, mediaQuery);
+      }
+    }
+  }
+}
+
+/**
  * Parse a CSS stylesheet string into an array of CSSRule objects.
+ * Supports CSS nesting (& selector and implicit nesting).
  */
 export function parseStyleSheet(css: string): CSSRule[] {
   const rules: CSSRule[] = [];
@@ -179,14 +452,8 @@ export function parseStyleSheet(css: string): CSSRule[] {
       if (mediaMatch) {
         const mediaQuery = mediaMatch[1]!.trim();
         const mediaBlockStart = i + mediaMatch[0].length;
-        // Find the matching closing brace
-        let depth = 1;
-        let j = mediaBlockStart;
-        while (j < cleaned.length && depth > 0) {
-          if (cleaned[j] === '{') depth++;
-          else if (cleaned[j] === '}') depth--;
-          if (depth > 0) j++;
-        }
+        const j = findMatchingBrace(cleaned, mediaBlockStart);
+        if (j === -1) break;
         const innerCSS = cleaned.slice(mediaBlockStart, j);
         const innerRules = parseStyleSheet(innerCSS);
         for (const rule of innerRules) {
@@ -209,72 +476,12 @@ export function parseStyleSheet(css: string): CSSRule[] {
 
     const selectorText = cleaned.slice(i, braceStart).trim();
 
-    const braceEnd = cleaned.indexOf('}', braceStart);
+    const braceEnd = findMatchingBrace(cleaned, braceStart + 1);
     if (braceEnd === -1) break;
 
-    const declarationBlock = cleaned.slice(braceStart + 1, braceEnd).trim();
+    const blockContent = cleaned.slice(braceStart + 1, braceEnd);
 
-    const properties = new Map<string, string>();
-    const importantProperties = new Set<string>();
-    if (declarationBlock) {
-      const declarations = declarationBlock
-        .split(';')
-        .map((s) => s.trim())
-        .filter(Boolean);
-      for (const decl of declarations) {
-        const colonIdx = decl.indexOf(':');
-        if (colonIdx === -1) continue;
-        const prop = decl.slice(0, colonIdx).trim();
-        let val = decl.slice(colonIdx + 1).trim();
-        let isImportant = false;
-        if (val.endsWith('!important')) {
-          val = val.slice(0, -10).trim();
-          isImportant = true;
-        }
-        if (prop && val) {
-          const expanded = expandShorthand(prop, val);
-          if (expanded.size > 0) {
-            // Keep original shorthand for getPropertyValue compatibility
-            properties.set(prop, val);
-            if (isImportant) importantProperties.add(prop);
-            for (const [lhProp, lhVal] of expanded) {
-              properties.set(lhProp, lhVal);
-              if (isImportant) importantProperties.add(lhProp);
-            }
-          } else {
-            properties.set(prop, val);
-            if (isImportant) importantProperties.add(prop);
-          }
-        }
-      }
-    }
-
-    const selectors = splitSelectors(selectorText);
-    for (const sel of selectors) {
-      const trimmedSel = sel.trim();
-      if (trimmedSel) {
-        // Check for pseudo-element in selector (e.g. div::before)
-        const pseudoMatch = trimmedSel.match(/(::(?:before|after))\s*$/);
-        let baseSelector = trimmedSel;
-        let pseudo: string | undefined;
-        if (pseudoMatch) {
-          pseudo = pseudoMatch[1];
-          baseSelector = trimmedSel.slice(0, -pseudoMatch[0].length).trim();
-          // If selector is just ::before with no element, it applies to any element
-          if (!baseSelector) baseSelector = '*';
-        }
-        rules.push({
-          selector: baseSelector,
-          properties: new Map(properties),
-          specificity: computeSpecificity(trimmedSel),
-          importantProperties:
-            importantProperties.size > 0
-              ? new Set(importantProperties)
-              : undefined,
-          pseudo,
-        });
-      }
-    }
+    emitRules(selectorText, blockContent, rules);
 
     i = braceEnd + 1;
   }
