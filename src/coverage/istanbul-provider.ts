@@ -864,6 +864,608 @@ function locationToOffset(
 }
 
 // ---------------------------------------------------------------------------
+// Issue #198: AST-based Istanbul instrumentation using steamroller
+// ---------------------------------------------------------------------------
+
+// Cached steamroller module references (loaded via dynamic import)
+let _steamrollerParseAst: ((input: string) => Record<string, unknown>) | null =
+  null;
+let _steamrollerMagicString:
+  | (new (source: string) => {
+      appendLeft(index: number, content: string): unknown;
+      prependRight(index: number, content: string): unknown;
+      overwrite(start: number, end: number, content: string): unknown;
+      toString(): string;
+    })
+  | null = null;
+let _steamrollerLoadAttempted = false;
+let _steamrollerAvailable = false;
+
+/**
+ * Load steamroller modules via dynamic import. Safe to call multiple times.
+ * Returns true if steamroller is available.
+ */
+export async function loadSteamroller(): Promise<boolean> {
+  if (_steamrollerLoadAttempted) return _steamrollerAvailable;
+  _steamrollerLoadAttempted = true;
+  try {
+    const parseAstModule =
+      (await import('@asymmetric-effort/steamroller/parseAst')) as unknown as {
+        parseAst: (input: string) => Record<string, unknown>;
+      };
+    const sourcemapModule =
+      (await import('@asymmetric-effort/steamroller/sourcemap')) as unknown as {
+        MagicString: typeof _steamrollerMagicString;
+      };
+    _steamrollerParseAst = parseAstModule.parseAst;
+    _steamrollerMagicString = sourcemapModule.MagicString;
+    _steamrollerAvailable = true;
+    return true;
+  } catch {
+    _steamrollerAvailable = false;
+    return false;
+  }
+}
+
+/**
+ * Synchronously load steamroller modules (for use in contexts where async is not possible).
+ * Returns true if steamroller is available.
+ */
+export function loadSteamrollerSync(): boolean {
+  if (_steamrollerLoadAttempted) return _steamrollerAvailable;
+  _steamrollerLoadAttempted = true;
+  try {
+    const parseAstModule =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@asymmetric-effort/steamroller/parseAst') as {
+        parseAst: (input: string) => Record<string, unknown>;
+      };
+    const sourcemapModule =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('@asymmetric-effort/steamroller/sourcemap') as {
+        MagicString: typeof _steamrollerMagicString;
+      };
+    _steamrollerParseAst = parseAstModule.parseAst;
+    _steamrollerMagicString = sourcemapModule.MagicString;
+    _steamrollerAvailable = true;
+    return true;
+  } catch {
+    _steamrollerAvailable = false;
+    return false;
+  }
+}
+
+/**
+ * Check if steamroller is available (must call loadSteamroller first).
+ */
+export function isSteamrollerAvailable(): boolean {
+  return _steamrollerAvailable;
+}
+
+/**
+ * Reset steamroller module cache (for testing).
+ */
+export function resetSteamrollerCache(): void {
+  _steamrollerParseAst = null;
+  _steamrollerMagicString = null;
+  _steamrollerLoadAttempted = false;
+  _steamrollerAvailable = false;
+}
+
+/**
+ * Metadata returned by AST-based instrumentation — mirrors FileCoverage shape.
+ */
+export interface IstanbulCoverageMetadata {
+  path: string;
+  statementMap: Record<string, Range>;
+  fnMap: Record<string, FunctionMapping>;
+  branchMap: Record<string, BranchMapping>;
+  s: Record<string, number>;
+  f: Record<string, number>;
+  b: Record<string, number[]>;
+}
+
+/**
+ * Walk an ESTree AST recursively, calling visitor for every node.
+ */
+export function walkAST(
+  node: Record<string, unknown>,
+  visitor: (
+    node: Record<string, unknown>,
+    parent: Record<string, unknown> | undefined,
+  ) => void,
+  parent?: Record<string, unknown>,
+): void {
+  if (!node || typeof node !== 'object') return;
+  visitor(node, parent);
+  for (const key of Object.keys(node)) {
+    const child = node[key];
+    if (Array.isArray(child)) {
+      for (const item of child) {
+        if (
+          item &&
+          typeof item === 'object' &&
+          (item as Record<string, unknown>).type
+        ) {
+          walkAST(item as Record<string, unknown>, visitor, node);
+        }
+      }
+    } else if (
+      child &&
+      typeof child === 'object' &&
+      (child as Record<string, unknown>).type
+    ) {
+      walkAST(child as Record<string, unknown>, visitor, node);
+    }
+  }
+}
+
+/**
+ * Compute line/column from a byte offset within source text.
+ */
+function offsetToLoc(
+  source: string,
+  offset: number,
+): { line: number; column: number } {
+  let line = 1;
+  let lastNewline = -1;
+  for (let i = 0; i < offset && i < source.length; i++) {
+    if (source[i] === '\n') {
+      line++;
+      lastNewline = i;
+    }
+  }
+  return { line, column: offset - lastNewline - 1 };
+}
+
+/**
+ * Extract a function name from an AST node.
+ */
+function extractASTFunctionName(node: Record<string, unknown>): string {
+  // FunctionDeclaration with an id
+  const id = node['id'] as Record<string, unknown> | null;
+  if (id && typeof id === 'object' && id['name']) {
+    return String(id['name']);
+  }
+  return '(anonymous)';
+}
+
+/**
+ * Set of node types that are statements for instrumentation purposes.
+ */
+const STATEMENT_TYPES = new Set([
+  'ExpressionStatement',
+  'VariableDeclaration',
+  'ReturnStatement',
+  'ThrowStatement',
+  'IfStatement',
+  'ForStatement',
+  'ForInStatement',
+  'ForOfStatement',
+  'WhileStatement',
+  'DoWhileStatement',
+  'SwitchStatement',
+  'BreakStatement',
+  'ContinueStatement',
+  'LabeledStatement',
+  'DebuggerStatement',
+  'TryStatement',
+  'WithStatement',
+]);
+
+/**
+ * Set of node types that are functions for instrumentation purposes.
+ */
+const FUNCTION_TYPES = new Set([
+  'FunctionDeclaration',
+  'FunctionExpression',
+  'ArrowFunctionExpression',
+]);
+
+/**
+ * Instrument source code using AST-based analysis with steamroller's parser.
+ *
+ * @param source - Source code to instrument
+ * @param filePath - File path for coverage tracking
+ * @returns Instrumented code and coverage metadata
+ */
+export function instrumentWithAST(
+  source: string,
+  filePath: string,
+): { code: string; metadata: IstanbulCoverageMetadata } {
+  // Use the pre-loaded steamroller modules (must be loaded before calling)
+  if (!_steamrollerParseAst || !_steamrollerMagicString) {
+    throw new Error(
+      'steamroller modules not loaded — call loadSteamroller() first',
+    );
+  }
+  const parseAst = _steamrollerParseAst;
+  const MSConstructor = _steamrollerMagicString;
+
+  const ast = parseAst(source);
+  const s = new MSConstructor(source);
+
+  let stmtId = 0;
+  let fnId = 0;
+  let branchId = 0;
+  const statementMap: Record<string, Range> = {};
+  const fnMap: Record<string, FunctionMapping> = {};
+  const branchMap: Record<string, BranchMapping> = {};
+  const s_counters: Record<string, number> = {};
+  const f_counters: Record<string, number> = {};
+  const b_counters: Record<string, number[]> = {};
+
+  const escapedPath = filePath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+  // Track nodes we've inserted statement counters for so we don't double-count
+  const handledStatements = new Set<number>();
+
+  // Collect all insertions first, then apply in reverse order to avoid offset issues
+  interface Insertion {
+    position: number;
+    content: string;
+    type: 'appendLeft' | 'prependRight';
+  }
+  const insertions: Insertion[] = [];
+
+  walkAST(ast as Record<string, unknown>, (node, parent) => {
+    const nodeType = String(node['type'] ?? '');
+    const nodeStart = Number(node['start'] ?? 0);
+    const nodeEnd = Number(node['end'] ?? 0);
+
+    // --- Function instrumentation ---
+    if (FUNCTION_TYPES.has(nodeType)) {
+      const key = String(fnId);
+      const startLoc = offsetToLoc(source, nodeStart);
+      const endLoc = offsetToLoc(source, nodeEnd);
+      const fnRange: Range = {
+        start: { line: startLoc.line, column: startLoc.column },
+        end: { line: endLoc.line, column: endLoc.column },
+      };
+      const name = extractASTFunctionName(node);
+      fnMap[key] = { name, decl: fnRange, loc: fnRange, line: startLoc.line };
+      f_counters[key] = 0;
+
+      // Insert counter at start of function body
+      const body = node['body'] as Record<string, unknown> | undefined;
+      if (body) {
+        const bodyStart = Number(body['start'] ?? 0);
+        const bodyType = String(body['type'] ?? '');
+        if (bodyType === 'BlockStatement') {
+          // Insert after opening brace
+          insertions.push({
+            position: bodyStart + 1,
+            content: `globalThis.__coverage__['${escapedPath}'].f['${key}']++;`,
+            type: 'prependRight',
+          });
+        } else {
+          // Arrow function with expression body: (x) => expr
+          // Wrap: (x) => (counter, expr)
+          insertions.push({
+            position: bodyStart,
+            content: `(globalThis.__coverage__['${escapedPath}'].f['${key}']++,`,
+            type: 'appendLeft',
+          });
+          insertions.push({
+            position: nodeEnd,
+            content: `)`,
+            type: 'appendLeft',
+          });
+        }
+      }
+      fnId++;
+    }
+
+    // --- Statement instrumentation ---
+    if (STATEMENT_TYPES.has(nodeType) && !handledStatements.has(nodeStart)) {
+      // Only instrument direct children of BlockStatement or Program body
+      const parentType = parent ? String(parent['type'] ?? '') : '';
+      const isTopLevel =
+        parentType === 'Program' ||
+        parentType === 'BlockStatement' ||
+        parentType === 'SwitchCase' ||
+        parentType === 'LabeledStatement';
+
+      if (isTopLevel) {
+        const key = String(stmtId);
+        const startLoc = offsetToLoc(source, nodeStart);
+        const endLoc = offsetToLoc(source, nodeEnd);
+        statementMap[key] = {
+          start: { line: startLoc.line, column: startLoc.column },
+          end: { line: endLoc.line, column: endLoc.column },
+        };
+        s_counters[key] = 0;
+        handledStatements.add(nodeStart);
+
+        insertions.push({
+          position: nodeStart,
+          content: `globalThis.__coverage__['${escapedPath}'].s['${key}']++;`,
+          type: 'appendLeft',
+        });
+        stmtId++;
+      }
+    }
+
+    // --- Branch: IfStatement ---
+    if (nodeType === 'IfStatement') {
+      const key = String(branchId);
+      const startLoc = offsetToLoc(source, nodeStart);
+      const endLoc = offsetToLoc(source, nodeEnd);
+
+      const consequent = node['consequent'] as Record<string, unknown>;
+      const alternate = node['alternate'] as Record<string, unknown> | null;
+
+      const consStart = Number(consequent['start'] ?? 0);
+      const consEnd = Number(consequent['end'] ?? 0);
+      const consStartLoc = offsetToLoc(source, consStart);
+      const consEndLoc = offsetToLoc(source, consEnd);
+
+      const locations: Range[] = [
+        {
+          start: { line: consStartLoc.line, column: consStartLoc.column },
+          end: { line: consEndLoc.line, column: consEndLoc.column },
+        },
+      ];
+      const counts = [0, 0];
+
+      if (alternate) {
+        const altStart = Number(alternate['start'] ?? 0);
+        const altEnd = Number(alternate['end'] ?? 0);
+        const altStartLoc = offsetToLoc(source, altStart);
+        const altEndLoc = offsetToLoc(source, altEnd);
+        locations.push({
+          start: { line: altStartLoc.line, column: altStartLoc.column },
+          end: { line: altEndLoc.line, column: altEndLoc.column },
+        });
+      } else {
+        // No else — still two branch paths (taken / not taken)
+        locations.push({
+          start: { line: startLoc.line, column: startLoc.column },
+          end: { line: endLoc.line, column: endLoc.column },
+        });
+      }
+
+      branchMap[key] = { type: 'if', locations, line: startLoc.line };
+      b_counters[key] = counts;
+
+      // Insert counters in consequent
+      const consType = String(consequent['type'] ?? '');
+      if (consType === 'BlockStatement') {
+        insertions.push({
+          position: consStart + 1,
+          content: `globalThis.__coverage__['${escapedPath}'].b['${key}'][0]++;`,
+          type: 'prependRight',
+        });
+      } else {
+        insertions.push({
+          position: consStart,
+          content: `{globalThis.__coverage__['${escapedPath}'].b['${key}'][0]++;`,
+          type: 'appendLeft',
+        });
+        insertions.push({
+          position: consEnd,
+          content: `}`,
+          type: 'appendLeft',
+        });
+      }
+
+      // Insert counters in alternate
+      if (alternate) {
+        const altStart = Number(alternate['start'] ?? 0);
+        const altEnd = Number(alternate['end'] ?? 0);
+        const altType = String(alternate['type'] ?? '');
+        if (altType === 'BlockStatement') {
+          insertions.push({
+            position: altStart + 1,
+            content: `globalThis.__coverage__['${escapedPath}'].b['${key}'][1]++;`,
+            type: 'prependRight',
+          });
+        } else if (altType === 'IfStatement') {
+          // else if — insert counter before the nested if
+          insertions.push({
+            position: altStart,
+            content: `globalThis.__coverage__['${escapedPath}'].b['${key}'][1]++;`,
+            type: 'appendLeft',
+          });
+        } else {
+          insertions.push({
+            position: altStart,
+            content: `{globalThis.__coverage__['${escapedPath}'].b['${key}'][1]++;`,
+            type: 'appendLeft',
+          });
+          insertions.push({
+            position: altEnd,
+            content: `}`,
+            type: 'appendLeft',
+          });
+        }
+      }
+
+      branchId++;
+    }
+
+    // --- Branch: ConditionalExpression (ternary) ---
+    if (nodeType === 'ConditionalExpression') {
+      const key = String(branchId);
+      const startLoc = offsetToLoc(source, nodeStart);
+
+      const consequent = node['consequent'] as Record<string, unknown>;
+      const alternate = node['alternate'] as Record<string, unknown>;
+      const consStart = Number(consequent['start'] ?? 0);
+      const consEnd = Number(consequent['end'] ?? 0);
+      const altStart = Number(alternate['start'] ?? 0);
+      const altEnd = Number(alternate['end'] ?? 0);
+
+      const consStartLoc = offsetToLoc(source, consStart);
+      const consEndLoc = offsetToLoc(source, consEnd);
+      const altStartLoc = offsetToLoc(source, altStart);
+      const altEndLoc = offsetToLoc(source, altEnd);
+
+      branchMap[key] = {
+        type: 'cond-expr',
+        locations: [
+          {
+            start: { line: consStartLoc.line, column: consStartLoc.column },
+            end: { line: consEndLoc.line, column: consEndLoc.column },
+          },
+          {
+            start: { line: altStartLoc.line, column: altStartLoc.column },
+            end: { line: altEndLoc.line, column: altEndLoc.column },
+          },
+        ],
+        line: startLoc.line,
+      };
+      b_counters[key] = [0, 0];
+
+      // Wrap consequent: (counter, original)
+      insertions.push({
+        position: consStart,
+        content: `(globalThis.__coverage__['${escapedPath}'].b['${key}'][0]++,`,
+        type: 'appendLeft',
+      });
+      insertions.push({
+        position: consEnd,
+        content: `)`,
+        type: 'appendLeft',
+      });
+
+      // Wrap alternate: (counter, original)
+      insertions.push({
+        position: altStart,
+        content: `(globalThis.__coverage__['${escapedPath}'].b['${key}'][1]++,`,
+        type: 'appendLeft',
+      });
+      insertions.push({
+        position: altEnd,
+        content: `)`,
+        type: 'appendLeft',
+      });
+
+      branchId++;
+    }
+
+    // --- Branch: SwitchCase ---
+    if (nodeType === 'SwitchStatement') {
+      const key = String(branchId);
+      const startLoc = offsetToLoc(source, nodeStart);
+      const cases = node['cases'] as Record<string, unknown>[];
+      if (cases && cases.length > 0) {
+        const locations: Range[] = [];
+        const counts: number[] = [];
+        for (let ci = 0; ci < cases.length; ci++) {
+          const c = cases[ci]!;
+          const cStart = Number(c['start'] ?? 0);
+          const cEnd = Number(c['end'] ?? 0);
+          const cStartLoc = offsetToLoc(source, cStart);
+          const cEndLoc = offsetToLoc(source, cEnd);
+          locations.push({
+            start: { line: cStartLoc.line, column: cStartLoc.column },
+            end: { line: cEndLoc.line, column: cEndLoc.column },
+          });
+          counts.push(0);
+
+          // Insert counter after the colon of each case/default
+          // Find colon position from the source
+          const caseSource = source.slice(cStart, cEnd);
+          const colonIdx = caseSource.indexOf(':');
+          if (colonIdx >= 0) {
+            insertions.push({
+              position: cStart + colonIdx + 1,
+              content: `globalThis.__coverage__['${escapedPath}'].b['${key}'][${ci}]++;`,
+              type: 'prependRight',
+            });
+          }
+        }
+        branchMap[key] = { type: 'switch', locations, line: startLoc.line };
+        b_counters[key] = counts;
+        branchId++;
+      }
+    }
+
+    // --- Branch: LogicalExpression (&&, ||, ??) ---
+    if (nodeType === 'LogicalExpression') {
+      const operator = String(node['operator'] ?? '');
+      if (operator === '&&' || operator === '||' || operator === '??') {
+        const key = String(branchId);
+        const startLoc = offsetToLoc(source, nodeStart);
+        const left = node['left'] as Record<string, unknown>;
+        const right = node['right'] as Record<string, unknown>;
+        const leftStart = Number(left['start'] ?? 0);
+        const leftEnd = Number(left['end'] ?? 0);
+        const rightStart = Number(right['start'] ?? 0);
+        const rightEnd = Number(right['end'] ?? 0);
+
+        const leftStartLoc = offsetToLoc(source, leftStart);
+        const leftEndLoc = offsetToLoc(source, leftEnd);
+        const rightStartLoc = offsetToLoc(source, rightStart);
+        const rightEndLoc = offsetToLoc(source, rightEnd);
+
+        branchMap[key] = {
+          type: 'binary-expr',
+          locations: [
+            {
+              start: { line: leftStartLoc.line, column: leftStartLoc.column },
+              end: { line: leftEndLoc.line, column: leftEndLoc.column },
+            },
+            {
+              start: { line: rightStartLoc.line, column: rightStartLoc.column },
+              end: { line: rightEndLoc.line, column: rightEndLoc.column },
+            },
+          ],
+          line: startLoc.line,
+        };
+        b_counters[key] = [0, 0];
+
+        // Wrap right side with counter
+        insertions.push({
+          position: rightStart,
+          content: `(globalThis.__coverage__['${escapedPath}'].b['${key}'][1]++,`,
+          type: 'appendLeft',
+        });
+        insertions.push({
+          position: rightEnd,
+          content: `)`,
+          type: 'appendLeft',
+        });
+
+        branchId++;
+      }
+    }
+  });
+
+  // Sort insertions by position descending, then by type (prependRight before appendLeft at same position)
+  // This ensures later positions are modified first, keeping earlier offsets valid
+  insertions.sort((a, b) => {
+    if (a.position !== b.position) return b.position - a.position;
+    // At the same position, prependRight should come after appendLeft
+    if (a.type === 'appendLeft' && b.type === 'prependRight') return 1;
+    if (a.type === 'prependRight' && b.type === 'appendLeft') return -1;
+    return 0;
+  });
+
+  for (const ins of insertions) {
+    if (ins.type === 'appendLeft') {
+      s.appendLeft(ins.position, ins.content);
+    } else {
+      s.prependRight(ins.position, ins.content);
+    }
+  }
+
+  return {
+    code: s.toString(),
+    metadata: {
+      path: filePath,
+      statementMap,
+      fnMap,
+      branchMap,
+      s: s_counters,
+      f: f_counters,
+      b: b_counters,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Istanbul Coverage Provider
 // ---------------------------------------------------------------------------
 
