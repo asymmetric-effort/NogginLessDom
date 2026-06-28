@@ -105,7 +105,7 @@ jobs:
       - name: Copy CNAME
         run: cp site/CNAME site/dist/CNAME
       - name: Upload pages artifact
-        uses: asymmetric-effort/actions/actions/upload-pages-artifact@main
+        uses: actions/upload-pages-artifact@v5
         with:
           path: site/dist
 
@@ -120,7 +120,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: asymmetric-effort/actions/actions/deploy-pages@main
+        uses: actions/deploy-pages@v5
 
   verify-deployment:
     name: Post-Deployment Verification (Playwright)
