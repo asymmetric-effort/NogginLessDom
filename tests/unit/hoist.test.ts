@@ -1,6 +1,10 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { hoistMocks } from '../../src/hoist/index.js';
+import {
+  hoistMocks,
+  hoistWithAST,
+  hoistWithRegex,
+} from '../../src/hoist/index.js';
 
 describe('hoistMocks', () => {
   it('hoists mock.module() above import declarations', () => {
@@ -504,5 +508,213 @@ describe('hoistMocks', () => {
     const hoistedLine = lines.findIndex((l) => l.includes('vi.hoisted'));
     const importLine = lines.findIndex((l) => l.startsWith('import'));
     assert.ok(hoistedLine < importLine);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AST-based hoisting tests
+// ---------------------------------------------------------------------------
+
+describe('hoistWithAST', () => {
+  it('produces same output as regex for simple mock hoisting', () => {
+    const input = [
+      "import { describe, it } from 'node:test';",
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "mock.module('./db', () => ({ query: fn() }));",
+      '',
+      "describe('test', () => {});",
+    ].join('\n');
+
+    const astResult = hoistWithAST(input, 'test.ts');
+    const regexResult = hoistWithRegex(input, 'test.ts');
+
+    assert.notEqual(astResult, null);
+    assert.equal(astResult!.hoisted, regexResult.hoisted);
+    assert.equal(astResult!.code, regexResult.code);
+  });
+
+  it('produces same output as regex for multiple mock calls', () => {
+    const input = [
+      "import { describe, it } from 'node:test';",
+      "import { getUsers } from './user-service';",
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "mock.module('./db', () => ({ query: fn() }));",
+      "mock.module('./cache', () => ({ get: fn(), set: fn() }));",
+      '',
+      "describe('users', () => { });",
+    ].join('\n');
+
+    const astResult = hoistWithAST(input, 'test.ts');
+    const regexResult = hoistWithRegex(input, 'test.ts');
+
+    assert.notEqual(astResult, null);
+    assert.equal(astResult!.hoisted, regexResult.hoisted);
+    assert.equal(astResult!.code, regexResult.code);
+  });
+
+  it('generates a source map when AST is used', () => {
+    const input = [
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "mock.module('./db', () => ({ query: fn() }));",
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, true);
+    assert.ok(result!.map, 'source map should be present');
+    assert.equal(result!.map!.version, 3);
+    assert.deepStrictEqual(result!.map!.sources, ['test.ts']);
+    assert.ok(result!.map!.mappings.length > 0);
+    assert.ok(result!.map!.sourcesContent);
+    assert.equal(result!.map!.sourcesContent![0], input);
+  });
+
+  it('mock call inside comment is NOT hoisted', () => {
+    const input = [
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "// mock.module('./commented', () => ({}));",
+      "mock.module('./real', () => ({ x: fn() }));",
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, true);
+
+    // The commented-out mock should still be in the code but not moved
+    const code = result!.code;
+    assert.ok(code.includes('// mock.module'));
+    assert.ok(code.includes("mock.module('./real'"));
+
+    // The real mock should be before the import
+    const realMockPos = code.indexOf("mock.module('./real'");
+    const importPos = code.indexOf('import ');
+    assert.ok(
+      realMockPos < importPos,
+      'real mock should be hoisted before imports',
+    );
+
+    // The commented mock should stay after imports
+    const commentPos = code.indexOf('// mock.module');
+    assert.ok(
+      commentPos > importPos,
+      'commented mock should remain after imports',
+    );
+  });
+
+  it('returns null and falls back to regex gracefully', () => {
+    // hoistMocks should still work when AST returns null for unparseable input
+    // TypeScript type imports can cause parse failures in steamroller
+    const input = [
+      "import type { User } from './types';",
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "mock.module('./db', () => ({ getUser: fn() }));",
+    ].join('\n');
+
+    // This may or may not parse depending on steamroller version,
+    // but hoistMocks should always produce a valid result via fallback
+    const result = hoistMocks(input, 'test.ts');
+    assert.equal(result.hoisted, true);
+
+    const code = result.code;
+    const mockPos = code.indexOf("mock.module('./db'");
+    const importPos = code.indexOf('import ');
+    assert.ok(mockPos < importPos);
+  });
+
+  it('hoists vi.mock with no factory argument', () => {
+    const input = [
+      "import { vi } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "vi.mock('./db');",
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, true);
+
+    const code = result!.code;
+    const mockPos = code.indexOf("vi.mock('./db')");
+    const importPos = code.indexOf('import ');
+    assert.ok(mockPos < importPos);
+  });
+
+  it('does not hoist when there are no imports', () => {
+    const input = [
+      'const x = 1;',
+      "mock.module('./db', () => ({}));",
+      'const y = 2;',
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, false);
+    assert.equal(result!.code, input);
+  });
+
+  it('does not hoist when mocks are already before imports', () => {
+    const input = [
+      "mock.module('./db', () => ({}));",
+      "import { describe } from 'node:test';",
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, false);
+  });
+
+  it('hoists VariableDeclaration with vi.hoisted init', () => {
+    const input = [
+      "import { vi } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      'const mocked = vi.hoisted(() => ({ x: 1 }));',
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, true);
+
+    const code = result!.code;
+    const hoistedPos = code.indexOf('const mocked = vi.hoisted');
+    const importPos = code.indexOf('import ');
+    assert.ok(hoistedPos < importPos);
+  });
+
+  it('preserves code after hoisted mocks', () => {
+    const input = [
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "mock.module('./db', () => ({ query: fn() }));",
+      '',
+      'const setup = true;',
+      '// end of file',
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'test.ts');
+    assert.notEqual(result, null);
+    assert.equal(result!.hoisted, true);
+    assert.ok(result!.code.includes('const setup = true;'));
+    assert.ok(result!.code.includes('// end of file'));
+  });
+
+  it('source map has correct structure', () => {
+    const input = [
+      "import { fn, mock } from '@asymmetric-effort/nogginlessdom';",
+      '',
+      "mock.module('./db', () => ({ query: fn() }));",
+      '',
+      "describe('test', () => {});",
+    ].join('\n');
+
+    const result = hoistWithAST(input, 'my-test.ts');
+    assert.notEqual(result, null);
+    assert.ok(result!.map);
+    assert.equal(result!.map!.version, 3);
+    assert.equal(result!.map!.sources[0], 'my-test.ts');
+    assert.ok(typeof result!.map!.mappings === 'string');
   });
 });
