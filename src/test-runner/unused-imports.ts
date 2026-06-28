@@ -6,6 +6,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { ParseCache } from './parse-cache.js';
+import { findUsedSymbols } from './ast-imports.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -278,6 +280,137 @@ function getReExportedSymbols(content: string): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
+// AST-based detection (using parse cache)
+// ---------------------------------------------------------------------------
+
+/** Shared parse cache instance for AST-based detection. */
+const sharedParseCache = new ParseCache();
+
+/**
+ * Detect unused imports in a single file using AST analysis.
+ * Returns null if AST parsing is unavailable or fails.
+ */
+export function detectWithAST(
+  filePath: string,
+  content: string,
+  ignoreTypeImports: boolean,
+  ignoreSideEffectImports: boolean,
+): UnusedImport[] | null {
+  const ast = sharedParseCache.getAST(filePath);
+  if (!ast) return null;
+
+  const imports = sharedParseCache.getImports(filePath);
+  const reExportedSymbols = new Set<string>();
+  for (const re of imports.reExports) {
+    for (const sym of re.symbols) {
+      reExportedSymbols.add(sym);
+    }
+  }
+
+  // Collect all imported symbol names for usage checking
+  const allSymbols: string[] = [];
+  for (const imp of imports.staticImports) {
+    for (const sym of imp.symbols) {
+      allSymbols.push(sym);
+    }
+    if (imp.namespaceName) {
+      allSymbols.push(imp.namespaceName);
+    }
+  }
+
+  const usedSymbols = findUsedSymbols(ast, allSymbols);
+  const results: UnusedImport[] = [];
+
+  for (const imp of imports.staticImports) {
+    if (imp.isSideEffect && ignoreSideEffectImports) continue;
+    if (imp.isTypeOnly && ignoreTypeImports) continue;
+
+    const unusedSymbols: string[] = [];
+
+    if (imp.isNamespace && imp.namespaceName) {
+      if (!usedSymbols.has(imp.namespaceName)) {
+        unusedSymbols.push(imp.namespaceName);
+      }
+    }
+
+    for (const sym of imp.symbols) {
+      if (!usedSymbols.has(sym) && !reExportedSymbols.has(sym)) {
+        unusedSymbols.push(sym);
+      }
+    }
+
+    if (unusedSymbols.length > 0) {
+      results.push({
+        file: filePath,
+        importSource: imp.source,
+        importedSymbols: unusedSymbols,
+        line: imp.line,
+        isNamespaceImport: imp.isNamespace,
+        isTypeOnly: imp.isTypeOnly,
+      });
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Detect unused imports using regex (the original implementation).
+ */
+export function detectWithRegex(
+  filePath: string,
+  content: string,
+  ignoreTypeImports: boolean,
+  ignoreSideEffectImports: boolean,
+): UnusedImport[] {
+  const imports = parseImports(content);
+  const body = getFileBody(content);
+  const reExported = getReExportedSymbols(content);
+  const results: UnusedImport[] = [];
+
+  for (const imp of imports) {
+    if (imp.isSideEffect && ignoreSideEffectImports) continue;
+    if (imp.isTypeOnly && ignoreTypeImports) continue;
+
+    const unusedSymbols: string[] = [];
+
+    if (imp.isNamespace && imp.namespaceName) {
+      if (!isNamespaceUsed(imp.namespaceName, body)) {
+        unusedSymbols.push(imp.namespaceName);
+      }
+    }
+
+    if (imp.defaultName) {
+      if (
+        !isSymbolUsed(imp.defaultName, body) &&
+        !reExported.has(imp.defaultName)
+      ) {
+        unusedSymbols.push(imp.defaultName);
+      }
+    }
+
+    for (const sym of imp.symbols) {
+      if (!isSymbolUsed(sym.local, body) && !reExported.has(sym.original)) {
+        unusedSymbols.push(sym.local);
+      }
+    }
+
+    if (unusedSymbols.length > 0) {
+      results.push({
+        file: filePath,
+        importSource: imp.source,
+        importedSymbols: unusedSymbols,
+        line: imp.line,
+        isNamespaceImport: imp.isNamespace,
+        isTypeOnly: imp.isTypeOnly,
+      });
+    }
+  }
+
+  return results;
+}
+
+// ---------------------------------------------------------------------------
 // Main detection function
 // ---------------------------------------------------------------------------
 
@@ -325,54 +458,29 @@ export function detectUnusedImports(
 
     if (!content.trim()) continue;
 
-    const imports = parseImports(content);
-    const body = getFileBody(content);
-    const reExported = getReExportedSymbols(content);
-
-    for (const imp of imports) {
-      // Skip side-effect imports
-      if (imp.isSideEffect && ignoreSideEffectImports) continue;
-
-      // Skip type-only imports
-      if (imp.isTypeOnly && ignoreTypeImports) continue;
-
-      const unusedSymbols: string[] = [];
-
-      // Check namespace import
-      if (imp.isNamespace && imp.namespaceName) {
-        if (!isNamespaceUsed(imp.namespaceName, body)) {
-          unusedSymbols.push(imp.namespaceName);
-        }
-      }
-
-      // Check default import
-      if (imp.defaultName) {
-        if (
-          !isSymbolUsed(imp.defaultName, body) &&
-          !reExported.has(imp.defaultName)
-        ) {
-          unusedSymbols.push(imp.defaultName);
-        }
-      }
-
-      // Check named imports
-      for (const sym of imp.symbols) {
-        if (!isSymbolUsed(sym.local, body) && !reExported.has(sym.original)) {
-          unusedSymbols.push(sym.local);
-        }
-      }
-
-      if (unusedSymbols.length > 0) {
-        results.push({
-          file: filePath,
-          importSource: imp.source,
-          importedSymbols: unusedSymbols,
-          line: imp.line,
-          isNamespaceImport: imp.isNamespace,
-          isTypeOnly: imp.isTypeOnly,
-        });
-      }
+    // Try AST-based detection first, fall back to regex
+    let fileResults: UnusedImport[] | null = null;
+    try {
+      fileResults = detectWithAST(
+        filePath,
+        content,
+        ignoreTypeImports,
+        ignoreSideEffectImports,
+      );
+    } catch {
+      // AST detection failed, will fall back to regex
     }
+
+    if (fileResults === null) {
+      fileResults = detectWithRegex(
+        filePath,
+        content,
+        ignoreTypeImports,
+        ignoreSideEffectImports,
+      );
+    }
+
+    results.push(...fileResults);
   }
 
   return results;
