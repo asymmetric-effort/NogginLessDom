@@ -401,9 +401,9 @@ describe('receiveCoverageFromWorker', () => {
     });
 
     // Import serializeCoverageMap to produce valid coverage data
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const {
       serializeCoverageMap,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
     } = require('../../src/coverage/coverage-map.js');
     const serialized = serializeCoverageMap(map);
 

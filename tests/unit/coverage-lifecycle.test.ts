@@ -238,9 +238,9 @@ describe('Coverage lifecycle with Istanbul provider', () => {
 
   it('should produce coverage data from instrumented code', async () => {
     // Import instrumentSource to create __coverage__ data
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const {
       instrumentSource,
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
     } = require('../../src/coverage/istanbul-provider.js');
     await startCoverage({ provider: 'istanbul' });
     coverageActive = true;

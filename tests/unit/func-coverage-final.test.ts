@@ -125,9 +125,9 @@ describe('func-coverage-final: dom-parser', () => {
 
   it('DOMParser parseFromString throws for unsupported type', () => {
     const parser = new DOMParser();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    assert.throws(() =>
-      parser.parseFromString('<div></div>', 'text/plain' as any),
+    assert.throws(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => parser.parseFromString('<div></div>', 'text/plain' as any),
     );
   });
 
@@ -835,10 +835,10 @@ describe('func-coverage-final: reporter outputFile', () => {
     const reporter = new DotReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onRunEnd({
@@ -858,10 +858,10 @@ describe('func-coverage-final: reporter outputFile', () => {
     const reporter = new VerboseReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onTestFail({ name: 'fail-test', error: new Error('boom') });

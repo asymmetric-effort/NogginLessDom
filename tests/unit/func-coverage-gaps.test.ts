@@ -971,10 +971,10 @@ describe('func-coverage: text reporter', () => {
     // Capture stdout
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onEnd(map, summary);
@@ -1060,7 +1060,6 @@ describe('func-coverage: coverage index', () => {
 
   it('cleanReportsDirectoryOnRerun does nothing when cleanOnRerun is false', () => {
     cleanReportsDirectoryOnRerun(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       {
         cleanOnRerun: false,
         reportsDirectory: '/tmp/x',
@@ -1075,6 +1074,7 @@ describe('func-coverage: coverage index', () => {
         changed: false,
         ignoreClassMethods: [],
         processingConcurrency: 1,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
       true,
     );
@@ -1388,10 +1388,10 @@ describe('func-coverage: reporter', () => {
     const reporter = new DotReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onTestTodo({ name: 'test' });
@@ -1405,10 +1405,10 @@ describe('func-coverage: reporter', () => {
     const reporter = new DotReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onTestSkip({ name: 'test' });
@@ -1422,10 +1422,10 @@ describe('func-coverage: reporter', () => {
     const reporter = new VerboseReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onTestSkip({ name: 'skipped-test' });
@@ -1439,10 +1439,10 @@ describe('func-coverage: reporter', () => {
     const reporter = new VerboseReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onTestTodo({ name: 'todo-test' });
@@ -1456,10 +1456,10 @@ describe('func-coverage: reporter', () => {
     const reporter = new VerboseReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onSuiteStart({ name: 'MySuite' });
@@ -1473,10 +1473,10 @@ describe('func-coverage: reporter', () => {
     const reporter = new JsonReporter({ colors: false });
     const origWrite = process.stdout.write;
     let output = '';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     process.stdout.write = ((chunk: unknown) => {
       output += String(chunk);
       return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
     try {
       reporter.onSuiteStart({ name: 's' });
