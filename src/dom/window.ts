@@ -608,16 +608,42 @@ export class Request {
 }
 
 /** Fetch handler type. */
-type FetchHandler = (
+export type FetchHandler = (
   url: string,
   options?: RequestInit,
 ) => Response | Promise<Response>;
 
 /** Minimal RequestInit for fetch. */
-interface RequestInit {
+export interface RequestInit {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
+}
+
+/**
+ * Global fetch handler used by the standalone fetch() function.
+ * Can be overridden via configureFetch().
+ */
+let globalFetchHandler: FetchHandler = defaultFetchHandler;
+
+/**
+ * Standalone fetch function that works without a Window instance.
+ * Uses the global fetch handler, which defaults to making real HTTP/HTTPS
+ * requests using node:http and node:https.
+ */
+export async function fetch(
+  url: string,
+  options?: RequestInit,
+): Promise<Response> {
+  return globalFetchHandler(url, options);
+}
+
+/**
+ * Configure the global fetch handler used by the standalone fetch() function.
+ * Pass null to reset to the default handler.
+ */
+export function configureFetch(handler: FetchHandler | null): void {
+  globalFetchHandler = handler ?? defaultFetchHandler;
 }
 
 // Performance API is now provided by ./performance.ts

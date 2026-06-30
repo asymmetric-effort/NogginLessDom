@@ -112,7 +112,11 @@ export {
   MediaQueryList,
   Request,
   Response,
+  fetch,
+  configureFetch,
 } from './dom/window.js';
+
+export type { RequestInit, FetchHandler } from './dom/window.js';
 
 export {
   Performance,
