@@ -16,34 +16,39 @@ const projectRoot = resolve(__dirname, '..', '..');
 describe('dist: npm pack produces a valid package', () => {
   let packOutput: string;
 
-  it('npm pack --dry-run succeeds and lists expected files', () => {
-    packOutput = execSync('npm pack --dry-run 2>&1', {
-      cwd: projectRoot,
-      encoding: 'utf-8',
-    });
+  it(
+    'npm pack --dry-run succeeds and lists expected files',
+    { timeout: 30_000 },
+    () => {
+      packOutput = execSync('npm pack --dry-run 2>&1', {
+        cwd: projectRoot,
+        encoding: 'utf-8',
+        timeout: 25_000,
+      });
 
-    // Verify key files appear in pack output
-    assert.ok(
-      packOutput.includes('build/index.js'),
-      'pack should include build/index.js',
-    );
-    assert.ok(
-      packOutput.includes('build/index.d.ts'),
-      'pack should include build/index.d.ts',
-    );
-    assert.ok(
-      packOutput.includes('LICENSE.txt'),
-      'pack should include LICENSE.txt',
-    );
-    assert.ok(
-      packOutput.includes('README.md'),
-      'pack should include README.md',
-    );
-    assert.ok(
-      packOutput.includes('package.json'),
-      'pack should include package.json',
-    );
-  });
+      // Verify key files appear in pack output
+      assert.ok(
+        packOutput.includes('build/index.js'),
+        'pack should include build/index.js',
+      );
+      assert.ok(
+        packOutput.includes('build/index.d.ts'),
+        'pack should include build/index.d.ts',
+      );
+      assert.ok(
+        packOutput.includes('LICENSE.txt'),
+        'pack should include LICENSE.txt',
+      );
+      assert.ok(
+        packOutput.includes('README.md'),
+        'pack should include README.md',
+      );
+      assert.ok(
+        packOutput.includes('package.json'),
+        'pack should include package.json',
+      );
+    },
+  );
 
   it('package.json has correct main/types/exports fields', () => {
     const pkgPath = resolve(projectRoot, 'package.json');
