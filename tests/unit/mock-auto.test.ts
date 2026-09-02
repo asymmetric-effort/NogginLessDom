@@ -63,7 +63,9 @@ describe('autoMock helper (#112)', () => {
 
   it('should handle empty objects', () => {
     const mocked = autoMock({});
-    assert.deepStrictEqual(mocked, {});
+    // autoMock uses Object.create(null) for security (no prototype pollution)
+    assert.strictEqual(Object.keys(mocked).length, 0);
+    assert.strictEqual(Object.getPrototypeOf(mocked), null);
   });
 });
 
