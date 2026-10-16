@@ -1084,6 +1084,9 @@ preload = ["@asymmetric-effort/nogginlessdom/hoist"]
 
 ## Dependency Analysis
 
+> For the complete dependency analysis reference, see
+> [Dependency Analysis](dependency-analysis.md).
+
 ### Circular Dependencies
 
 Detect circular import chains in your codebase using DFS-based back-edge
