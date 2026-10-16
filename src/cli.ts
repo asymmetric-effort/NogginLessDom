@@ -222,7 +222,10 @@ export async function main(args: ParsedArgs): Promise<void> {
 
   // --- Test runner mode ---
   if (args.filter) {
-    setTestNamePattern(args.filter);
+    // Escape special regex characters from CLI input for safe literal matching.
+    // Users wanting regex can use the programmatic API directly.
+    const escaped = args.filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    setTestNamePattern(escaped);
   }
 
   if (args.reporter) {

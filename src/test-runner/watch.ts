@@ -64,10 +64,7 @@ function globToRegex(pattern: string): RegExp {
     }
   }
 
-  // Validate the constructed regex and extract .source to break tainted
-  // data flow for static analysis (CodeQL js/regex-injection).
-  const compiled = new RegExp(`^${regexStr}$`);
-  return new RegExp(compiled.source);
+  return new RegExp(`^${regexStr}$`);
 }
 
 /**

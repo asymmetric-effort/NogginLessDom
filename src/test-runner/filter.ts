@@ -11,23 +11,6 @@
 import { matchGlob } from './watch.js';
 
 // ---------------------------------------------------------------------------
-// Regex sanitization
-// ---------------------------------------------------------------------------
-
-/**
- * Validate and sanitize a user-provided regex source string.
- * Rejects patterns that exceed a safe length and verifies the pattern
- * compiles to a valid regular expression, returning the source from the
- * compiled RegExp to break tainted data flow for static analysis.
- */
-function sanitizeRegexSource(source: string): string {
-  // Validate the pattern compiles and extract the sanitized source
-  // from the compiled RegExp object to break the tainted data flow.
-  const compiled = new RegExp(source);
-  return compiled.source;
-}
-
-// ---------------------------------------------------------------------------
 // Name pattern state
 // ---------------------------------------------------------------------------
 
@@ -46,25 +29,7 @@ export function setTestNamePattern(
   pattern: string | RegExp,
   options?: { invert?: boolean },
 ): void {
-  if (typeof pattern === 'string') {
-    // Sanitize: limit pattern length to prevent ReDoS from CLI input
-    if (pattern.length > 1000) {
-      throw new Error('Test name pattern is too long (max 1000 characters)');
-    }
-    // Sanitize: reject patterns with known ReDoS-prone constructs
-    if (/(\([^)]*\+\)[^)]*\+|\(\.\*\)\+)/.test(pattern)) {
-      throw new Error(
-        'Test name pattern contains potentially unsafe constructs',
-      );
-    }
-    try {
-      namePattern = new RegExp(sanitizeRegexSource(pattern));
-    } catch {
-      throw new Error(`Invalid test name pattern: "${pattern}"`);
-    }
-  } else {
-    namePattern = pattern;
-  }
+  namePattern = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
   nameInvert = options?.invert === true;
 }
 
