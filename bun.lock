@@ -20,6 +20,7 @@
   },
   "overrides": {
     "js-yaml": "5.4.1",
+    "katex": "0.18.2",
     "smol-toml": "1.9.0",
   },
   "packages": {
@@ -199,7 +200,7 @@
 
     "jsonpointer": ["jsonpointer@5.0.1", "", {}, ""],
 
-    "katex": ["katex@0.16.47", "", { "dependencies": { "commander": "^8.3.0" }, "bin": "cli.js" }, ""],
+    "katex": ["katex@0.18.2", "", { "dependencies": { "commander": "^8.3.0" }, "bin": { "katex": "cli.js" } }, "sha512-3snve4y0SXTMequLim1FMiPvLGElySam0blN5xQZBqEY3lOJz1TnuaaiugnBZBqHzlSAGmFTYL7MCQkORuLKCA=="],
 
     "keyv": ["keyv@4.5.4", "", { "dependencies": { "json-buffer": "3.0.1" } }, ""],
 
