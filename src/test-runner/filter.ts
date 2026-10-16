@@ -53,7 +53,9 @@ export function setTestNamePattern(
     }
     // Sanitize: reject patterns with known ReDoS-prone constructs
     if (/(\([^)]*\+\)[^)]*\+|\(\.\*\)\+)/.test(pattern)) {
-      throw new Error('Test name pattern contains potentially unsafe constructs');
+      throw new Error(
+        'Test name pattern contains potentially unsafe constructs',
+      );
     }
     try {
       namePattern = new RegExp(sanitizeRegexSource(pattern));
