@@ -60,6 +60,7 @@
   },
   "dependencies": {},
   "overrides": {
-    "js-yaml": "5.4.1"
+    "js-yaml": "5.4.1",
+    "smol-toml": "1.9.0"
   }
 }
