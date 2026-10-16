@@ -122,6 +122,7 @@ function validateThreshold(name: string, value: number | undefined): void {
     );
   }
   if (value === 0) {
+    // eslint-disable-next-line no-console
     console.warn(
       `Warning: ${name} threshold is set to 0, which effectively disables the check`,
     );
@@ -183,10 +184,7 @@ export function validateConfig(
         validateThreshold(`glob[${pattern}].lines`, globThresh.lines);
         validateThreshold(`glob[${pattern}].functions`, globThresh.functions);
         validateThreshold(`glob[${pattern}].branches`, globThresh.branches);
-        validateThreshold(
-          `glob[${pattern}].statements`,
-          globThresh.statements,
-        );
+        validateThreshold(`glob[${pattern}].statements`, globThresh.statements);
       }
     }
   }

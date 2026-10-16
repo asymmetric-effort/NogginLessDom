@@ -261,8 +261,7 @@ export async function main(args: ParsedArgs): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const isDirectRun =
-  process.argv[1]?.endsWith('cli.js') ||
-  process.argv[1]?.endsWith('cli.ts');
+  process.argv[1]?.endsWith('cli.js') || process.argv[1]?.endsWith('cli.ts');
 
 if (isDirectRun) {
   main(parseArgs(process.argv.slice(2))).catch((err: Error) => {
