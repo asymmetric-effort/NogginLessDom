@@ -240,8 +240,12 @@ export async function main(args: ParsedArgs): Promise<void> {
     const testRunnerFn = async (_files: string[]): Promise<void> => {
       // The test runner is invoked by bun; this is a placeholder for watch mode.
     };
-    const watchInclude =
+    // Sanitize glob patterns from CLI: only allow safe path/glob characters
+    const rawPatterns =
       args.files.length > 0 ? args.files : ['src/**', 'tests/**'];
+    const watchInclude = rawPatterns.map((p) =>
+      p.replace(/[^a-zA-Z0-9_./\-*?[\]{}]/g, ''),
+    );
     watchTests(testRunnerFn, { watchInclude });
     return;
   }
