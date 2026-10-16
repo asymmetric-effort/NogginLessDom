@@ -44,64 +44,65 @@ describe('validateConfig', () => {
     });
 
     it('should accept v8 provider', () => {
-      assert.doesNotThrow(
-        () => validateConfig(makeValidConfig({ provider: 'v8' })),
+      assert.doesNotThrow(() =>
+        validateConfig(makeValidConfig({ provider: 'v8' })),
       );
     });
 
     it('should accept istanbul provider', () => {
-      assert.doesNotThrow(
-        () => validateConfig(makeValidConfig({ provider: 'istanbul' })),
+      assert.doesNotThrow(() =>
+        validateConfig(makeValidConfig({ provider: 'istanbul' })),
       );
     });
 
     it('should accept all valid reporter names', () => {
       for (const name of VALID_REPORTER_NAMES) {
-        assert.doesNotThrow(
-          () =>
-            validateConfig(
-              makeValidConfig({ reporter: [name] }),
-              VALID_REPORTER_NAMES,
-            ),
+        assert.doesNotThrow(() =>
+          validateConfig(
+            makeValidConfig({ reporter: [name] }),
+            VALID_REPORTER_NAMES,
+          ),
         );
       }
     });
 
     it('should accept threshold boundary values 0 and 100', () => {
-      assert.doesNotThrow(
-        () =>
-          validateConfig(
-            makeValidConfig({
-              thresholds: { lines: 100, functions: 100, branches: 100, statements: 100 },
-            }),
-          ),
+      assert.doesNotThrow(() =>
+        validateConfig(
+          makeValidConfig({
+            thresholds: {
+              lines: 100,
+              functions: 100,
+              branches: 100,
+              statements: 100,
+            },
+          }),
+        ),
       );
     });
 
     it('should accept valid watermarks', () => {
-      assert.doesNotThrow(
-        () =>
-          validateConfig(
-            makeValidConfig({
-              watermarks: {
-                lines: [0, 100] as [number, number],
-                functions: [25, 75] as [number, number],
-                branches: [50, 50] as [number, number],
-                statements: [10, 90] as [number, number],
-              },
-            }),
-          ),
+      assert.doesNotThrow(() =>
+        validateConfig(
+          makeValidConfig({
+            watermarks: {
+              lines: [0, 100] as [number, number],
+              functions: [25, 75] as [number, number],
+              branches: [50, 50] as [number, number],
+              statements: [10, 90] as [number, number],
+            },
+          }),
+        ),
       );
     });
 
     it('should accept valid extensions', () => {
-      assert.doesNotThrow(
-        () =>
-          validateConfig(
-            makeValidConfig({
-              extension: ['.ts', '.tsx', '.js', '.jsx', '.mts'],
-            }),
-          ),
+      assert.doesNotThrow(() =>
+        validateConfig(
+          makeValidConfig({
+            extension: ['.ts', '.tsx', '.js', '.jsx', '.mts'],
+          }),
+        ),
       );
     });
   });
@@ -130,11 +131,8 @@ describe('validateConfig', () => {
     });
 
     it('should skip reporter validation when validReporterNames is not provided', () => {
-      assert.doesNotThrow(
-        () =>
-          validateConfig(
-            makeValidConfig({ reporter: ['anything'] }),
-          ),
+      assert.doesNotThrow(() =>
+        validateConfig(makeValidConfig({ reporter: ['anything'] })),
       );
     });
   });
@@ -142,20 +140,14 @@ describe('validateConfig', () => {
   describe('threshold validation', () => {
     it('should throw when threshold exceeds 100', () => {
       assert.throws(
-        () =>
-          validateConfig(
-            makeValidConfig({ thresholds: { lines: 101 } }),
-          ),
+        () => validateConfig(makeValidConfig({ thresholds: { lines: 101 } })),
         /Invalid lines threshold: 101/,
       );
     });
 
     it('should throw when threshold is negative', () => {
       assert.throws(
-        () =>
-          validateConfig(
-            makeValidConfig({ thresholds: { branches: -1 } }),
-          ),
+        () => validateConfig(makeValidConfig({ thresholds: { branches: -1 } })),
         /Invalid branches threshold: -1/,
       );
     });
@@ -169,9 +161,7 @@ describe('validateConfig', () => {
       ] as const) {
         assert.throws(
           () =>
-            validateConfig(
-              makeValidConfig({ thresholds: { [field]: 200 } }),
-            ),
+            validateConfig(makeValidConfig({ thresholds: { [field]: 200 } })),
           /Must be between 0 and 100/,
         );
       }
@@ -179,12 +169,12 @@ describe('validateConfig', () => {
 
     it('should warn when threshold is 0', () => {
       const warnMock = mock.fn();
+      // eslint-disable-next-line no-console
       const originalWarn = console.warn;
+      // eslint-disable-next-line no-console
       console.warn = warnMock;
       try {
-        validateConfig(
-          makeValidConfig({ thresholds: { lines: 0 } }),
-        );
+        validateConfig(makeValidConfig({ thresholds: { lines: 0 } }));
         assert.equal(warnMock.mock.callCount(), 1);
         assert.ok(
           (warnMock.mock.calls[0].arguments[0] as string).includes(
@@ -192,6 +182,7 @@ describe('validateConfig', () => {
           ),
         );
       } finally {
+        // eslint-disable-next-line no-console
         console.warn = originalWarn;
       }
     });
@@ -267,24 +258,21 @@ describe('validateConfig', () => {
   describe('processingConcurrency validation', () => {
     it('should throw when concurrency is 0', () => {
       assert.throws(
-        () =>
-          validateConfig(makeValidConfig({ processingConcurrency: 0 })),
+        () => validateConfig(makeValidConfig({ processingConcurrency: 0 })),
         /Invalid processingConcurrency: 0/,
       );
     });
 
     it('should throw when concurrency is negative', () => {
       assert.throws(
-        () =>
-          validateConfig(makeValidConfig({ processingConcurrency: -1 })),
+        () => validateConfig(makeValidConfig({ processingConcurrency: -1 })),
         /Must be a positive integer/,
       );
     });
 
     it('should throw when concurrency is not an integer', () => {
       assert.throws(
-        () =>
-          validateConfig(makeValidConfig({ processingConcurrency: 1.5 })),
+        () => validateConfig(makeValidConfig({ processingConcurrency: 1.5 })),
         /Must be a positive integer/,
       );
     });
@@ -293,8 +281,7 @@ describe('validateConfig', () => {
   describe('extension validation', () => {
     it('should throw when extension does not start with dot', () => {
       assert.throws(
-        () =>
-          validateConfig(makeValidConfig({ extension: ['ts'] })),
+        () => validateConfig(makeValidConfig({ extension: ['ts'] })),
         /Invalid extension: "ts"/,
       );
     });
@@ -302,9 +289,7 @@ describe('validateConfig', () => {
     it('should throw for any invalid extension in the array', () => {
       assert.throws(
         () =>
-          validateConfig(
-            makeValidConfig({ extension: ['.ts', 'js', '.tsx'] }),
-          ),
+          validateConfig(makeValidConfig({ extension: ['.ts', 'js', '.tsx'] })),
         /Invalid extension: "js"/,
       );
     });
@@ -341,11 +326,7 @@ describe('validateConfig', () => {
 
     it('should validate reporters when validReporterNames is provided', () => {
       assert.throws(
-        () =>
-          mergeConfig(
-            { reporter: ['bad-reporter'] },
-            VALID_REPORTER_NAMES,
-          ),
+        () => mergeConfig({ reporter: ['bad-reporter'] }, VALID_REPORTER_NAMES),
         /Unknown reporter: "bad-reporter"/,
       );
     });

@@ -146,7 +146,8 @@ describe('CLI', () => {
     it('should write help text to stdout', () => {
       const writeMock = mock.fn();
       const originalWrite = process.stdout.write;
-      process.stdout.write = writeMock as unknown as typeof process.stdout.write;
+      process.stdout.write =
+        writeMock as unknown as typeof process.stdout.write;
       try {
         showHelp();
         assert.equal(writeMock.mock.callCount(), 1);

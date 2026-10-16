@@ -21,8 +21,7 @@ describe('integration: DOM + Events + Assertions', () => {
     doc.appendChild(button);
 
     button.addEventListener('click', () => {
-      const count =
-        parseInt(button.getAttribute('data-clicks') ?? '0', 10) + 1;
+      const count = parseInt(button.getAttribute('data-clicks') ?? '0', 10) + 1;
       button.setAttribute('data-clicks', String(count));
       button.textContent = `Clicked ${count} times`;
     });
