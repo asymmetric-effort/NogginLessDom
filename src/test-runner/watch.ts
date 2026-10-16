@@ -54,8 +54,9 @@ function globToRegex(pattern: string): RegExp {
     } else if (char === '?') {
       regexStr += '[^/]';
       i++;
-    } else if (char === '.') {
-      regexStr += '\\.';
+    } else if (/[.+^${}()|[\]\\]/.test(char)) {
+      // Escape regex metacharacters from the glob input
+      regexStr += `\\${char}`;
       i++;
     } else {
       regexStr += char;

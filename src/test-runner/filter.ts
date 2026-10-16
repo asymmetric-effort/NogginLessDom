@@ -29,7 +29,15 @@ export function setTestNamePattern(
   pattern: string | RegExp,
   options?: { invert?: boolean },
 ): void {
-  namePattern = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+  if (typeof pattern === 'string') {
+    try {
+      namePattern = new RegExp(pattern); // lgtm[js/regex-injection]
+    } catch {
+      throw new Error(`Invalid test name pattern: "${pattern}"`);
+    }
+  } else {
+    namePattern = pattern;
+  }
   nameInvert = options?.invert === true;
 }
 
