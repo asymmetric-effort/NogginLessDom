@@ -188,6 +188,8 @@ const REPORTER_FACTORIES: Record<string, ReporterFactory> = {
   none: createNoneReporter,
 };
 
+export const VALID_REPORTER_NAMES: string[] = Object.keys(REPORTER_FACTORIES);
+
 export function getReporterFactory(name: string): ReporterFactory {
   const factory = REPORTER_FACTORIES[name];
   if (!factory) {

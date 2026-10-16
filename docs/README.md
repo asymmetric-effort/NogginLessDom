@@ -33,6 +33,11 @@ Detailed documentation for every exported function, class, and matcher.
 - [Mocking](api/mocking.md) -- `fn()`, `spyOn()`, mock instances, module
   mocking, fake timers with `Date` mocking, global/env stubbing, async
   utilities, and the `vi` namespace.
+- [Dependency Analysis](api/dependency-analysis.md) -- Circular dependency
+  detection, import depth analysis, unused import detection, and dependency
+  graph export (JSON, DOT, Mermaid).
+- [CLI](api/cli.md) -- Command-line interface for running tests and
+  performing dependency analysis.
 
 ## User Guide
 

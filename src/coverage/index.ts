@@ -25,7 +25,11 @@ import { shouldIncludeFile } from './filter.js';
 import { findIgnoreRanges, applyIgnoreRanges } from './ignore.js';
 import { getChangedFiles } from './changed.js';
 import { offsetToLocation } from './v8-to-istanbul.js';
-import { getReporterFactory, type ReporterOptions } from './reporters/index.js';
+import {
+  getReporterFactory,
+  VALID_REPORTER_NAMES,
+  type ReporterOptions,
+} from './reporters/index.js';
 import { IstanbulCoverageProvider } from './istanbul-provider.js';
 
 // Re-export IPC integration (Issue #100)
@@ -306,7 +310,7 @@ export async function startCoverage(
       'Coverage collection is already active. Call stopCoverage() first.',
     );
   }
-  activeConfig = mergeConfig(config ?? {});
+  activeConfig = mergeConfig(config ?? {}, VALID_REPORTER_NAMES);
 
   // Issue #96: cleanOnRerun check
   cleanReportsDirectoryOnRerun(activeConfig, wasActive);
@@ -456,8 +460,8 @@ export async function reportCoverage(
   const resolved = config
     ? 'reporter' in config && 'reportsDirectory' in config
       ? (config as ResolvedCoverageConfig)
-      : mergeConfig(config)
-    : mergeConfig({});
+      : mergeConfig(config, VALID_REPORTER_NAMES)
+    : mergeConfig({}, VALID_REPORTER_NAMES);
 
   const summary = coverageMap.toSummary();
 

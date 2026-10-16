@@ -56,6 +56,7 @@ test-dist: build
 build: clean
 	@echo "Building $(PROJECT_NAME) v$(VERSION)..."
 	bun build $(SRC_DIR)/index.ts --outdir $(BUILD_DIR) --target node
+	bun build $(SRC_DIR)/cli.ts --outdir $(BUILD_DIR) --target node
 	bun $(BIN)/tsc --emitDeclarationOnly
 	@echo "Build complete."
 

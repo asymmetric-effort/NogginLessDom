@@ -74,6 +74,25 @@ coverage providers with 12 built-in reporters.
 
 [Full Coverage API Reference](coverage.md)
 
+### Dependency Analysis
+
+Built-in tools for analyzing import structure: circular dependency detection,
+import depth analysis, unused import detection, and dependency graph export.
+
+**Exports:** `detectCircularImports`, `analyzeImportDepth`,
+`detectUnusedImports`, `buildDependencyGraph`, `exportGraphJSON`,
+`exportGraphDOT`, `exportGraphMermaid`, `saveGraph`
+
+[Full Dependency Analysis Reference](dependency-analysis.md)
+
+### CLI
+
+A command-line interface for running tests and performing dependency analysis.
+
+**Binary:** `nogginlessdom`
+
+[CLI Reference](cli.md)
+
 ## Design Notes
 
 All modules are designed to be used independently or together. There are no

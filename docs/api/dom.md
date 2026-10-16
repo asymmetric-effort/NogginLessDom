@@ -1089,6 +1089,24 @@ const response = await win.fetch('/api/users');
 const data = await response.json();
 ```
 
+### Standalone `configureFetch(handler)`
+
+In addition to `Window.configureFetch`, NogginLessDom exports a standalone
+`configureFetch` function that configures the global `fetch` export:
+
+```typescript
+import { fetch, configureFetch } from '@asymmetric-effort/nogginlessdom';
+
+configureFetch((url, options) => {
+  return new Response(JSON.stringify({ ok: true }), { status: 200 });
+});
+
+const res = await fetch('/api/test');
+```
+
+This is useful when you want to mock fetch without creating a full Window
+instance.
+
 ### Request
 
 ```typescript

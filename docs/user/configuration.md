@@ -599,3 +599,7 @@ console.log('Hub files:', graph.summary.hubFiles.join(', '));
 | `DETECT_UNUSED_IMPORTS`   | `1`, `strict`   | Enable unused import detection; `strict` fails the run       |
 | `EXPORT_DEPENDENCY_GRAPH` | file path       | Export dependency graph to the given file (JSON, DOT, or     |
 |                           |                 | Mermaid based on extension)                                  |
+| `UPDATE_SNAPSHOTS`        | `1`             | Update all snapshots instead of comparing against existing   |
+| `SHUFFLE_SEED`            | number          | Seed for reproducible `describe.shuffle` test ordering       |
+| `TEST_NAME_PATTERN`       | regex string    | Filter tests by name pattern (same as `--filter`)            |
+| `TEST_FILE_PATTERN`       | glob pattern    | Filter test files by glob pattern                            |
