@@ -5,15 +5,32 @@
 
 import { Element, Event, Node, DocumentFragment } from './index.js';
 import { CanvasRenderingContext2D } from './canvas.js';
+import vm from 'node:vm';
+
+/** Maximum time in milliseconds allowed for a single pattern regex test. */
+const PATTERN_TIMEOUT_MS = 50;
 
 /**
- * Detect nested quantifiers that can cause catastrophic backtracking.
- * Matches patterns like (a+)+, (a*)+, (a+)*, etc.
+ * Test a value against a regex pattern with a hard time budget.
+ * Uses node:vm to enforce a timeout that catches ALL ReDoS patterns
+ * regardless of their syntactic form.
+ *
+ * Returns true if the value matches the pattern, false if it does not
+ * match or if the regex exceeds the time budget.
  */
-function hasNestedQuantifiers(pattern: string): boolean {
-  return (
-    /([+*])\s*[)]\s*[+*{]/.test(pattern) || /([+*])\s*\}\s*[+*{]/.test(pattern)
-  );
+function safeRegexTest(pattern: string, value: string): boolean {
+  try {
+    // Construct the regex AND run the test entirely within the vm context
+    // so the timeout can interrupt the backtracking engine.
+    return vm.runInNewContext(
+      'new RegExp("^(?:" + pattern + ")$").test(value)',
+      { pattern, value },
+      { timeout: PATTERN_TIMEOUT_MS },
+    ) as boolean;
+  } catch {
+    // Timeout, invalid regex, or other error — treat as non-matching
+    return false;
+  }
 }
 
 // Helper to collect descendants by tag
@@ -292,21 +309,9 @@ export class HTMLInputElement extends Element {
     }
 
     let patternMismatch = false;
-    const MAX_PATTERN_LENGTH = 1024;
     if (this.pattern !== '' && this.value !== '') {
-      if (
-        this.pattern.length > MAX_PATTERN_LENGTH ||
-        hasNestedQuantifiers(this.pattern)
-      ) {
-        patternMismatch = false;
-      } else {
-        try {
-          const re = new RegExp(`^(?:${this.pattern})$`);
-          patternMismatch = !re.test(this.value);
-        } catch {
-          patternMismatch = false;
-        }
-      }
+      const matches = safeRegexTest(this.pattern, this.value);
+      patternMismatch = !matches;
     }
 
     let typeMismatch = false;

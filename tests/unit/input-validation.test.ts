@@ -159,8 +159,13 @@ describe('HTMLInputElement validation', () => {
       const input = new HTMLInputElement();
       input.pattern = 'a'.repeat(2000);
       input.value = 'test';
-      // Should not hang; pattern exceeding limit is treated as no-match
-      assert.strictEqual(input.validity.patternMismatch, false);
+      // Should not hang; the vm timeout ensures bounded execution.
+      // The pattern is valid but doesn't match 'test', so patternMismatch is true.
+      const start = Date.now();
+      const mismatch = input.validity.patternMismatch;
+      const elapsed = Date.now() - start;
+      assert.ok(elapsed < 5000, `Long pattern took too long: ${elapsed}ms`);
+      assert.strictEqual(mismatch, true);
     });
 
     it('should not hang on catastrophic backtracking patterns', () => {
@@ -177,6 +182,54 @@ describe('HTMLInputElement validation', () => {
         elapsed < 5000,
         `Pattern validation took too long: ${elapsed}ms`,
       );
+    });
+
+    it('should not hang on alternation-overlap patterns (GHSA-vr3j-mr83-5v43)', () => {
+      const input = new HTMLInputElement();
+      // (a|a)+ causes exponential backtracking on non-matching input
+      input.pattern = '(a|a)+';
+      input.value = 'a'.repeat(30) + 'b';
+      const start = Date.now();
+      input.checkValidity();
+      const elapsed = Date.now() - start;
+      assert.ok(
+        elapsed < 5000,
+        `Alternation-overlap pattern took too long: ${elapsed}ms`,
+      );
+    });
+
+    it('should not hang on quantified alternation-overlap pattern', () => {
+      const input = new HTMLInputElement();
+      // (a|b|a)+ causes exponential backtracking
+      input.pattern = '(a|b|a)+';
+      input.value = 'a'.repeat(30) + '!';
+      const start = Date.now();
+      input.checkValidity();
+      const elapsed = Date.now() - start;
+      assert.ok(
+        elapsed < 5000,
+        `Pattern "(a|b|a)+" took too long: ${elapsed}ms`,
+      );
+    });
+
+    it('should still correctly validate benign patterns', () => {
+      const input = new HTMLInputElement();
+      input.pattern = '[a-z]+';
+      input.value = 'hello';
+      assert.strictEqual(input.validity.patternMismatch, false);
+
+      input.value = '123';
+      assert.strictEqual(input.validity.patternMismatch, true);
+    });
+
+    it('should correctly validate patterns with alternation', () => {
+      const input = new HTMLInputElement();
+      input.pattern = 'cat|dog';
+      input.value = 'cat';
+      assert.strictEqual(input.validity.patternMismatch, false);
+
+      input.value = 'fish';
+      assert.strictEqual(input.validity.patternMismatch, true);
     });
   });
 
