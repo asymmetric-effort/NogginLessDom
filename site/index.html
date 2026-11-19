@@ -25,7 +25,7 @@
     <script type="module" src="/src/main.tsx"></script>
     <style>
       :root {
-        color-scheme: light;
+        color-scheme: light dark;
         --bg-primary: #ffffff;
         --bg-secondary: #f8fafc;
         --bg-tertiary: #f1f5f9;
@@ -45,6 +45,35 @@
         color: #1f2937;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         line-height: 1.6;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg-primary: #0f172a;
+          --bg-secondary: #1e293b;
+          --bg-tertiary: #334155;
+          --text-primary: #f1f5f9;
+          --text-secondary: #e2e8f0;
+          --text-muted: #94a3b8;
+          --text-dimmed: #64748b;
+          --accent: #60a5fa;
+          --accent-hover: #93c5fd;
+          --border: #334155;
+          --code-bg: #0f172a;
+          --code-text: #e2e8f0;
+        }
+        body {
+          background-color: #0f172a;
+          color: #e2e8f0;
+        }
+        .ns-section-content h1 { color: var(--text-primary); }
+        .ns-section-content h2 { color: var(--text-primary); }
+        .ns-section-content h3 { color: var(--text-secondary); }
+        .ns-section-content a { color: var(--accent); }
+        .ns-section-content code { background: var(--bg-tertiary); }
+        .ns-section-content pre { background: var(--code-bg); color: var(--code-text); }
+        .ns-section-content th, .ns-section-content td { border-color: var(--border); }
+        .ns-section-content th { background: var(--bg-secondary); }
+        .ns-section-content blockquote { border-left-color: var(--accent); color: var(--text-muted); background: var(--bg-secondary); }
       }
       .ns-section-content h1 { font-size: 1.8rem; color: #0f172a; margin-bottom: 1rem; }
       .ns-section-content h2 { font-size: 1.5rem; color: #1e293b; margin-top: 2rem; margin-bottom: 1rem; padding-top: 1rem; }
