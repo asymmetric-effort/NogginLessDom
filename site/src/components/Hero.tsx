@@ -6,10 +6,9 @@ export function Hero(): ReturnType<typeof createElement> {
     {
       style: {
         textAlign: 'center',
-        padding: '6rem 2rem 4rem',
+        padding: '4rem 20px 3rem',
         backgroundColor: 'var(--bg-primary)',
         color: 'var(--text-secondary)',
-        fontFamily: 'system-ui, sans-serif',
       },
     },
     createElement('img', {
@@ -23,9 +22,9 @@ export function Hero(): ReturnType<typeof createElement> {
       'h1',
       {
         style: {
-          fontSize: '3rem',
+          fontSize: '2rem',
           fontWeight: 'bold',
-          marginBottom: '1rem',
+          marginBottom: '0.5rem',
           color: 'var(--text-primary)',
         },
       },
@@ -35,7 +34,7 @@ export function Hero(): ReturnType<typeof createElement> {
       'p',
       {
         style: {
-          fontSize: '1.25rem',
+          fontSize: '1.1rem',
           maxWidth: '640px',
           margin: '0 auto 2rem',
           lineHeight: '1.6',
@@ -59,13 +58,13 @@ export function Hero(): ReturnType<typeof createElement> {
         {
           href: '#/getting-started',
           style: {
-            padding: '0.75rem 2rem',
+            padding: '8px 24px',
             backgroundColor: 'var(--accent)',
-            color: 'var(--bg-primary)',
+            color: '#ffffff',
             borderRadius: '6px',
             textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: '1rem',
+            fontWeight: '600',
+            fontSize: '14px',
           },
         },
         'Get Started',
@@ -75,13 +74,13 @@ export function Hero(): ReturnType<typeof createElement> {
         {
           href: '#/api',
           style: {
-            padding: '0.75rem 2rem',
+            padding: '8px 24px',
             border: '1px solid var(--accent)',
             color: 'var(--accent)',
             borderRadius: '6px',
             textDecoration: 'none',
-            fontWeight: 'bold',
-            fontSize: '1rem',
+            fontWeight: '600',
+            fontSize: '14px',
           },
         },
         'API Reference',
@@ -91,14 +90,15 @@ export function Hero(): ReturnType<typeof createElement> {
       'pre',
       {
         style: {
-          marginTop: '3rem',
+          marginTop: '2rem',
           display: 'inline-block',
-          padding: '1rem 2rem',
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '8px',
+          padding: '12px 24px',
+          backgroundColor: 'var(--code-bg)',
+          borderRadius: '6px',
           fontFamily: 'monospace',
-          fontSize: '0.9rem',
-          color: 'var(--accent)',
+          fontSize: '13px',
+          lineHeight: '1.5',
+          color: 'var(--code-text)',
         },
       },
       'bun add -d @asymmetric-effort/nogginlessdom',

@@ -21,13 +21,13 @@ export function MarkdownPage(
   return createElement(
     'main',
     {
+      className: 'ns-section-content',
       style: {
-        maxWidth: '800px',
+        maxWidth: '900px',
         margin: '0 auto',
-        padding: '3rem 2rem',
+        padding: '2rem 20px',
         color: 'var(--text-secondary)',
-        fontFamily: 'system-ui, sans-serif',
-        lineHeight: '1.7',
+        lineHeight: '1.6',
       },
     },
     createElement('div', { dangerouslySetInnerHTML: { __html: html } }),
@@ -35,9 +35,10 @@ export function MarkdownPage(
       'div',
       {
         style: {
-          marginTop: '3rem',
+          marginTop: '2rem',
           paddingTop: '1rem',
           borderTop: '1px solid var(--border)',
+          fontSize: '13px',
         },
       },
       createElement(
@@ -47,7 +48,6 @@ export function MarkdownPage(
           style: {
             color: 'var(--accent)',
             textDecoration: 'none',
-            fontSize: '0.9rem',
           },
         },
         '\u2190 Back to home',

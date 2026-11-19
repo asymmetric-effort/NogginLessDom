@@ -14,9 +14,9 @@ function FeatureCard(
       style: {
         flex: '1',
         minWidth: '250px',
-        padding: '2rem',
+        padding: '16px 20px',
         backgroundColor: 'var(--bg-secondary)',
-        borderRadius: '8px',
+        borderRadius: '6px',
         border: '1px solid var(--border)',
       },
     },
@@ -24,8 +24,8 @@ function FeatureCard(
       'h3',
       {
         style: {
-          color: 'var(--accent)',
-          marginBottom: '0.75rem',
+          color: 'var(--text-primary)',
+          marginBottom: '0.5rem',
           fontSize: '1.1rem',
         },
       },
@@ -38,6 +38,7 @@ function FeatureCard(
           color: 'var(--text-muted)',
           lineHeight: '1.5',
           fontSize: '0.9rem',
+          margin: '0',
         },
       },
       props.description,
@@ -98,9 +99,8 @@ export function Features(): ReturnType<typeof createElement> {
     'section',
     {
       style: {
-        padding: '4rem 2rem',
+        padding: '3rem 20px',
         backgroundColor: 'var(--bg-primary)',
-        fontFamily: 'system-ui, sans-serif',
       },
     },
     createElement(
@@ -110,7 +110,7 @@ export function Features(): ReturnType<typeof createElement> {
           textAlign: 'center',
           color: 'var(--text-primary)',
           marginBottom: '2rem',
-          fontSize: '2rem',
+          fontSize: '1.5rem',
         },
       },
       'Why NogginLessDom?',
@@ -119,10 +119,10 @@ export function Features(): ReturnType<typeof createElement> {
       'div',
       {
         style: {
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '1.5rem',
-          maxWidth: '960px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '16px',
+          maxWidth: '900px',
           margin: '0 auto',
         },
       },
