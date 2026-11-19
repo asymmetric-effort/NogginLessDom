@@ -20,7 +20,7 @@ export function Footer(): ReturnType<typeof createElement> {
         'a',
         {
           href: 'https://github.com/asymmetric-effort/NogginLessDom',
-          style: { color: 'var(--text-muted)', textDecoration: 'none' },
+          style: { color: 'var(--text-dimmed)', textDecoration: 'none' },
           target: '_blank',
           rel: 'noopener noreferrer',
         },
@@ -31,7 +31,7 @@ export function Footer(): ReturnType<typeof createElement> {
         'a',
         {
           href: 'https://github.com/asymmetric-effort/NogginLessDom/blob/main/SECURITY.md',
-          style: { color: 'var(--text-muted)', textDecoration: 'none' },
+          style: { color: 'var(--text-dimmed)', textDecoration: 'none' },
           target: '_blank',
           rel: 'noopener noreferrer',
         },
@@ -42,7 +42,7 @@ export function Footer(): ReturnType<typeof createElement> {
         'a',
         {
           href: 'https://github.com/asymmetric-effort/NogginLessDom/blob/main/CONTRIBUTING.md',
-          style: { color: 'var(--text-muted)', textDecoration: 'none' },
+          style: { color: 'var(--text-dimmed)', textDecoration: 'none' },
           target: '_blank',
           rel: 'noopener noreferrer',
         },
@@ -52,7 +52,7 @@ export function Footer(): ReturnType<typeof createElement> {
     background: 'var(--bg-primary)',
     color: 'var(--text-dimmed)',
     borderTop: '1px solid var(--border)',
-    fontSize: '0.85rem',
-    padding: '2rem',
+    fontSize: '13px',
+    padding: '1rem 20px',
   });
 }

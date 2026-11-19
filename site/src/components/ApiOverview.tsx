@@ -94,9 +94,8 @@ export function ApiOverview(): ReturnType<typeof createElement> {
     'section',
     {
       style: {
-        padding: '4rem 2rem',
+        padding: '3rem 20px',
         backgroundColor: 'var(--bg-primary)',
-        fontFamily: 'system-ui, sans-serif',
       },
     },
     createElement(
@@ -106,7 +105,7 @@ export function ApiOverview(): ReturnType<typeof createElement> {
           textAlign: 'center',
           color: 'var(--text-primary)',
           marginBottom: '2rem',
-          fontSize: '2rem',
+          fontSize: '1.5rem',
         },
       },
       'API at a Glance',
@@ -117,8 +116,8 @@ export function ApiOverview(): ReturnType<typeof createElement> {
         style: {
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '1.5rem',
-          maxWidth: '960px',
+          gap: '16px',
+          maxWidth: '900px',
           margin: '0 auto',
         },
       },
@@ -127,9 +126,9 @@ export function ApiOverview(): ReturnType<typeof createElement> {
           'div',
           {
             style: {
-              padding: '1.5rem',
+              padding: '16px 20px',
               backgroundColor: 'var(--bg-secondary)',
-              borderRadius: '8px',
+              borderRadius: '6px',
               border: '1px solid var(--border)',
             },
           },

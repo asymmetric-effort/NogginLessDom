@@ -8,12 +8,12 @@ export function Header(): ReturnType<typeof createElement> {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: '1rem 2rem',
+        padding: '12px 20px',
         borderBottom: '1px solid var(--border)',
         backgroundColor: 'var(--bg-primary)',
         position: 'sticky',
         top: '0',
-        zIndex: '100',
+        zIndex: '10',
       },
     },
     createElement(
@@ -26,9 +26,8 @@ export function Header(): ReturnType<typeof createElement> {
           gap: '0.5rem',
           fontSize: '1.25rem',
           fontWeight: 'bold',
-          color: 'var(--accent)',
+          color: 'var(--text-primary)',
           textDecoration: 'none',
-          fontFamily: 'monospace',
         },
       },
       createElement('img', {
@@ -42,15 +41,11 @@ export function Header(): ReturnType<typeof createElement> {
     ),
     createElement(
       'nav',
-      { style: { display: 'flex', gap: '1.5rem' } },
-      createElement('a', { href: '#/', style: navLinkStyle() }, 'Home'),
-      createElement(
-        'a',
-        { href: '#/getting-started', style: navLinkStyle() },
-        'Get Started',
-      ),
-      createElement('a', { href: '#/api', style: navLinkStyle() }, 'API'),
-      createElement('a', { href: '#/docs', style: navLinkStyle() }, 'Docs'),
+      { style: { display: 'flex', flexWrap: 'wrap', gap: '8px' } },
+      navLink('#/', 'Home'),
+      navLink('#/getting-started', 'Get Started'),
+      navLink('#/api', 'API'),
+      navLink('#/docs', 'Docs'),
       createElement(
         'a',
         {
@@ -65,11 +60,21 @@ export function Header(): ReturnType<typeof createElement> {
   );
 }
 
+function navLink(
+  href: string,
+  text: string,
+): ReturnType<typeof createElement> {
+  return createElement('a', { href, style: navLinkStyle() }, text);
+}
+
 function navLinkStyle(): Record<string, string> {
   return {
-    color: 'var(--text-muted)',
+    padding: '6px 14px',
+    borderRadius: '6px',
+    backgroundColor: 'var(--bg-tertiary)',
+    color: 'var(--accent)',
     textDecoration: 'none',
-    fontSize: '0.9rem',
-    fontFamily: 'system-ui, sans-serif',
+    fontSize: '14px',
+    fontWeight: '500',
   };
 }

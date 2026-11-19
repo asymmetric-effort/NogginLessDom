@@ -61,9 +61,8 @@ describe('mocking', () => {
     'section',
     {
       style: {
-        padding: '4rem 2rem',
-        backgroundColor: 'var(--bg-tertiary)',
-        fontFamily: 'system-ui, sans-serif',
+        padding: '3rem 20px',
+        backgroundColor: 'var(--bg-secondary)',
       },
     },
     createElement(
@@ -73,7 +72,7 @@ describe('mocking', () => {
           textAlign: 'center',
           color: 'var(--text-primary)',
           marginBottom: '2rem',
-          fontSize: '2rem',
+          fontSize: '1.5rem',
         },
       },
       'Quick Start',
@@ -82,10 +81,10 @@ describe('mocking', () => {
       'div',
       {
         style: {
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '2rem',
-          maxWidth: '960px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '20px',
+          maxWidth: '900px',
           margin: '0 auto',
         },
       },
@@ -102,14 +101,14 @@ function codeBlock(
 ): ReturnType<typeof createElement> {
   return createElement(
     'div',
-    { style: { flex: '1', minWidth: '300px' } },
+    null,
     createElement(
       'h3',
       {
         style: {
-          color: 'var(--accent)',
-          marginBottom: '0.75rem',
-          fontSize: '1rem',
+          color: 'var(--text-primary)',
+          marginBottom: '0.5rem',
+          fontSize: '1.2rem',
         },
       },
       title,
@@ -118,14 +117,13 @@ function codeBlock(
       'pre',
       {
         style: {
-          padding: '1.5rem',
-          backgroundColor: 'var(--bg-secondary)',
-          borderRadius: '8px',
-          border: '1px solid var(--border)',
+          padding: '12px 16px',
+          backgroundColor: 'var(--code-bg)',
+          borderRadius: '6px',
           overflow: 'auto',
-          fontSize: '0.85rem',
+          fontSize: '13px',
           lineHeight: '1.5',
-          color: 'var(--text-secondary)',
+          color: 'var(--code-text)',
           fontFamily: 'monospace',
         },
       },
