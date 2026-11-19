@@ -319,6 +319,149 @@ test.describe('Dark Mode Verification', () => {
   });
 });
 
+test.describe('Light Theme Styling Verification', () => {
+  test('light mode has white background and dark text', async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: 'light' });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const styles = await page.evaluate(() => {
+      const body = getComputedStyle(document.body);
+      const root = getComputedStyle(document.documentElement);
+      return {
+        bg: body.backgroundColor,
+        color: body.color,
+        accent: root.getPropertyValue('--accent').trim(),
+        textPrimary: root.getPropertyValue('--text-primary').trim(),
+      };
+    });
+
+    // White bg: rgb(255, 255, 255)
+    expect(styles.bg).toBe('rgb(255, 255, 255)');
+    // Dark text: rgb(31, 41, 55) = #1f2937
+    expect(styles.color).toBe('rgb(31, 41, 55)');
+    // Blue accent
+    expect(styles.accent).toBe('#3b82f6');
+    expect(styles.textPrimary).toBe('#0f172a');
+    await context.close();
+  });
+
+  test('body uses correct font family', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+    const fontFamily = await page.evaluate(() =>
+      getComputedStyle(document.body).fontFamily,
+    );
+    expect(fontFamily).toContain('system');
+  });
+});
+
+test.describe('Dark Theme Styling Verification', () => {
+  test('dark mode has dark background and light text', async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: 'dark' });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const styles = await page.evaluate(() => {
+      const body = getComputedStyle(document.body);
+      const root = getComputedStyle(document.documentElement);
+      return {
+        bg: body.backgroundColor,
+        color: body.color,
+        accent: root.getPropertyValue('--accent').trim(),
+      };
+    });
+
+    // Dark bg: #0f172a = rgb(15, 23, 42)
+    expect(styles.bg).toBe('rgb(15, 23, 42)');
+    // Light text: #e2e8f0 = rgb(226, 232, 240)
+    expect(styles.color).toBe('rgb(226, 232, 240)');
+    // Lighter blue accent for dark mode
+    expect(styles.accent).toBe('#60a5fa');
+    await context.close();
+  });
+});
+
+test.describe('Navigation Styling Verification', () => {
+  test('nav links have pill-style appearance', async ({ browser }) => {
+    const context = await browser.newContext({ colorScheme: 'light' });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const navLink = page.locator('#root header nav a').first();
+    const styles = await navLink.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { borderRadius: s.borderRadius, color: s.color };
+    });
+
+    expect(styles.borderRadius).toBe('6px');
+    // Blue accent: #3b82f6 = rgb(59, 130, 246)
+    expect(styles.color).toBe('rgb(59, 130, 246)');
+    await context.close();
+  });
+
+  test('header is sticky', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const position = await page.locator('#root header').evaluate((el) =>
+      getComputedStyle(el).position,
+    );
+    expect(position).toBe('sticky');
+  });
+});
+
+test.describe('Code Block Styling Verification', () => {
+  test('code blocks have light text on dark background', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const pre = page.locator('#root pre').first();
+    const color = await pre.evaluate((el) =>
+      getComputedStyle(el).color,
+    );
+    // Light text (brightness > 150)
+    const rgb = color.match(/\d+/g)?.map(Number) || [];
+    const brightness = (rgb[0]! * 299 + rgb[1]! * 587 + rgb[2]! * 114) / 1000;
+    expect(brightness).toBeGreaterThan(150);
+  });
+});
+
+test.describe('Content Area Styling Verification', () => {
+  test('markdown page has 900px max-width', async ({ page }) => {
+    await page.goto('/#/getting-started');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root main', TIMEOUT);
+
+    const maxWidth = await page.locator('#root main').evaluate((el) =>
+      getComputedStyle(el).maxWidth,
+    );
+    expect(maxWidth).toBe('900px');
+  });
+
+  test('feature cards have 6px border-radius', async ({ page }) => {
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const section = page.locator('#root section').nth(1);
+    const card = section.locator('div > div').first();
+    const borderRadius = await card.evaluate((el) =>
+      getComputedStyle(el).borderRadius,
+    );
+    expect(borderRadius).toBe('6px');
+  });
+});
+
 test.describe('Footer Verification', () => {
   test('footer element exists in #root', async ({ page }) => {
     await page.goto('/');
