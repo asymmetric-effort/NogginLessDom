@@ -93,12 +93,11 @@
       /* Hamburger menu */
       .nav-toggle { display: none; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 20px; cursor: pointer; color: var(--text-primary); line-height: 1; }
       .nav-links { display: flex; flex-wrap: wrap; gap: 8px; }
-      .nav-links.closed { display: flex; }
       /* Mobile responsive */
       @media (max-width: 768px) {
         .nav-toggle { display: block; }
-        .nav-links { display: none; position: absolute; top: 100%; left: 0; right: 0; flex-direction: column; gap: 0; background: var(--bg-primary); border-bottom: 1px solid var(--border); padding: 8px 20px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .nav-links.open { display: flex; }
+        .nav-links { display: none !important; position: absolute; top: 100%; left: 0; right: 0; flex-direction: column; gap: 0; background: var(--bg-primary); border-bottom: 1px solid var(--border); padding: 8px 20px 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .nav-links.open { display: flex !important; flex-direction: column; }
         .nav-links a { padding: 10px 14px; border-radius: 6px; }
         h1 { font-size: 1.5rem !important; }
         section { padding-left: 16px !important; padding-right: 16px !important; }
