@@ -319,6 +319,66 @@ test.describe('Dark Mode Verification', () => {
   });
 });
 
+test.describe('Mobile Navigation Verification', () => {
+  test('hamburger toggle is visible on mobile viewport', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 667 } });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const toggle = page.locator('.nav-toggle');
+    await expect(toggle).toBeVisible(TIMEOUT);
+    await context.close();
+  });
+
+  test('hamburger toggle is hidden on desktop viewport', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const toggle = page.locator('.nav-toggle');
+    await expect(toggle).not.toBeVisible();
+    await context.close();
+  });
+
+  test('nav links are hidden on mobile until hamburger is clicked', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 667 } });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    // Nav links should be hidden initially
+    const navLinks = page.locator('.nav-links');
+    await expect(navLinks).not.toBeVisible();
+
+    // Click hamburger to open
+    await page.locator('.nav-toggle').click();
+    await expect(navLinks).toBeVisible(TIMEOUT);
+
+    // Click hamburger again to close
+    await page.locator('.nav-toggle').click();
+    await expect(navLinks).not.toBeVisible();
+
+    await context.close();
+  });
+
+  test('nav links are visible on desktop without toggle', async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await context.newPage();
+    await page.goto('/');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('#root > *', TIMEOUT);
+
+    const navLinks = page.locator('.nav-links');
+    await expect(navLinks).toBeVisible(TIMEOUT);
+    await context.close();
+  });
+});
+
 test.describe('Light Theme Styling Verification', () => {
   test('light mode has white background and dark text', async ({ browser }) => {
     const context = await browser.newContext({ colorScheme: 'light' });
