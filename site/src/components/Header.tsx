@@ -40,8 +40,24 @@ export function Header(): ReturnType<typeof createElement> {
       'NogginLessDom',
     ),
     createElement(
+      'button',
+      {
+        className: 'nav-toggle',
+        'aria-label': 'Toggle navigation',
+        'aria-expanded': 'false',
+        onclick: `
+          const nav = this.nextElementSibling;
+          const isOpen = nav.classList.toggle('open');
+          nav.classList.toggle('closed', !isOpen);
+          this.setAttribute('aria-expanded', String(isOpen));
+          this.textContent = isOpen ? '\\u2715' : '\\u2630';
+        `,
+      },
+      '\u2630',
+    ),
+    createElement(
       'nav',
-      { style: { display: 'flex', flexWrap: 'wrap', gap: '8px' } },
+      { className: 'nav-links closed' },
       navLink('#/', 'Home'),
       navLink('#/getting-started', 'Get Started'),
       navLink('#/api', 'API'),
