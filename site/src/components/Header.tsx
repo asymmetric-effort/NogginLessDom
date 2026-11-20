@@ -54,7 +54,6 @@ export function Header(): ReturnType<typeof createElement> {
           const btn = e.currentTarget as HTMLButtonElement;
           const nav = btn.nextElementSibling as HTMLElement;
           const isOpen = nav.classList.toggle('open');
-          nav.classList.toggle('closed', !isOpen);
           btn.setAttribute('aria-expanded', String(isOpen));
           btn.textContent = isOpen ? '\u2715' : '\u2630';
         },
@@ -63,7 +62,7 @@ export function Header(): ReturnType<typeof createElement> {
     ),
     createElement(
       'nav',
-      { className: 'nav-links closed' },
+      { className: 'nav-links' },
       navLink('#/', 'Home'),
       navLink('#/getting-started', 'Get Started'),
       navLink('#/api', 'API'),
