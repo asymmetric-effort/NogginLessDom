@@ -37,8 +37,12 @@ export function Header(): ReturnType<typeof createElement> {
         height: '32',
         style: { borderRadius: '6px' },
       }),
-      createElement('span', { style: { color: 'var(--accent)' } }, 'Nogginless'),
-      createElement('span', { style: { color: 'var(--text-primary)' } }, 'Dom'),
+      createElement(
+        'span',
+        null,
+        createElement('span', { style: { color: 'var(--accent)' } }, 'NogginLess'),
+        createElement('span', { style: { color: 'var(--text-primary)' } }, 'Dom'),
+      ),
     ),
     createElement(
       'button',
