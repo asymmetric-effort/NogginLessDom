@@ -37,7 +37,8 @@ export function Header(): ReturnType<typeof createElement> {
         height: '32',
         style: { borderRadius: '6px' },
       }),
-      'NogginLessDom',
+      createElement('span', { style: { color: 'var(--accent)' } }, 'Nogginless'),
+      createElement('span', { style: { color: 'var(--text-primary)' } }, 'Dom'),
     ),
     createElement(
       'button',
@@ -45,13 +46,14 @@ export function Header(): ReturnType<typeof createElement> {
         className: 'nav-toggle',
         'aria-label': 'Toggle navigation',
         'aria-expanded': 'false',
-        onclick: `
-          const nav = this.nextElementSibling;
+        onClick: (e: Event) => {
+          const btn = e.currentTarget as HTMLButtonElement;
+          const nav = btn.nextElementSibling as HTMLElement;
           const isOpen = nav.classList.toggle('open');
           nav.classList.toggle('closed', !isOpen);
-          this.setAttribute('aria-expanded', String(isOpen));
-          this.textContent = isOpen ? '\\u2715' : '\\u2630';
-        `,
+          btn.setAttribute('aria-expanded', String(isOpen));
+          btn.textContent = isOpen ? '\u2715' : '\u2630';
+        },
       },
       '\u2630',
     ),

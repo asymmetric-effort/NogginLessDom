@@ -28,7 +28,8 @@ export function Hero(): ReturnType<typeof createElement> {
           color: 'var(--text-primary)',
         },
       },
-      'NogginLessDom',
+      createElement('span', { style: { color: 'var(--accent)' } }, 'Nogginless'),
+      createElement('span', { style: { color: 'var(--text-primary)' } }, 'Dom'),
     ),
     createElement(
       'p',
