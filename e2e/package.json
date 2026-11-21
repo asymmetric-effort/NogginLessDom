@@ -8,7 +8,7 @@
     "test:lib": "bun test ../tests/e2e"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
+    "@playwright/test": "1.65.1",
     "typescript": "^5.5.0"
   }
 }
