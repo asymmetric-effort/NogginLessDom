@@ -21,7 +21,7 @@ concurrency:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
       - uses: asymmetric-effort/actions/actions/setup-bun@main
@@ -32,7 +32,7 @@ jobs:
 
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: lint
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
@@ -44,7 +44,7 @@ jobs:
 
   build-lib:
     name: Build Library
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: test
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
@@ -59,7 +59,7 @@ jobs:
 
   dist-validation:
     name: Dist Validation Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: build-lib
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
@@ -72,7 +72,7 @@ jobs:
 
   e2e:
     name: End-to-End Library Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     needs: build-lib
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
@@ -90,7 +90,7 @@ jobs:
     name: Build Site
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: [e2e, dist-validation]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
       - uses: asymmetric-effort/actions/actions/setup-bun@main
@@ -113,7 +113,7 @@ jobs:
     name: Deploy to GitHub Pages
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build-site
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -126,7 +126,7 @@ jobs:
     name: Post-Deployment Verification (Playwright)
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: deploy
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: asymmetric-effort/actions/actions/checkout@main
 
@@ -161,7 +161,7 @@ jobs:
     name: Publish to npm
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [e2e, dist-validation]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     environment: npm
     permissions:
       contents: read
